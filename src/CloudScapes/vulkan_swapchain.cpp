@@ -73,6 +73,8 @@ VulkanSwapChain::VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface)
     VkPresentModeKHR presentMode = chooseSwapPresentMode(instance->GetPresentModes());
     VkExtent2D extent = chooseSwapExtent(surfaceCapabilities, GetGLFWWindow());
 
+	// Triple Bufferring --> Displaying, Ready to be displayed next, Being worked on
+	// Can do multiple buffering here!
     uint32_t imageCount = surfaceCapabilities.minImageCount + 1; // 2 + 1 = triple buffering
     if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount) {
         imageCount = surfaceCapabilities.maxImageCount;
