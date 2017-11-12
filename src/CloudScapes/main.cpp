@@ -61,7 +61,7 @@ VkRenderPass CreateRenderPass()
 }
 
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
-VkPipelineLayout CreatePipelineLayout()
+VkPipelineLayout CreateGraphicsPipelineLayout()
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -81,7 +81,8 @@ VkPipelineLayout CreatePipelineLayout()
 
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Conclusion
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
-VkPipeline CreatePipeline(VkPipelineLayout pipelineLayout, VkRenderPass renderPass, unsigned int subpass)
+// function argument 'subpass': index of the sub pass where this graphics pipeline will be used.
+VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass renderPass, unsigned int subpass)
 {
 	//--------------------------------------------------------
 	//---------------- Set up shader stages ------------------
@@ -254,7 +255,6 @@ VkPipeline CreatePipeline(VkPipelineLayout pipelineLayout, VkRenderPass renderPa
 	return pipeline;
 }
 
-
 std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
     std::vector<VkFramebuffer> frameBuffers(swapchain->GetCount());
     for (uint32_t i = 0; i < swapchain->GetCount(); i++) {
@@ -276,27 +276,43 @@ std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
     return frameBuffers;
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv) 
+{
     static constexpr char* applicationName = "CIS 565: Final Project -- Vertical Multiple Dusks";
-    InitializeWindow(640, 480, applicationName);
+	int window_height = 640;
+	int window_width = 480;
+    InitializeWindow(window_width, window_height, applicationName);
 
     unsigned int glfwExtensionCount = 0;
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
+	// Vulkan Instance
     instance = new VulkanInstance(applicationName, glfwExtensionCount, glfwExtensions);
 
+	// Drawing Surface, i.e. window where things are rendered to
     VkSurfaceKHR surface;
-    if (glfwCreateWindowSurface(instance->GetVkInstance(), GetGLFWWindow(), nullptr, &surface) != VK_SUCCESS) {
+    if (glfwCreateWindowSurface(instance->GetVkInstance(), GetGLFWWindow(), nullptr, &surface) != VK_SUCCESS) 
+	{
         throw std::runtime_error("Failed to create window surface");
     }
 
+	// physical Device --> GPU
     instance->PickPhysicalDevice({ VK_KHR_SWAPCHAIN_EXTENSION_NAME }, QueueFlagBit::GraphicsBit | QueueFlagBit::PresentBit, surface);
 
+	// Device --> Logical Device: Communicates with the Physical Device and generally acts as an interface to the Physical device
+	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Presentation
+	// QueueFlagBit::PresentBit --> Vulkan is trying to determine if the Queue we  will setup to send commands through can 
+	// actually 'present' images, i.e display them
+	// QueueFlagBit::PresentBit --> Vulkan is trying to determine if we can make use of the window surface we just created, i.e. draw on the window
     device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::PresentBit);
     swapchain = device->CreateSwapChain(surface);
 
+	// Command pools manage the memory that is used to store the command buffers, and command buffers are allocated from them.
     VkCommandPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	// Command buffers are executed by submitting them on one of the device queues, like the graphics and presentation queues 
+	// we retrieved. Each command pool can only allocate command buffers that are submitted on a single type of queue. We're 
+	// going to record commands for drawing, which is why we've chosen the graphics queue family.
     poolInfo.queueFamilyIndex = instance->GetQueueFamilyIndices()[QueueFlags::Graphics];
     poolInfo.flags = 0;
 
@@ -306,6 +322,8 @@ int main(int argc, char** argv) {
     }
 
     VkRenderPass renderPass = CreateRenderPass();
+	VkPipelineLayout graphicsPipelineLayout = CreateGraphicsPipelineLayout();
+	VkPipeline graphicsPipeline = CreateGraphicsPipeline(graphicsPipelineLayout, renderPass, 0);
 
     // Create one framebuffer for each frame of the swap chain
     std::vector<VkFramebuffer> frameBuffers = CreateFrameBuffers(renderPass);
@@ -314,11 +332,16 @@ int main(int argc, char** argv) {
     std::vector<VkCommandBuffer> commandBuffers(swapchain->GetCount());
 
     // Specify the command pool and number of buffers to allocate
+	/*
+	The level parameter specifies if the allocated command buffers are primary or secondary command buffers.
+		VK_COMMAND_BUFFER_LEVEL_PRIMARY: Can be submitted to a queue for execution, but cannot be called from other command buffers.
+		VK_COMMAND_BUFFER_LEVEL_SECONDARY : Cannot be submitted directly, but can be called from primary command buffers.
+	*/
     VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
     commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     commandBufferAllocateInfo.commandPool = commandPool;
     commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    commandBufferAllocateInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
+    commandBufferAllocateInfo.commandBufferCount = (uint32_t)(commandBuffers.size());
 
     if (vkAllocateCommandBuffers(device->GetVulkanDevice(), &commandBufferAllocateInfo, commandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to allocate command buffers");
@@ -328,51 +351,88 @@ int main(int argc, char** argv) {
     for (unsigned int i = 0; i < commandBuffers.size(); ++i) {
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-        beginInfo.pInheritanceInfo = nullptr;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // How we are using the command buffer
+																		// The command buffer can be resubmitted while it is also already pending execution.
+        beginInfo.pInheritanceInfo = nullptr; //only useful for secondary command buffers
 
+		//---------- Begin recording ----------
+		//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
+		// It's not possible to append commands to a buffer at a later time.
         vkBeginCommandBuffer(commandBuffers[i], &beginInfo);
 
         VkRenderPassBeginInfo renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = renderPass;
-        renderPassInfo.framebuffer = frameBuffers[i];
+        renderPassInfo.framebuffer = frameBuffers[i]; //attachments we bind to the renderpass
         renderPassInfo.renderArea.offset = { 0, 0 };
         renderPassInfo.renderArea.extent = swapchain->GetExtent();
 
+		// Clear values used while clearing the attachments before usage or after usage
         VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
         renderPassInfo.clearValueCount = 1;
         renderPassInfo.pClearValues = &clearColor;
 
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		// VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command
+		// buffer itself and no secondary command buffers will be executed.
+
+		// Bind the graphics pipeline
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+		// Draw
+		vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+		/*
+			vkCmdDraw has the following parameters, aside from the command buffer:
+				vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
+				instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+				firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
+				firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+		*/
 
         vkCmdEndRenderPass(commandBuffers[i]);
 
+		//---------- End Recording ----------
         if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to record command buffer");
         }
     }
 
-    while (!ShouldQuit()) {
+	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
+    while (!ShouldQuit()) 
+	{
         swapchain->Acquire();
         
         // Submit the command buffer
         VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    
+		
+		/*
+			Can synchronize between queues by using certain supported features
+				VkEvent: Versatile waiting, but limited to a single queue
+				VkSemaphore: GPU to GPU synchronization
+				vkFence: GPU to CPU synchronization
+		*/
+
         VkSemaphore waitSemaphores[] = { swapchain->GetImageAvailableSemaphore() };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		// These parameters specify which semaphores to wait on before execution begins and in which stage(s) of the pipeline to wait
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
         submitInfo.pWaitDstStageMask = waitStages;
-    
+		// We want to wait with writing colors to the image until it's available, so we're specifying the stage of the graphics pipeline 
+		// that writes to the color attachment. That means that theoretically the implementation can already start executing our vertex 
+		// shader and such while the image is not available yet.
+		
+		// specify which command buffers to actually submit for execution
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffers[swapchain->GetIndex()];
-    
+		
+		// The signalSemaphoreCount and pSignalSemaphores parameters specify which semaphores to signal once the command buffer(s) have finished execution.
         VkSemaphore signalSemaphores[] = { swapchain->GetRenderFinishedSemaphore() };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
-    
+		
+		// submit the command buffer to the graphics queue
         if (vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
             throw std::runtime_error("Failed to submit draw command buffer");
         }
