@@ -1,0 +1,21 @@
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+struct Vertex {
+    vec4 position;
+	vec4 color;
+};
+
+layout(set = 0, binding = 0) buffer Vertices {
+	Vertex vertices[];
+};
+
+void main() 
+{
+	uint index = gl_GlobalInvocationID.x;
+	const float a = 0.05 * 3.14159 / 180.0;
+	vertices[index].position *= mat4(cos(a), -sin(a), 0.0, 0.0,
+									 sin(a),  cos(a), 0.0, 0.0,
+									 0.0,     0.0,    1.0, 0.0,
+									 0.0,     0.0,    0.0, 1.0 );
+}

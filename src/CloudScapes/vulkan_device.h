@@ -13,6 +13,7 @@ public:
     VulkanInstance* GetInstance();
     VkDevice GetVulkanDevice();
     VkQueue GetQueue(QueueFlags flag);
+	unsigned int GetQueueIndex(QueueFlags flag);
     ~VulkanDevice();
 
 private:
@@ -24,5 +25,4 @@ private:
     VulkanInstance* instance;
     VkDevice vkDevice;
     Queues queues;
-    QueueFamilyIndices queueIndices;
 };

@@ -50,11 +50,10 @@ namespace {
 	}
 }
 
-
 struct Vertex
 {
-	float position[3];
-	float color[3];
+	glm::vec4 position;
+	glm::vec4 color;
 };
 
 struct CameraUBO
@@ -67,7 +66,6 @@ struct ModelUBO
 {
 	glm::mat4 modelMatrix;
 };
-
 
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Render_passes
 VkRenderPass CreateRenderPass()
@@ -145,8 +143,9 @@ VkDescriptorPool CreateDescriptorPool()
 {
 	// Info for the types of descriptors that can be allocated from this pool
 
-	// Size 2 for camera and model descriptor sets 
-	VkDescriptorPoolSize poolSizes[2];
+	//compute and graphics descriptor sets are allocated from the same pool
+	// Size 3 for camera, model, and storage descriptor sets
+	VkDescriptorPoolSize poolSizes[3];
 
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = 1;
@@ -154,12 +153,15 @@ VkDescriptorPool CreateDescriptorPool()
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[1].descriptorCount = 1;
 
+	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	poolSizes[2].descriptorCount = 1;
+
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
 	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolInfo.pNext = nullptr;
-	descriptorPoolInfo.poolSizeCount = 2;				// Update if you add more descriptor sets 
+	descriptorPoolInfo.poolSizeCount = 3;				// Update if you add more descriptor sets 
 	descriptorPoolInfo.pPoolSizes = poolSizes;
-	descriptorPoolInfo.maxSets = 2;						// Update if you add more descriptor sets 
+	descriptorPoolInfo.maxSets = 3;						// Update if you add more descriptor sets 
 
 	VkDescriptorPool descriptorPool;
 	vkCreateDescriptorPool(device->GetVulkanDevice(), &descriptorPoolInfo, nullptr, &descriptorPool);
@@ -180,7 +182,7 @@ VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescripto
 }
 
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
-VkPipelineLayout CreateGraphicsPipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts)
+VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts)
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -399,7 +401,33 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 	return pipeline;
 }
 
-std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
+VkPipeline CreateComputePipeline(VkPipelineLayout pipelineLayout)
+{
+	VkShaderModule compShaderModule = createShaderModule("CloudScapes/shaders/shader.comp.spv", device->GetVulkanDevice());
+
+	VkPipelineShaderStageCreateInfo compShaderStageInfo = {};
+	compShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	compShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	compShaderStageInfo.module = compShaderModule;
+	compShaderStageInfo.pName = "main";
+
+	VkComputePipelineCreateInfo pipelineInfo = {};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	pipelineInfo.stage = compShaderStageInfo;
+	pipelineInfo.layout = pipelineLayout;
+
+	VkPipeline pipeline;
+	if (vkCreateComputePipelines(device->GetVulkanDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create pipeline");
+	}
+
+	vkDestroyShaderModule(device->GetVulkanDevice(), compShaderModule, nullptr);
+
+	return pipeline;
+}
+
+std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) 
+{
     std::vector<VkFramebuffer> frameBuffers(swapchain->GetCount());
     for (uint32_t i = 0; i < swapchain->GetCount(); i++) {
         VkImageView attachments[] = { swapchain->GetImageView(i) };
@@ -442,14 +470,14 @@ int main(int argc, char** argv)
 
 	// physical Device --> GPU
 	// TransferBit tells Vulkan that we can transfer data between CPU and GPU
-    instance->PickPhysicalDevice({ VK_KHR_SWAPCHAIN_EXTENSION_NAME }, QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit, surface);
+    instance->PickPhysicalDevice({ VK_KHR_SWAPCHAIN_EXTENSION_NAME }, QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::ComputeBit | QueueFlagBit::PresentBit, surface);
 
 	// Device --> Logical Device: Communicates with the Physical Device and generally acts as an interface to the Physical device
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Presentation
 	// QueueFlagBit::PresentBit --> Vulkan is trying to determine if the Queue we  will setup to send commands through can 
 	// actually 'present' images, i.e display them
 	// QueueFlagBit::PresentBit --> Vulkan is trying to determine if we can make use of the window surface we just created, i.e. draw on the window
-    device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit);
+    device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::ComputeBit | QueueFlagBit::PresentBit);
     swapchain = device->CreateSwapChain(surface);
 
 	// Command pools manage the memory that is used to store the command buffers, and command buffers are allocated from them.
@@ -478,9 +506,9 @@ int main(int argc, char** argv)
 
 	// Create vertices and indices vectors to bind to buffers
 	std::vector<Vertex> vertices = {
-		{ { 0.5f,  0.5f, 0.0f },{ 0.0f, 1.0f, 0.0f } },
-		{ { -0.5f, 0.5f, 0.0f },{ 0.0f, 0.0f, 1.0f } },
-		{ { 0.0f, -0.5f, 0.0f },{ 1.0f, 0.0f, 0.0f } }
+		{ { 0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
+		{ { -0.5f, 0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } },
+		{ { 0.0f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f } }
 	};
 
 	std::vector<unsigned int> indices = { 0, 1, 2 };
@@ -489,7 +517,7 @@ int main(int argc, char** argv)
 	unsigned int indexBufferSize = static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
 
 	// Create vertex and index buffers
-	VkBuffer vertexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBufferSize);
+	VkBuffer vertexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vertexBufferSize);
 	VkBuffer indexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
 	unsigned int vertexBufferOffsets[2];
 
@@ -539,6 +567,11 @@ int main(int argc, char** argv)
 	// Descriptor Count --> Shader variable can represent an array of UBO's, descriptorCount specifies number of values in the array
 	// Stage Flags --> which shader you're referencing this descriptor from 
 	// pImmutableSamplers --> for image sampling related descriptors
+
+	VkDescriptorSetLayout computeSetLayout = CreateDescriptorSetLayout({
+		{ 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
+	});
+
 	VkDescriptorSetLayout cameraSetLayout = CreateDescriptorSetLayout({
 		{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
 	});
@@ -548,10 +581,25 @@ int main(int argc, char** argv)
 	});
 
 	// Initialize descriptor sets
+	VkDescriptorSet computeSet = CreateDescriptorSet(descriptorPool, computeSetLayout);
 	VkDescriptorSet cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
 	VkDescriptorSet modelSet = CreateDescriptorSet(descriptorPool, modelSetLayout);
 
 	{
+		// Compute
+		VkDescriptorBufferInfo computeBufferInfo = {};
+		computeBufferInfo.buffer = vertexBuffer;
+		computeBufferInfo.offset = 0;
+		computeBufferInfo.range = vertexBufferSize;
+
+		VkWriteDescriptorSet writeComputeInfo = {};
+		writeComputeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeComputeInfo.dstSet = computeSet;
+		writeComputeInfo.dstBinding = 0;
+		writeComputeInfo.descriptorCount = 1;									// How many 
+		writeComputeInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		writeComputeInfo.pBufferInfo = &computeBufferInfo;
+
 		// Camera 
 		VkDescriptorBufferInfo cameraBufferInfo = {};
 		cameraBufferInfo.buffer = cameraBuffer;
@@ -580,15 +628,17 @@ int main(int argc, char** argv)
 		writeModelInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		writeModelInfo.pBufferInfo = &modelBufferInfo;
 
-		VkWriteDescriptorSet writeDescriptorSets[] = { writeCameraInfo, writeModelInfo };
+		VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeInfo, writeCameraInfo, writeModelInfo };
 
-		vkUpdateDescriptorSets(device->GetVulkanDevice(), 2, writeDescriptorSets, 0, nullptr);
+		vkUpdateDescriptorSets(device->GetVulkanDevice(), 3, writeDescriptorSets, 0, nullptr);
 	}
 
 
-
     VkRenderPass renderPass = CreateRenderPass();
-	VkPipelineLayout graphicsPipelineLayout = CreateGraphicsPipelineLayout({cameraSetLayout, modelSetLayout});
+	VkPipelineLayout computePipelineLayout = CreatePipelineLayout({ computeSetLayout });
+	VkPipeline computePipeline = CreateComputePipeline(computePipelineLayout);
+
+	VkPipelineLayout graphicsPipelineLayout = CreatePipelineLayout({cameraSetLayout, modelSetLayout});
 	VkPipeline graphicsPipeline = CreateGraphicsPipeline(graphicsPipelineLayout, renderPass, 0);
 
     // Create one framebuffer for each frame of the swap chain
@@ -638,10 +688,48 @@ int main(int argc, char** argv)
         renderPassInfo.clearValueCount = 1;
         renderPassInfo.pClearValues = &clearColor;
 
+		//-----------------------------------------------------
+		//--- Compute Pipeline Binding, Dispatch & Barriers ---
+		//-----------------------------------------------------
+
+		//Bind the compute piepline
+		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+
+		//Bind Descriptor Sets for compute
+		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeSet, 0, nullptr);
+
+		// Dispatch the compute kernel, with one thread for each vertex
+		vkCmdDispatch(commandBuffers[i], vertices.size(), 1, 1); //similar to kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
+
+		// Define a memory barrier to transition the vertex buffer from a compute storage object to a vertex input
+		// Each element of the pMemoryBarriers, pBufferMemoryBarriers and pImageMemoryBarriers arrays specifies two halves of a memory dependency, as defined above.
+		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html#synchronization-memory-barriers
+		VkBufferMemoryBarrier computeToVertexBarrier = {};
+		computeToVertexBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		computeToVertexBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+		computeToVertexBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+		computeToVertexBarrier.srcQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Compute);
+		computeToVertexBarrier.dstQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Graphics);
+		computeToVertexBarrier.buffer = vertexBuffer;
+		computeToVertexBarrier.offset = 0;
+		computeToVertexBarrier.size = vertexBufferSize;
+
+		// A pipeline barrier inserts an execution dependency and a set of memory dependencies between a set of commands earlier in the command buffer and a set of commands later in the command buffer.
+		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html
+		vkCmdPipelineBarrier(commandBuffers[i],
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+			0,
+			0, nullptr,
+			1, &computeToVertexBarrier,
+			0, nullptr);
+
+		//----------------------------------------------
+		//--- Graphics Pipeline Binding and Dispatch ---
+		//----------------------------------------------
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		// VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command
 		// buffer itself and no secondary command buffers will be executed.
-
 
 		// Bind camera descriptor set
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &cameraSet, 0, nullptr);
@@ -659,12 +747,7 @@ int main(int argc, char** argv)
 		// Bind triangle index buffer
 		vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
-		// Draw indexed triangle
-		vkCmdDrawIndexed(commandBuffers[i], 3, 1, 0, 0, 1);
-
-
 		// Draw
-		vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 		/*
 			vkCmdDraw has the following parameters, aside from the command buffer:
 				vertexCount: Even though we don't have a vertex buffer, we technically still have 3 vertices to draw.
@@ -672,6 +755,10 @@ int main(int argc, char** argv)
 				firstVertex: Used as an offset into the vertex buffer, defines the lowest value of gl_VertexIndex.
 				firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
 		*/
+		//vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
+
+		// Draw indexed triangle
+		vkCmdDrawIndexed(commandBuffers[i], 3, 1, 0, 0, 1);
 
         vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -752,9 +839,13 @@ int main(int argc, char** argv)
 	vkDestroyBuffer(device->GetVulkanDevice(), modelBuffer, nullptr);
 	vkFreeMemory(device->GetVulkanDevice(), uniformBufferMemory, nullptr);
 
+	vkDestroyDescriptorSetLayout(device->GetVulkanDevice(), computeSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device->GetVulkanDevice(), cameraSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(device->GetVulkanDevice(), modelSetLayout, nullptr);
 	vkDestroyDescriptorPool(device->GetVulkanDevice(), descriptorPool, nullptr);
+
+	vkDestroyPipeline(device->GetVulkanDevice(), computePipeline, nullptr);
+	vkDestroyPipelineLayout(device->GetVulkanDevice(), computePipelineLayout, nullptr);
 
 	vkDestroyPipeline(device->GetVulkanDevice(), graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device->GetVulkanDevice(), graphicsPipelineLayout, nullptr);

@@ -1,26 +1,35 @@
 #include "vulkan_device.h"
 
 VulkanDevice::VulkanDevice(VulkanInstance* instance, VkDevice vkDevice, Queues queues)
-  : instance(instance), vkDevice(vkDevice), queues(queues) {
+  : instance(instance), vkDevice(vkDevice), queues(queues) 
+{}
 
-}
-
-VulkanInstance* VulkanDevice::GetInstance() {
+VulkanInstance* VulkanDevice::GetInstance() 
+{
     return instance;
 }
 
-VkDevice VulkanDevice::GetVulkanDevice() {
+VkDevice VulkanDevice::GetVulkanDevice() 
+{
     return vkDevice;
 }
 
-VkQueue VulkanDevice::GetQueue(QueueFlags flag) {
+VkQueue VulkanDevice::GetQueue(QueueFlags flag) 
+{
     return queues[flag];
 }
 
-VulkanSwapChain* VulkanDevice::CreateSwapChain(VkSurfaceKHR surface) {
+unsigned int VulkanDevice::GetQueueIndex(QueueFlags flag) 
+{
+	return GetInstance()->GetQueueFamilyIndices()[flag];
+}
+
+VulkanSwapChain* VulkanDevice::CreateSwapChain(VkSurfaceKHR surface) 
+{
     return new VulkanSwapChain(this, surface);
 }
 
-VulkanDevice::~VulkanDevice() {
+VulkanDevice::~VulkanDevice() 
+{
     vkDestroyDevice(vkDevice, nullptr);
 }
