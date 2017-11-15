@@ -4,16 +4,70 @@
 #include "vulkan_instance.h"
 #include "vulkan_shader_module.h"
 #include "vulkan_buffer.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <camera.h>
+#include <iostream>
 
 VulkanInstance* instance;
 VulkanDevice* device;
 VulkanSwapChain* swapchain;
+
+Camera* camera;
+glm::mat4* mappedCameraView;
+
+namespace {
+	bool buttons[GLFW_MOUSE_BUTTON_LAST + 1] = { 0 };
+
+	void mouseButtonCallback(GLFWwindow*, int button, int action, int) {
+		buttons[button] = (action == GLFW_PRESS);
+	}
+
+	void cursorPosCallback(GLFWwindow*, double mouseX, double mouseY) {
+		static double oldX, oldY;
+		float dX = static_cast<float>(mouseX - oldX);
+		float dY = static_cast<float>(mouseY - oldY);
+		oldX = mouseX;
+		oldY = mouseY;
+
+		if (buttons[2] || (buttons[0] && buttons[1])) {
+			camera->pan(-dX * 0.002f, dY * -0.002f);
+			memcpy(mappedCameraView, &camera->view(), sizeof(glm::mat4));
+		}
+		else if (buttons[0]) {
+			camera->rotate(dX * -0.01f, dY * -0.01f);
+			memcpy(mappedCameraView, &camera->view(), sizeof(glm::mat4));
+		}
+		else if (buttons[1]) {
+			camera->zoom(dY * -0.005f);
+			memcpy(mappedCameraView, &camera->view(), sizeof(glm::mat4));
+		}
+	}
+
+	void scrollCallback(GLFWwindow*, double, double yoffset) {
+		camera->zoom(static_cast<float>(yoffset) * 0.04f);
+		memcpy(mappedCameraView, &camera->view(), sizeof(glm::mat4));
+	}
+}
+
 
 struct Vertex
 {
 	float position[3];
 	float color[3];
 };
+
+struct CameraUBO
+{
+	glm::mat4 viewMatrix;
+	glm::mat4 projectionMatrix;
+};
+
+struct ModelUBO
+{
+	glm::mat4 modelMatrix;
+};
+
 
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Render_passes
 VkRenderPass CreateRenderPass()
@@ -67,13 +121,71 @@ VkRenderPass CreateRenderPass()
     return renderPass;
 }
 
+/*
+	Reference: https://vulkan-tutorial.com/Uniform_buffers 
+	Look for UBO's declared above
+*/
+VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding> layoutBindings)
+{
+	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetLayoutCreateInfo.pNext = nullptr;
+	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
+	descriptorSetLayoutCreateInfo.pBindings = layoutBindings.data();
+
+	VkDescriptorSetLayout descriptorSetLayout;
+	vkCreateDescriptorSetLayout(device->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout);
+	return descriptorSetLayout;
+}
+
+/*
+	Reference: https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets
+*/
+VkDescriptorPool CreateDescriptorPool()
+{
+	// Info for the types of descriptors that can be allocated from this pool
+
+	// Size 2 for camera and model descriptor sets 
+	VkDescriptorPoolSize poolSizes[2];
+
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[0].descriptorCount = 1;
+
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[1].descriptorCount = 1;
+
+	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolInfo.pNext = nullptr;
+	descriptorPoolInfo.poolSizeCount = 2;				// Update if you add more descriptor sets 
+	descriptorPoolInfo.pPoolSizes = poolSizes;
+	descriptorPoolInfo.maxSets = 2;						// Update if you add more descriptor sets 
+
+	VkDescriptorPool descriptorPool;
+	vkCreateDescriptorPool(device->GetVulkanDevice(), &descriptorPoolInfo, nullptr, &descriptorPool);
+	return descriptorPool;
+}
+
+VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)
+{
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = descriptorPool;
+	allocInfo.descriptorSetCount = 1;
+	allocInfo.pSetLayouts = &descriptorSetLayout;
+
+	VkDescriptorSet descriptorSet;
+	vkAllocateDescriptorSets(device->GetVulkanDevice(), &allocInfo, &descriptorSet);
+	return descriptorSet;
+}
+
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
-VkPipelineLayout CreateGraphicsPipelineLayout()
+VkPipelineLayout CreateGraphicsPipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts)
 {
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 0;
-	pipelineLayoutInfo.pSetLayouts = nullptr;
+	pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 	pipelineLayoutInfo.pushConstantRangeCount = 0;
 	pipelineLayoutInfo.pPushConstantRanges = 0;
 
@@ -355,6 +467,15 @@ int main(int argc, char** argv)
     }
 
 
+	// Create Camera and Model data to send over to shaders through descriptor sets 
+	CameraUBO cameraTransforms;
+	camera = new Camera(&cameraTransforms.viewMatrix);
+	cameraTransforms.projectionMatrix = glm::perspective(static_cast<float>(45 * M_PI / 180), 640.f / 480.f, 0.1f, 1000.f);
+
+	ModelUBO modelTransforms;
+	modelTransforms.modelMatrix = glm::rotate(glm::mat4(1.f), static_cast<float>(15 * M_PI / 180), glm::vec3(0.f, 0.f, 1.f));
+
+
 	// Create vertices and indices vectors to bind to buffers
 	std::vector<Vertex> vertices = {
 		{ { 0.5f,  0.5f, 0.0f },{ 0.0f, 1.0f, 0.0f } },
@@ -371,6 +492,9 @@ int main(int argc, char** argv)
 	VkBuffer vertexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBufferSize);
 	VkBuffer indexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
 	unsigned int vertexBufferOffsets[2];
+
+	// VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT bit indicates that memory allocated with this type can be mapped for host access using vkMapMemory
+	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT allows to transfer host writes to the device or make device writes visible to the host (without needing other cache mgmt commands)
 	VkDeviceMemory vertexBufferMemory = AllocateMemoryForBuffers(device, { vertexBuffer, indexBuffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBufferOffsets);
 
 	// Copy data to buffer memory
@@ -388,8 +512,83 @@ int main(int argc, char** argv)
 	BindMemoryForBuffers(device, vertexBufferMemory, { vertexBuffer, indexBuffer }, vertexBufferOffsets);
 
 
+	// Create uniform buffers 
+	VkBuffer cameraBuffer = CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO));
+	VkBuffer modelBuffer = CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelUBO));
+	unsigned int uniformBufferOffsets[2];
+	VkDeviceMemory uniformBufferMemory = AllocateMemoryForBuffers(device, { cameraBuffer, modelBuffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBufferOffsets);
+
+	// Copy data to uniform memory 
+	{
+		char* data;
+		vkMapMemory(device->GetVulkanDevice(), uniformBufferMemory, 0, uniformBufferOffsets[1] + sizeof(ModelUBO), 0, reinterpret_cast<void**>(&data));		// reinterpret_cast = Leave data as bits, don't reformat it
+		memcpy(data + uniformBufferOffsets[0], &cameraTransforms, sizeof(CameraUBO));
+		memcpy(data + uniformBufferOffsets[1], &modelTransforms, sizeof(ModelUBO));
+		vkUnmapMemory(device->GetVulkanDevice(), uniformBufferMemory);
+	}
+
+	// Bind memory to buffers
+	BindMemoryForBuffers(device, uniformBufferMemory, { cameraBuffer, modelBuffer }, uniformBufferOffsets);
+
+	// Begin Descriptor logic
+	VkDescriptorPool descriptorPool = CreateDescriptorPool();
+
+	// Create the array of VkDescriptorSetLayoutBinding's 
+	// Binding --> used in shader
+	// Descriptor Type --> type of descriptor
+	// Descriptor Count --> Shader variable can represent an array of UBO's, descriptorCount specifies number of values in the array
+	// Stage Flags --> which shader you're referencing this descriptor from 
+	// pImmutableSamplers --> for image sampling related descriptors
+	VkDescriptorSetLayout cameraSetLayout = CreateDescriptorSetLayout({
+		{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
+	});
+
+	VkDescriptorSetLayout modelSetLayout = CreateDescriptorSetLayout({
+		{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
+	});
+
+	// Initialize descriptor sets
+	VkDescriptorSet cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
+	VkDescriptorSet modelSet = CreateDescriptorSet(descriptorPool, modelSetLayout);
+
+	{
+		// Camera 
+		VkDescriptorBufferInfo cameraBufferInfo = {};
+		cameraBufferInfo.buffer = cameraBuffer;
+		cameraBufferInfo.offset = 0;
+		cameraBufferInfo.range = sizeof(CameraUBO);
+
+		VkWriteDescriptorSet writeCameraInfo = {};
+		writeCameraInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeCameraInfo.dstSet = cameraSet;
+		writeCameraInfo.dstBinding = 0;
+		writeCameraInfo.descriptorCount = 1;									// How many 
+		writeCameraInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeCameraInfo.pBufferInfo = &cameraBufferInfo;
+
+		// Model
+		VkDescriptorBufferInfo modelBufferInfo = {};
+		modelBufferInfo.buffer = modelBuffer;
+		modelBufferInfo.offset = 0;
+		modelBufferInfo.range = sizeof(ModelUBO);
+
+		VkWriteDescriptorSet writeModelInfo = {};
+		writeModelInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeModelInfo.dstSet = modelSet;
+		writeModelInfo.dstBinding = 0;
+		writeModelInfo.descriptorCount = 1;
+		writeModelInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		writeModelInfo.pBufferInfo = &modelBufferInfo;
+
+		VkWriteDescriptorSet writeDescriptorSets[] = { writeCameraInfo, writeModelInfo };
+
+		vkUpdateDescriptorSets(device->GetVulkanDevice(), 2, writeDescriptorSets, 0, nullptr);
+	}
+
+
+
     VkRenderPass renderPass = CreateRenderPass();
-	VkPipelineLayout graphicsPipelineLayout = CreateGraphicsPipelineLayout();
+	VkPipelineLayout graphicsPipelineLayout = CreateGraphicsPipelineLayout({cameraSetLayout, modelSetLayout});
 	VkPipeline graphicsPipeline = CreateGraphicsPipeline(graphicsPipelineLayout, renderPass, 0);
 
     // Create one framebuffer for each frame of the swap chain
@@ -443,6 +642,13 @@ int main(int argc, char** argv)
 		// VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command
 		// buffer itself and no secondary command buffers will be executed.
 
+
+		// Bind camera descriptor set
+		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &cameraSet, 0, nullptr);
+
+		// Bind model descriptor set
+		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &modelSet, 0, nullptr);
+
 		// Bind the graphics pipeline
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
@@ -473,7 +679,16 @@ int main(int argc, char** argv)
         if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to record command buffer");
         }
-    }
+    }// end for loop
+
+	glfwSetMouseButtonCallback(GetGLFWWindow(), mouseButtonCallback);
+	glfwSetCursorPosCallback(GetGLFWWindow(), cursorPosCallback);
+	glfwSetScrollCallback(GetGLFWWindow(), scrollCallback);
+
+	int frameNumber = 0;
+	// Map the part of the buffer referring the camera view matrix so it can be updated when the camera moves
+	vkMapMemory(device->GetVulkanDevice(), uniformBufferMemory, uniformBufferOffsets[0] + offsetof(CameraUBO, viewMatrix), sizeof(glm::mat4), 0, reinterpret_cast<void**>(&mappedCameraView));
+
 
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
     while (!ShouldQuit()) 
@@ -518,14 +733,28 @@ int main(int argc, char** argv)
         swapchain->Present();
 
         glfwPollEvents();
-    }
+    }// end while loop
+
+
+	vkUnmapMemory(device->GetVulkanDevice(), uniformBufferMemory);
+
 
     // Wait for the device to finish executing before cleanup
     vkDeviceWaitIdle(device->GetVulkanDevice());
 
+	delete camera;
+
 	vkDestroyBuffer(device->GetVulkanDevice(), vertexBuffer, nullptr);
 	vkDestroyBuffer(device->GetVulkanDevice(), indexBuffer, nullptr);
 	vkFreeMemory(device->GetVulkanDevice(), vertexBufferMemory, nullptr);
+
+	vkDestroyBuffer(device->GetVulkanDevice(), cameraBuffer, nullptr);
+	vkDestroyBuffer(device->GetVulkanDevice(), modelBuffer, nullptr);
+	vkFreeMemory(device->GetVulkanDevice(), uniformBufferMemory, nullptr);
+
+	vkDestroyDescriptorSetLayout(device->GetVulkanDevice(), cameraSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device->GetVulkanDevice(), modelSetLayout, nullptr);
+	vkDestroyDescriptorPool(device->GetVulkanDevice(), descriptorPool, nullptr);
 
 	vkDestroyPipeline(device->GetVulkanDevice(), graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device->GetVulkanDevice(), graphicsPipelineLayout, nullptr);
