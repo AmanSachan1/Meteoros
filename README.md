@@ -15,6 +15,14 @@ C:/VulkanSDK/1.0.17.0/Bin32/glslangValidator.exe -V shader.frag
 pause
 Replace the path to glslangValidator.exe with the path to where you installed the Vulkan SDK. Double click the file to run it.
 
+
+## Notes
+
+- We did not add checks to make sure some features are supported by the GPU before using them, such as anisotropic filtering.
+
+
 ##Resources
 
 - Image Loading Library: https://github.com/nothings/stb
+
+- Why to include stb in .cpp file: https://stackoverflow.com/questions/43348798/double-inclusion-and-headers-only-library-stbi-image 

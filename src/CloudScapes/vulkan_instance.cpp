@@ -307,6 +307,7 @@ VulkanDevice* VulkanInstance::CreateDevice(QueueFlagBits requiredQueues) {
 
     // --- Specify the set of device features used ---
     VkPhysicalDeviceFeatures deviceFeatures = {};
+	deviceFeatures.samplerAnisotropy = VK_TRUE;
 
     // --- Create logical device ---
     VkDeviceCreateInfo createInfo = {};

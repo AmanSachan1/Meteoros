@@ -56,8 +56,47 @@ namespace {
 
 struct Vertex
 {
-	glm::vec4 position;
-	glm::vec4 color;
+	glm::vec3 position;
+	glm::vec3 color;
+	glm::vec2 texCoord;
+
+	/*
+		The functions below allow us to access texture coordinates as input in the vertex shader. 
+		That is necessary to be able to pass them to the fragment shader 
+		for interpolation across the surface of the square
+	*/
+
+	static VkVertexInputBindingDescription getBindingDescription() 
+	{
+		VkVertexInputBindingDescription bindingDescription = {};
+		bindingDescription.binding = 0;
+		bindingDescription.stride = sizeof(Vertex);
+		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return bindingDescription;
+	}
+
+	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() 
+	{
+		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {};
+
+		attributeDescriptions[0].binding = 0;
+		attributeDescriptions[0].location = 0;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[0].offset = offsetof(Vertex, position);
+
+		attributeDescriptions[1].binding = 0;
+		attributeDescriptions[1].location = 1;
+		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+		attributeDescriptions[2].binding = 0;
+		attributeDescriptions[2].location = 2;
+		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
+
+		return attributeDescriptions;
+	}
 };
 
 struct CameraUBO
@@ -140,6 +179,22 @@ VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayou
 	return descriptorSetLayout;
 }
 
+VkDescriptorSetLayout CreateSamplerDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding> samplerLayoutBindings)
+{
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = static_cast<uint32_t>(samplerLayoutBindings.size());
+	layoutInfo.pBindings = samplerLayoutBindings.data();
+
+	VkDescriptorSetLayout samplerDescriptorSetLayout;
+	if (vkCreateDescriptorSetLayout(device->GetVulkanDevice(), &layoutInfo, nullptr, &samplerDescriptorSetLayout) != VK_SUCCESS) 
+	{
+		throw std::runtime_error("Failed to create descriptor set layout");
+	}
+	return samplerDescriptorSetLayout;
+}
+
+
 /*
 	Reference: https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets
 */
@@ -149,23 +204,30 @@ VkDescriptorPool CreateDescriptorPool()
 
 	//compute and graphics descriptor sets are allocated from the same pool
 	// Size 3 for camera, model, and storage descriptor sets
-	VkDescriptorPoolSize poolSizes[3];
+	VkDescriptorPoolSize poolSizes[4];    // Update if you add more descriptor sets 
 
+	// Camera
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = 1;
 
+	// Model
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[1].descriptorCount = 1;
 
+	// Compute (modifies vertex buffer)
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	poolSizes[2].descriptorCount = 1;
+
+	// Textures
+	poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[3].descriptorCount = 1;
 
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
 	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	descriptorPoolInfo.pNext = nullptr;
-	descriptorPoolInfo.poolSizeCount = 3;				// Update if you add more descriptor sets 
+	descriptorPoolInfo.poolSizeCount = 4;				// Update if you add more descriptor sets 
 	descriptorPoolInfo.pPoolSizes = poolSizes;
-	descriptorPoolInfo.maxSets = 3;						// Update if you add more descriptor sets 
+	descriptorPoolInfo.maxSets = 4;						// Update if you add more descriptor sets 
 
 	VkDescriptorPool descriptorPool;
 	vkCreateDescriptorPool(device->GetVulkanDevice(), &descriptorPoolInfo, nullptr, &descriptorPool);
@@ -242,25 +304,30 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 	// Tell Vulkan how to pass this data format to the vertex shader once it's been uploaded to GPU memory 
 	// Vertex binding describes at which rate to load data from memory throughout the vertices
 	VkVertexInputBindingDescription vertexInputBinding = {}; 
-	vertexInputBinding.binding = 0; // All of our per-vertex data is packed together in 1 array so we only have one binding
-									// The binding param specifies index of the binding in array of bindings
-	vertexInputBinding.stride = sizeof(Vertex);
-	vertexInputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	//vertexInputBinding.binding = 0; // All of our per-vertex data is packed together in 1 array so we only have one binding
+	//								// The binding param specifies index of the binding in array of bindings
+	//vertexInputBinding.stride = sizeof(Vertex);
+	//vertexInputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-	// Inpute attribute bindings describe shader attribute locations and memory layouts
-	std::array<VkVertexInputAttributeDescription, 2> vertexInputAttributes;
-	// Attribute location 0: Position
-	vertexInputAttributes[0].binding = 0;
-	vertexInputAttributes[0].location = 0;
-	// Position attribute is three 32 bit signed (SFLOAT) floats (R32 G32 B32)
-	vertexInputAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexInputAttributes[0].offset = offsetof(Vertex, position);
-	// Attribute location 1: Color
-	vertexInputAttributes[1].binding = 0;
-	vertexInputAttributes[1].location = 1;
-	// Color attribute is three 32 bit signed (SFLOAT) floats (R32 G32 B32)
-	vertexInputAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertexInputAttributes[1].offset = offsetof(Vertex, color);
+	//// Inpute attribute bindings describe shader attribute locations and memory layouts
+	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes;
+	//
+	//// Attribute location 0: Position
+	//vertexInputAttributes[0].binding = 0;
+	//vertexInputAttributes[0].location = 0;
+	//// Position attribute is three 32 bit signed (SFLOAT) floats (R32 G32 B32)
+	//vertexInputAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+	//vertexInputAttributes[0].offset = offsetof(Vertex, position);
+
+	//// Attribute location 1: Color
+	//vertexInputAttributes[1].binding = 0;
+	//vertexInputAttributes[1].location = 1;
+	//// Color attribute is three 32 bit signed (SFLOAT) floats (R32 G32 B32)
+	//vertexInputAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	//vertexInputAttributes[1].offset = offsetof(Vertex, color);
+
+	vertexInputBinding = Vertex::getBindingDescription();
+	vertexInputAttributes = Vertex::getAttributeDescriptions();
 
 
 	// -------- Vertex input --------
@@ -270,7 +337,7 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
 	vertexInputInfo.pVertexBindingDescriptions = &vertexInputBinding;
-	vertexInputInfo.vertexAttributeDescriptionCount = 2;
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
 	vertexInputInfo.pVertexAttributeDescriptions = vertexInputAttributes.data();
 
 	// -------- Input assembly --------
@@ -499,11 +566,22 @@ int main(int argc, char** argv)
         throw std::runtime_error("Failed to create command pool");
     }
 
-	//create cloud textures
+
+
+	// Create cloud textures
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
-	//loadTexture(device, commandPool, "textures/meghanatheminion.jpg", textureImage, textureImageMemory, VK_FORMAT_R8G8B8A8_UNORM,
-	//	VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	loadTexture(device, commandPool, "../../src/CloudScapes/textures/meghanatheminion.jpg", &textureImage, &textureImageMemory, VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	VkImageView textureImageView;
+	createTextureImageView(device, textureImageView, textureImage, VK_FORMAT_R8G8B8A8_UNORM);
+
+	VkSampler textureSampler;
+	createTextureSampler(device, textureSampler);
+
+
+
 
 	// Create Camera and Model data to send over to shaders through descriptor sets 
 	CameraUBO cameraTransforms;
@@ -514,13 +592,20 @@ int main(int argc, char** argv)
 	modelTransforms.modelMatrix = glm::rotate(glm::mat4(1.f), static_cast<float>(15 * M_PI / 180), glm::vec3(0.f, 0.f, 1.f));
 
 	// Create vertices and indices vectors to bind to buffers
-	std::vector<Vertex> vertices = {
-		{ { 0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
-		{ { -0.5f, 0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } },
-		{ { 0.0f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f } }
+	//std::vector<Vertex> vertices = {
+	//	{ { 0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
+	//	{ { -0.5f, 0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } },
+	//	{ { 0.0f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f } }
+	//};
+
+	const std::vector<Vertex> vertices = {
+		{ { -0.5f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
+		{ {  0.5f, -0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
+		{ {  0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
+		{ { -0.5f,  0.5f, 0.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } }
 	};
 
-	std::vector<unsigned int> indices = { 0, 1, 2 };
+	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0};
 
 	unsigned int vertexBufferSize = static_cast<uint32_t>(vertices.size() * sizeof(vertices[0]));
 	unsigned int indexBufferSize = static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
@@ -588,10 +673,17 @@ int main(int argc, char** argv)
 		{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
 	});
 
+
+	VkDescriptorSetLayout samplerSetLayout = CreateSamplerDescriptorSetLayout({
+		{ 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
+	});
+
+
 	// Initialize descriptor sets
 	VkDescriptorSet computeSet = CreateDescriptorSet(descriptorPool, computeSetLayout);
 	VkDescriptorSet cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
 	VkDescriptorSet modelSet = CreateDescriptorSet(descriptorPool, modelSetLayout);
+	VkDescriptorSet samplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
 
 	{
 		// Compute
@@ -636,9 +728,26 @@ int main(int argc, char** argv)
 		writeModelInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		writeModelInfo.pBufferInfo = &modelBufferInfo;
 
-		VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeInfo, writeCameraInfo, writeModelInfo };
 
-		vkUpdateDescriptorSets(device->GetVulkanDevice(), 3, writeDescriptorSets, 0, nullptr);
+		// Texture
+		VkDescriptorImageInfo imageInfo = {};
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfo.imageView = textureImageView;
+		imageInfo.sampler = textureSampler;
+
+		VkWriteDescriptorSet writeSamplerInfo = {};
+		writeSamplerInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writeSamplerInfo.dstSet = samplerSet;
+		writeSamplerInfo.dstBinding = 0;
+		writeSamplerInfo.dstArrayElement = 0;
+		writeSamplerInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		writeSamplerInfo.descriptorCount = 1;
+		writeSamplerInfo.pImageInfo = &imageInfo;
+
+
+		VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeInfo, writeCameraInfo, writeModelInfo, writeSamplerInfo };
+
+		vkUpdateDescriptorSets(device->GetVulkanDevice(), 4, writeDescriptorSets, 0, nullptr);
 	}
 
 
@@ -749,7 +858,7 @@ int main(int argc, char** argv)
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
 		// Bind the vertex and index buffers
-		VkDeviceSize offsets[1] = { 0 };
+		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &vertexBuffer, offsets);
 
 		// Bind triangle index buffer
@@ -846,6 +955,8 @@ int main(int argc, char** argv)
 	//TODO: Delete texture image texture image memory
 	vkDestroyImage(device->GetVulkanDevice(), textureImage, nullptr);
 	vkFreeMemory(device->GetVulkanDevice(), textureImageMemory, nullptr);
+	vkDestroyImageView(device->GetVulkanDevice(), textureImageView, nullptr);
+	vkDestroySampler(device->GetVulkanDevice(), textureSampler, nullptr);
 
 	vkDestroyBuffer(device->GetVulkanDevice(), vertexBuffer, nullptr);
 	vkDestroyBuffer(device->GetVulkanDevice(), indexBuffer, nullptr);
