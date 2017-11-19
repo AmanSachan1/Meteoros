@@ -179,21 +179,6 @@ VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayou
 	return descriptorSetLayout;
 }
 
-VkDescriptorSetLayout CreateSamplerDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding> samplerLayoutBindings)
-{
-	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
-	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = static_cast<uint32_t>(samplerLayoutBindings.size());
-	layoutInfo.pBindings = samplerLayoutBindings.data();
-
-	VkDescriptorSetLayout samplerDescriptorSetLayout;
-	if (vkCreateDescriptorSetLayout(device->GetVulkanDevice(), &layoutInfo, nullptr, &samplerDescriptorSetLayout) != VK_SUCCESS) 
-	{
-		throw std::runtime_error("Failed to create descriptor set layout");
-	}
-	return samplerDescriptorSetLayout;
-}
-
 
 /*
 	Reference: https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets
@@ -674,7 +659,7 @@ int main(int argc, char** argv)
 	});
 
 
-	VkDescriptorSetLayout samplerSetLayout = CreateSamplerDescriptorSetLayout({
+	VkDescriptorSetLayout samplerSetLayout = CreateDescriptorSetLayout({
 		{ 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 	});
 
@@ -875,7 +860,7 @@ int main(int argc, char** argv)
 		//vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 
 		// Draw indexed triangle
-		vkCmdDrawIndexed(commandBuffers[i], 3, 1, 0, 0, 1);
+		vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(indices.size()), 1, 0, 0, 1);
 
         vkCmdEndRenderPass(commandBuffers[i]);
 
