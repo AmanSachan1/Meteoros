@@ -1,4 +1,3 @@
-#include <fstream>
 #include "vulkan_shader_module.h"
 
 namespace {

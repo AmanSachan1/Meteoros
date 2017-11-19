@@ -1,9 +1,4 @@
-#include <vector>
-#include "forward.h"
 #include "vulkan_swapchain.h"
-#include "vulkan_instance.h"
-#include "vulkan_device.h"
-#include "window.h"
 
 namespace {
   // Specify the color channel format and color space type

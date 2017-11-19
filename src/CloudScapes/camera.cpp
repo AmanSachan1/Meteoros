@@ -1,5 +1,4 @@
 #include "camera.h"
-#include <glm/gtc/matrix_transform.hpp>
 
 Camera::Camera(glm::mat4* view)
 	: _azimuth(glm::radians(-90.f)),

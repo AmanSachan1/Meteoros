@@ -3,9 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 #include "vulkan_device.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "../../external/ImageLibraries/stb_image.h"
+#include "BufferUtils.h"
 
 VkCommandBuffer beginSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool);
 void endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkCommandBuffer commandBuffer);
@@ -15,6 +13,8 @@ void transitionImageLayout(VulkanDevice* device, VkCommandPool commandPool, VkIm
 void copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 
 //load an image and upload it into a Vulkan image object
-void createTextureImage(VulkanDevice* device);
+void loadTexture(VulkanDevice* device, VkCommandPool commandPool, const char* imagePath,
+				VkImage textureImage, VkDeviceMemory textureImageMemory, VkFormat format,
+				VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 void createImage(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, 
 				VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);

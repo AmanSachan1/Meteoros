@@ -1,6 +1,10 @@
 #pragma once
-#include "forward.h"
+
+#include "vulkan_instance.h"
 #include "vulkan_device.h"
+#include <vector>
+#include "forward.h"
+#include "window.h"
 
 class VulkanSwapChain {
     friend class VulkanDevice;

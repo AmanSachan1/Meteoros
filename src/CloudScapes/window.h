@@ -1,4 +1,5 @@
 #pragma once
+#include <stdio.h>
 
 #ifdef _WIN32
 #pragma comment(linker, "/subsystem:console")

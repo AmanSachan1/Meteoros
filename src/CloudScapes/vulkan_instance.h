@@ -5,6 +5,9 @@
 #include <vulkan/vulkan.h>
 #include "forward.h"
 #include "vulkan_device.h"
+#include <stdexcept>
+#include <set>
+#include <vector>
 
 extern const bool ENABLE_VALIDATION;
 

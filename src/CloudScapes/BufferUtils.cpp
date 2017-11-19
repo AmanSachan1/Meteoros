@@ -1,9 +1,9 @@
-#include "vulkan_buffer.h"
+#include "BufferUtils.h"
 
-VkDeviceMemory CreateDeviceMemory(VulkanDevice* device,
-									uint32_t size,
-									uint32_t types,
-									VkMemoryPropertyFlags propertyFlags)
+VkDeviceMemory BufferUtils::CreateDeviceMemory(VulkanDevice* device,
+												uint32_t size,
+												uint32_t types,
+												VkMemoryPropertyFlags propertyFlags)
 {
 	VkMemoryAllocateInfo memoryAllocateInfo = {};
 	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -22,11 +22,11 @@ VkDeviceMemory CreateDeviceMemory(VulkanDevice* device,
 /*
 	Create buffers (called in main.cpp)
 */
-VkBuffer CreateBuffer(VulkanDevice* device,
-						VkBufferUsageFlags allowedUsage,
-						uint32_t size,
-						VkDeviceMemory deviceMemory,
-						uint32_t deviceMemoryOffset)
+VkBuffer BufferUtils::CreateBuffer(VulkanDevice* device,
+									VkBufferUsageFlags allowedUsage,
+									uint32_t size,
+									VkDeviceMemory deviceMemory,
+									uint32_t deviceMemoryOffset)
 {
 	VkBufferCreateInfo bufferCreateInfo = {};
 	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -36,21 +36,16 @@ VkBuffer CreateBuffer(VulkanDevice* device,
 	VkBuffer buffer;
 	vkCreateBuffer(device->GetVulkanDevice(), &bufferCreateInfo, nullptr, &buffer);
 
-	if (deviceMemory != VK_NULL_HANDLE) 
-	{
-		vkBindBufferMemory(device->GetVulkanDevice(), buffer, deviceMemory, deviceMemoryOffset);
-	}
-
 	return buffer;
 }
 
 /*
 	Assign memory to vertex buffers created in CreateBuffer (called in main.cpp)
 */
-VkDeviceMemory AllocateMemoryForBuffers(VulkanDevice* device,
-										std::vector<VkBuffer> buffers,
-										VkMemoryPropertyFlags propertyFlags,
-										unsigned int* bufferOffsets)
+VkDeviceMemory BufferUtils::AllocateMemoryForBuffers(VulkanDevice* device,
+													std::vector<VkBuffer> buffers,
+													VkMemoryPropertyFlags propertyFlags,
+													unsigned int* bufferOffsets)
 {
 	// We will allocate one large chunk of memory for both vertices and indices
 
@@ -80,10 +75,10 @@ VkDeviceMemory AllocateMemoryForBuffers(VulkanDevice* device,
 	Binds memory to buffer (called in main.cpp)
 	Note: "buffer" is a handle
 */
-void BindMemoryForBuffers(VulkanDevice* device,
-							VkDeviceMemory bufferMemory,
-							std::vector<VkBuffer> buffers,
-							unsigned int* bufferOffsets)
+void BufferUtils::BindMemoryForBuffers(VulkanDevice* device,
+										VkDeviceMemory bufferMemory,
+										std::vector<VkBuffer> buffers,
+										unsigned int* bufferOffsets)
 {
 	for (unsigned int i = 0; i < buffers.size(); ++i) 
 	{

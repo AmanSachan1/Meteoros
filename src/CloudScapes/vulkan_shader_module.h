@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
+#include <fstream>
 #include <string>
 #include <vector>
 

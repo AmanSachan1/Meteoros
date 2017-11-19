@@ -1,6 +1,3 @@
-#include <stdexcept>
-#include <set>
-#include <vector>
 #include "vulkan_instance.h"
 
 #ifdef NDEBUG

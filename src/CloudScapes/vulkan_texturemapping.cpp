@@ -1,5 +1,7 @@
 ﻿#include "vulkan_texturemapping.h"
-#include "vulkan_buffer.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "../../external/ImageLibraries/stb_image.h"
 
 //Reference: https://vulkan-tutorial.com/Texture_mapping/Images
 
@@ -205,14 +207,14 @@ void createImage(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat
 	imageInfo.arrayLayers = 1;
 
 	//use the same format for the texels as the pixels in the buffer, otherwise the copy operation will fail.
-	imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM; //It is possible that the VK_FORMAT_R8G8B8A8_UNORM format is not supported by the graphics hardware.
+	imageInfo.format = format; //It is possible that the VK_FORMAT_R8G8B8A8_UNORM format is not supported by the graphics hardware.
 
-												 //2 types of memory arrangemnets for tiling: linear (row-major) and optimal (implementation defined order for optimal access)
-												 //the tiling mode cannot be changed at a later time
-												 //If you want to be able to directly access texels in the memory of the image, then you must use VK_IMAGE_TILING_LINEAR.
-												 //We will be using a staging buffer instead of a staging image, so this won't be necessary. 
-												 //We will be using VK_IMAGE_TILING_OPTIMAL for efficient access from the shader.
-	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	//2 types of memory arrangemnets for tiling: linear (row-major) and optimal (implementation defined order for optimal access)
+	//the tiling mode cannot be changed at a later time
+	//If you want to be able to directly access texels in the memory of the image, then you must use VK_IMAGE_TILING_LINEAR.
+	//We will be using a staging buffer instead of a staging image, so this won't be necessary. 
+	//We will be using VK_IMAGE_TILING_OPTIMAL for efficient access from the shader.
+	imageInfo.tiling = tiling;
 
 	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // Not usable by the GPU and the very first transition will discard the texels.
 														 // very few situations where it is necessary for the texels to be preserved 
@@ -220,7 +222,7 @@ void createImage(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat
 
 														 //The image is going to be used as destination for the buffer copy, so it should be set up as a transfer destination. 
 														 // We also want to be able to access the image from the shader to color our mesh, so the usage should include VK_IMAGE_USAGE_SAMPLED_BIT
-	imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	imageInfo.usage = usage;
 
 	//The image will only be used by one queue family: the one that supports graphics (and therefore also) transfer operations.
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -240,16 +242,17 @@ void createImage(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat
 	VkMemoryRequirements memRequirements;
 	vkGetImageMemoryRequirements(device->GetVulkanDevice(), image, &memRequirements);
 
-	imageMemory = CreateDeviceMemory(device, memRequirements.size,
-									memRequirements.memoryTypeBits,
-									VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	imageMemory = BufferUtils::CreateDeviceMemory(device, memRequirements.size,
+												memRequirements.memoryTypeBits,
+												properties);
 
 	vkBindImageMemory(device->GetVulkanDevice(), image, imageMemory, 0);
 }
 
-void createTextureImage(VulkanDevice* device, VkCommandPool commandPool)
+void loadTexture(VulkanDevice* device, VkCommandPool commandPool, const char* imagePath, 
+				VkImage textureImage, VkDeviceMemory textureImageMemory, VkFormat format,
+				VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
 {
-	// TODO: Make this generalized for any image by taking in the image path!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//---------------------
 	//--- Load an Image ---
 	//---------------------
@@ -257,7 +260,7 @@ void createTextureImage(VulkanDevice* device, VkCommandPool commandPool)
 	// The STBI_rgb_alpha value forces the image to be loaded with an alpha channel, even if it doesn't have one, which 
 	// is nice for consistency with other textures in the future.
 	// The pointer that is returned is the first element in an array of pixel values.
-	stbi_uc* pixels = stbi_load("textures/meghanatheminion.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	stbi_uc* pixels = stbi_load(imagePath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	VkDeviceSize imageSize = texWidth * texHeight * 4; // 4 channel image
 
 	if (!pixels)
@@ -269,10 +272,11 @@ void createTextureImage(VulkanDevice* device, VkCommandPool commandPool)
 	//--- Staging Buffer ---
 	//----------------------
 	unsigned int textureBufferOffsets[1];
-	VkBuffer stagingBuffer = CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, imageSize);
-	VkDeviceMemory stagingBufferMemory = AllocateMemoryForBuffers(device, { stagingBuffer },
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		textureBufferOffsets);
+	VkBuffer stagingBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, imageSize);
+	VkDeviceMemory stagingBufferMemory = BufferUtils::AllocateMemoryForBuffers(device, { stagingBuffer },
+																			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+																			textureBufferOffsets);
+	BufferUtils::BindMemoryForBuffers(device, stagingBufferMemory, { stagingBuffer }, textureBufferOffsets);
 
 	//copy the pixel values that we got from the image loading library to the buffer
 	{
@@ -284,13 +288,7 @@ void createTextureImage(VulkanDevice* device, VkCommandPool commandPool)
 
 	stbi_image_free(pixels);
 
-	//to be cleaned up in main
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-
-	createImage(device, texWidth, texHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
-				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-				textureImage, textureImageMemory);
+	createImage(device, texWidth, texHeight, format, tiling, usage, properties, textureImage, textureImageMemory);
 
 	//----------------------------------------------------
 	//--- Copy the Staging Buffer to the Texture Image ---
@@ -300,7 +298,7 @@ void createTextureImage(VulkanDevice* device, VkCommandPool commandPool)
 	
 	//Transition: Undefined → transfer destination: transfer writes that don't need to wait on anything
 	//This transition is to make image optimal as a destination
-	transitionImageLayout(device, commandPool, textureImage, VK_FORMAT_R8G8B8A8_UNORM, 
+	transitionImageLayout(device, commandPool, textureImage, format,
 						VK_IMAGE_LAYOUT_UNDEFINED, 
 						VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -309,7 +307,7 @@ void createTextureImage(VulkanDevice* device, VkCommandPool commandPool)
 	//Transfer destination → shader reading: shader reads should wait on transfer writes, 
 	//specifically the shader reads in the fragment shader, because that's where we're going to use the texture
 	//This transition is to make the image an optimal source for the sampler in a shader
-	transitionImageLayout(device, commandPool, textureImage, VK_FORMAT_R8G8B8A8_UNORM, 
+	transitionImageLayout(device, commandPool, textureImage, format, 
 						VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 						VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 

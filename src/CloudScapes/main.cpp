@@ -1,13 +1,17 @@
+#pragma once
+
 #include <stdexcept>
 #include <vulkan/vulkan.h>
 #include "window.h"
 #include "vulkan_instance.h"
 #include "vulkan_shader_module.h"
-#include "vulkan_buffer.h"
+#include "BufferUtils.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <camera.h>
 #include <iostream>
+
+#include "vulkan_texturemapping.h"
 
 VulkanInstance* instance;
 VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
@@ -495,6 +499,12 @@ int main(int argc, char** argv)
         throw std::runtime_error("Failed to create command pool");
     }
 
+	//create cloud textures
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+	//loadTexture(device, commandPool, "textures/meghanatheminion.jpg", textureImage, textureImageMemory, VK_FORMAT_R8G8B8A8_UNORM,
+	//	VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
 	// Create Camera and Model data to send over to shaders through descriptor sets 
 	CameraUBO cameraTransforms;
 	camera = new Camera(&cameraTransforms.viewMatrix);
@@ -516,13 +526,13 @@ int main(int argc, char** argv)
 	unsigned int indexBufferSize = static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
 
 	// Create vertex and index buffers
-	VkBuffer vertexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vertexBufferSize);
-	VkBuffer indexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
+	VkBuffer vertexBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vertexBufferSize);
+	VkBuffer indexBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
 	unsigned int vertexBufferOffsets[2];
 
 	// VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT bit indicates that memory allocated with this type can be mapped for host access using vkMapMemory
 	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT allows to transfer host writes to the device or make device writes visible to the host (without needing other cache mgmt commands)
-	VkDeviceMemory vertexBufferMemory = AllocateMemoryForBuffers(device, { vertexBuffer, indexBuffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBufferOffsets);
+	VkDeviceMemory vertexBufferMemory = BufferUtils::AllocateMemoryForBuffers(device, { vertexBuffer, indexBuffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBufferOffsets);
 
 	// Copy data to buffer memory
 	{
@@ -536,13 +546,13 @@ int main(int argc, char** argv)
 	}
 
 	// Bind the memory to the buffers
-	BindMemoryForBuffers(device, vertexBufferMemory, { vertexBuffer, indexBuffer }, vertexBufferOffsets);
+	BufferUtils::BindMemoryForBuffers(device, vertexBufferMemory, { vertexBuffer, indexBuffer }, vertexBufferOffsets);
 
 	// Create uniform buffers 
-	VkBuffer cameraBuffer = CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO));
-	VkBuffer modelBuffer = CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelUBO));
+	VkBuffer cameraBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO));
+	VkBuffer modelBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelUBO));
 	unsigned int uniformBufferOffsets[2];
-	VkDeviceMemory uniformBufferMemory = AllocateMemoryForBuffers(device, { cameraBuffer, modelBuffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBufferOffsets);
+	VkDeviceMemory uniformBufferMemory = BufferUtils::AllocateMemoryForBuffers(device, { cameraBuffer, modelBuffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniformBufferOffsets);
 
 	// Copy data to uniform memory 
 	{
@@ -554,7 +564,7 @@ int main(int argc, char** argv)
 	}
 
 	// Bind memory to buffers
-	BindMemoryForBuffers(device, uniformBufferMemory, { cameraBuffer, modelBuffer }, uniformBufferOffsets);
+	BufferUtils::BindMemoryForBuffers(device, uniformBufferMemory, { cameraBuffer, modelBuffer }, uniformBufferOffsets);
 
 	// Begin Descriptor logic
 	VkDescriptorPool descriptorPool = CreateDescriptorPool();
@@ -834,6 +844,8 @@ int main(int argc, char** argv)
 	delete camera;
 
 	//TODO: Delete texture image texture image memory
+	vkDestroyImage(device->GetVulkanDevice(), textureImage, nullptr);
+	vkFreeMemory(device->GetVulkanDevice(), textureImageMemory, nullptr);
 
 	vkDestroyBuffer(device->GetVulkanDevice(), vertexBuffer, nullptr);
 	vkDestroyBuffer(device->GetVulkanDevice(), indexBuffer, nullptr);
