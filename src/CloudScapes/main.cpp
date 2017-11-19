@@ -10,8 +10,8 @@
 #include <iostream>
 
 VulkanInstance* instance;
-VulkanDevice* device;
-VulkanSwapChain* swapchain;
+VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
+VulkanSwapChain* swapchain; 
 
 Camera* camera;
 glm::mat4* mappedCameraView;
@@ -490,10 +490,10 @@ int main(int argc, char** argv)
     poolInfo.flags = 0;
 
     VkCommandPool commandPool;
-    if (vkCreateCommandPool(device->GetVulkanDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+    if (vkCreateCommandPool(device->GetVulkanDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) 
+	{
         throw std::runtime_error("Failed to create command pool");
     }
-
 
 	// Create Camera and Model data to send over to shaders through descriptor sets 
 	CameraUBO cameraTransforms;
@@ -502,7 +502,6 @@ int main(int argc, char** argv)
 
 	ModelUBO modelTransforms;
 	modelTransforms.modelMatrix = glm::rotate(glm::mat4(1.f), static_cast<float>(15 * M_PI / 180), glm::vec3(0.f, 0.f, 1.f));
-
 
 	// Create vertices and indices vectors to bind to buffers
 	std::vector<Vertex> vertices = {
@@ -538,7 +537,6 @@ int main(int argc, char** argv)
 
 	// Bind the memory to the buffers
 	BindMemoryForBuffers(device, vertexBufferMemory, { vertexBuffer, indexBuffer }, vertexBufferOffsets);
-
 
 	// Create uniform buffers 
 	VkBuffer cameraBuffer = CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO));
@@ -829,7 +827,13 @@ int main(int argc, char** argv)
     // Wait for the device to finish executing before cleanup
     vkDeviceWaitIdle(device->GetVulkanDevice());
 
+	//---------------------
+	//------ CleanUp ------
+	//---------------------
+
 	delete camera;
+
+	//TODO: Delete texture image texture image memory
 
 	vkDestroyBuffer(device->GetVulkanDevice(), vertexBuffer, nullptr);
 	vkDestroyBuffer(device->GetVulkanDevice(), indexBuffer, nullptr);

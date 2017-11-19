@@ -11,7 +11,11 @@ VkDeviceMemory CreateDeviceMemory(VulkanDevice* device,
 	memoryAllocateInfo.memoryTypeIndex = device->GetInstance()->GetMemoryTypeIndex(types, propertyFlags);
 	
 	VkDeviceMemory deviceMemory;
-	vkAllocateMemory(device->GetVulkanDevice(), &memoryAllocateInfo, nullptr, &deviceMemory);
+	if (vkAllocateMemory(device->GetVulkanDevice(), &memoryAllocateInfo, nullptr, &deviceMemory) != VK_SUCCESS) 
+	{
+		throw std::runtime_error("failed to allocate device memory!");
+	}
+	
 	return deviceMemory;
 }
 
