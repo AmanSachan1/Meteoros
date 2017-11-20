@@ -179,10 +179,7 @@ VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayou
 	return descriptorSetLayout;
 }
 
-
-/*
-	Reference: https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets
-*/
+// Reference: https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets
 VkDescriptorPool CreateDescriptorPool()
 {
 	// Info for the types of descriptors that can be allocated from this pool
@@ -203,7 +200,7 @@ VkDescriptorPool CreateDescriptorPool()
 	poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	poolSizes[2].descriptorCount = 1;
 
-	// Textures
+	// Samplers
 	poolSizes[3].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	poolSizes[3].descriptorCount = 1;
 
@@ -288,32 +285,9 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 	// -------- Vertex input binding --------
 	// Tell Vulkan how to pass this data format to the vertex shader once it's been uploaded to GPU memory 
 	// Vertex binding describes at which rate to load data from memory throughout the vertices
-	VkVertexInputBindingDescription vertexInputBinding = {}; 
-	//vertexInputBinding.binding = 0; // All of our per-vertex data is packed together in 1 array so we only have one binding
-	//								// The binding param specifies index of the binding in array of bindings
-	//vertexInputBinding.stride = sizeof(Vertex);
-	//vertexInputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-	//// Inpute attribute bindings describe shader attribute locations and memory layouts
-	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes;
-	//
-	//// Attribute location 0: Position
-	//vertexInputAttributes[0].binding = 0;
-	//vertexInputAttributes[0].location = 0;
-	//// Position attribute is three 32 bit signed (SFLOAT) floats (R32 G32 B32)
-	//vertexInputAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	//vertexInputAttributes[0].offset = offsetof(Vertex, position);
-
-	//// Attribute location 1: Color
-	//vertexInputAttributes[1].binding = 0;
-	//vertexInputAttributes[1].location = 1;
-	//// Color attribute is three 32 bit signed (SFLOAT) floats (R32 G32 B32)
-	//vertexInputAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	//vertexInputAttributes[1].offset = offsetof(Vertex, color);
-
-	vertexInputBinding = Vertex::getBindingDescription();
-	vertexInputAttributes = Vertex::getAttributeDescriptions();
-
+	VkVertexInputBindingDescription vertexInputBinding = Vertex::getBindingDescription();
+	// Inpute attribute bindings describe shader attribute locations and memory layouts
+	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = Vertex::getAttributeDescriptions();
 
 	// -------- Vertex input --------
 	// Because we're hard coding the vertex data directly in the vertex shader, we'll fill in this structure to specify 
@@ -577,12 +551,6 @@ int main(int argc, char** argv)
 	modelTransforms.modelMatrix = glm::rotate(glm::mat4(1.f), static_cast<float>(15 * M_PI / 180), glm::vec3(0.f, 0.f, 1.f));
 
 	// Create vertices and indices vectors to bind to buffers
-	//std::vector<Vertex> vertices = {
-	//	{ { 0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f } },
-	//	{ { -0.5f, 0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f } },
-	//	{ { 0.0f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f } }
-	//};
-
 	const std::vector<Vertex> vertices = {
 		{ { -0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f, 1.0f }, { 1.0f, 0.0f } },
 		{ {  0.5f, -0.5f, 0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f, 1.0f }, { 0.0f, 0.0f } },
@@ -657,12 +625,10 @@ int main(int argc, char** argv)
 	VkDescriptorSetLayout modelSetLayout = CreateDescriptorSetLayout({
 		{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
 	});
-
-
+	
 	VkDescriptorSetLayout samplerSetLayout = CreateDescriptorSetLayout({
 		{ 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 	});
-
 
 	// Initialize descriptor sets
 	VkDescriptorSet computeSet = CreateDescriptorSet(descriptorPool, computeSetLayout);
@@ -713,7 +679,6 @@ int main(int argc, char** argv)
 		writeModelInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		writeModelInfo.pBufferInfo = &modelBufferInfo;
 
-
 		// Texture
 		VkDescriptorImageInfo imageInfo = {};
 		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -729,7 +694,6 @@ int main(int argc, char** argv)
 		writeSamplerInfo.descriptorCount = 1;
 		writeSamplerInfo.pImageInfo = &imageInfo;
 
-
 		VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeInfo, writeCameraInfo, writeModelInfo, writeSamplerInfo };
 
 		vkUpdateDescriptorSets(device->GetVulkanDevice(), 4, writeDescriptorSets, 0, nullptr);
@@ -740,7 +704,7 @@ int main(int argc, char** argv)
 	VkPipelineLayout computePipelineLayout = CreatePipelineLayout({ computeSetLayout });
 	VkPipeline computePipeline = CreateComputePipeline(computePipelineLayout);
 
-	VkPipelineLayout graphicsPipelineLayout = CreatePipelineLayout({cameraSetLayout, modelSetLayout});
+	VkPipelineLayout graphicsPipelineLayout = CreatePipelineLayout({ cameraSetLayout, modelSetLayout, samplerSetLayout });
 	VkPipeline graphicsPipeline = CreateGraphicsPipeline(graphicsPipelineLayout, renderPass, 0);
 
     // Create one framebuffer for each frame of the swap chain
@@ -838,6 +802,9 @@ int main(int argc, char** argv)
 
 		// Bind model descriptor set
 		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &modelSet, 0, nullptr);
+				
+		// Bind sampler descriptor set
+		vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 2, 1, &samplerSet, 0, nullptr);
 
 		// Bind the graphics pipeline
 		vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
