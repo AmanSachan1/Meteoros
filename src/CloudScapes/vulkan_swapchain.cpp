@@ -1,17 +1,23 @@
 #include "vulkan_swapchain.h"
 
-namespace {
+namespace 
+{
   // Specify the color channel format and color space type
-  VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
+  VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) 
+  {
       // VK_FORMAT_UNDEFINED indicates that the surface has no preferred format, so we can choose any
-      if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) {
+      if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED) 
+	  {
           return{ VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
       }
 
       // Otherwise, choose a preferred combination
-      for (const auto& availableFormat : availableFormats) {
+      for (const auto& availableFormat : availableFormats) 
+	  {
           // Ideal format and color space
-          if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+          if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && 
+			  availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) 
+		  {
               return availableFormat;
           }
       }
@@ -21,16 +27,20 @@ namespace {
   }
 
   // Specify the presentation mode of the swap chain
-  VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> availablePresentModes) {
+  VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR> availablePresentModes) 
+  {
       // Second choice
       VkPresentModeKHR bestMode = VK_PRESENT_MODE_FIFO_KHR;
       
-      for (const auto& availablePresentMode : availablePresentModes) {
-          if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+      for (const auto& availablePresentMode : availablePresentModes) 
+	  {
+          if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) 
+		  {
               // First choice
               return availablePresentMode;
           }
-          else if (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+          else if (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) 
+		  {
               // Third choice
               bestMode = availablePresentMode;
           }
@@ -40,11 +50,14 @@ namespace {
   }
 
   // Specify the swap extent (resolution) of the swap chain
-  VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window) {
-      if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+  VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, GLFWwindow* window) 
+  {
+      if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) 
+	  {
           return capabilities.currentExtent;
       }
-      else {
+      else 
+	  {
           int width, height;
           glfwGetWindowSize(window, &width, &height);
           VkExtent2D actualExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };

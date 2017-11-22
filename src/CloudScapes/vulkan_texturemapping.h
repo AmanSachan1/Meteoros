@@ -20,6 +20,7 @@ void loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const char* i
 				VkImage* textureImage, VkDeviceMemory* textureImageMemory, VkFormat format,
 				VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 
-void createTextureImageView(VulkanDevice* device, VkImageView& textureImageView, VkImage textureImage, VkFormat format);
+void createImageView(VulkanDevice* device, VkImageView& imageView, VkImage textureImage, 
+					 VkFormat format, VkImageAspectFlags aspectFlags);
 
-void createTextureSampler(VulkanDevice* device, VkSampler& textureSampler);
+void createSampler(VulkanDevice* device, VkSampler& sampler);
