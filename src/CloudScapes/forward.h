@@ -12,9 +12,9 @@ enum QueueFlags {
 
 enum QueueFlagBit {
     GraphicsBit = 1 << 0,
-    ComputeBit = 1 << 1,
+    ComputeBit =  1 << 1,
     TransferBit = 1 << 2,
-    PresentBit = 1 << 3,
+    PresentBit =  1 << 3,
 };
 
 using QueueFlagBits = std::bitset<sizeof(QueueFlags)>;

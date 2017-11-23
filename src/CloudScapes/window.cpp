@@ -1,14 +1,17 @@
 #include "window.h"
 
-namespace {
+namespace 
+{
     GLFWwindow* window = nullptr;
 }
 
-GLFWwindow* GetGLFWWindow() {
+GLFWwindow* GetGLFWWindow() 
+{
     return window;
 }
 
-void InitializeWindow(int width, int height, const char* name) {
+void InitializeWindow(int width, int height, const char* name) 
+{
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
         exit(EXIT_FAILURE);
@@ -30,11 +33,13 @@ void InitializeWindow(int width, int height, const char* name) {
     }
 }
 
-bool ShouldQuit() {
+bool ShouldQuit() 
+{
     return glfwWindowShouldClose(window);
 }
 
-void DestroyWindow() {
+void DestroyWindow() 
+{
     glfwDestroyWindow(window);
     glfwTerminate();
 }

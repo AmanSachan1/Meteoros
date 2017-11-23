@@ -1,11 +1,11 @@
-﻿#include "vulkan_texturemapping.h"
+﻿#include "Image.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../../external/ImageLibraries/stb_image.h"
 
 //Reference: https://vulkan-tutorial.com/Texture_mapping/Images
 
-VkCommandBuffer beginSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool)
+VkCommandBuffer Image::beginSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool)
 {
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -25,7 +25,7 @@ VkCommandBuffer beginSingleTimeCommands(VulkanDevice* device, VkCommandPool comm
 	return commandBuffer;
 }
 
-void endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkCommandBuffer commandBuffer)
+void Image::endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkCommandBuffer commandBuffer)
 {
 	vkEndCommandBuffer(commandBuffer);
 
@@ -40,7 +40,7 @@ void endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkCo
 	vkFreeCommandBuffers(device->GetVulkanDevice(), commandPool, 1, &commandBuffer);
 }
 
-void copyBuffer(VulkanDevice* device, VkCommandPool commandPool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+void Image::copyBuffer(VulkanDevice* device, VkCommandPool commandPool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
@@ -51,21 +51,22 @@ void copyBuffer(VulkanDevice* device, VkCommandPool commandPool, VkBuffer srcBuf
 	endSingleTimeCommands(device, commandPool, commandBuffer);
 }
 
-bool hasStencilComponent(VkFormat format)
+bool Image::hasStencilComponent(VkFormat format)
 {
 	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-void transitionImageLayout(VulkanDevice* device, VkCommandPool commandPool, VkImage& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+void Image::transitionImageLayout(VulkanDevice* device, VkCommandPool commandPool, VkImage& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
 {
 	/*
 	TODO for Performance: All of the helper functions that submit commands so far have been set up to execute synchronously by waiting 
 			for the queue to become idle. For practical applications it is recommended to combine these operations in a single command buffer 
-			and execute them asynchronously for higher throughput, especially the transitions and copy in the createTextureImage function. Try 
+			and execute them asynchronously for higher throughput, especially the transitions and copy in the createImage function. Try 
 			to experiment with this by creating a setupCommandBuffer that the helper functions record commands into, and add a flushSetupCommands 
 			to execute the commands that have been recorded so far. It's best to do this after the texture mapping works to check if the texture 
 			resources are still set up correctly.
 	*/
+
 	//command buffer submission results in implicit VK_ACCESS_HOST_WRITE_BIT synchronization at the beginning.
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
@@ -178,22 +179,21 @@ void transitionImageLayout(VulkanDevice* device, VkCommandPool commandPool, VkIm
 
 	//Resource https://www.khronos.org/registry/vulkan/specs/1.0/html/vkspec.html#synchronization-access-types-supported
 	// All types of pipeline barriers are submitted using the same function.
-	vkCmdPipelineBarrier(
-		commandBuffer,
-		sourceStage, //operationsbefore the barrier occur in which pipeline stage
-		destinationStage, //which pipeline stage waits for the barrier
-		0, //The third parameter is either 0 or VK_DEPENDENCY_BY_REGION_BIT. The latter turns the barrier into a per-region condition.
-		   //That means that the implementation is allowed to already begin reading from the parts of a resource that were written so far, for example.
-		   //The last three pairs of parameters reference arrays of pipeline barriers of the three available types : memory barriers, 
-		   //buffer memory barriers, and image memory barriers like the one we're using here.
-		0, nullptr,
-		0, nullptr,
-		1, &barrier);
+	vkCmdPipelineBarrier(commandBuffer,
+						sourceStage, //operationsbefore the barrier occur in which pipeline stage
+						destinationStage, //which pipeline stage waits for the barrier
+						0, //The third parameter is either 0 or VK_DEPENDENCY_BY_REGION_BIT. The latter turns the barrier into a per-region condition.
+							//That means that the implementation is allowed to already begin reading from the parts of a resource that were written so far, for example.
+							//The last three pairs of parameters reference arrays of pipeline barriers of the three available types : memory barriers, 
+							//buffer memory barriers, and image memory barriers like the one we're using here.
+						0, nullptr,
+						0, nullptr,
+						1, &barrier);
 
 	endSingleTimeCommands(device, commandPool, commandBuffer);
 }
 
-void copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, VkBuffer buffer, VkImage& image, uint32_t width, uint32_t height)
+void Image::copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, VkBuffer buffer, VkImage& image, uint32_t width, uint32_t height)
 {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
@@ -226,8 +226,8 @@ void copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, VkBuffer
 	endSingleTimeCommands(device, commandPool, commandBuffer);
 }
 
-void createImage(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-				VkMemoryPropertyFlags properties, VkImage* image, VkDeviceMemory* imageMemory)
+void Image::createImage(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+						VkMemoryPropertyFlags properties, VkImage* image, VkDeviceMemory* imageMemory)
 {
 	//-------------
 	//--- Image ---
@@ -288,9 +288,9 @@ void createImage(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat
 	vkBindImageMemory(device->GetVulkanDevice(), *image, *imageMemory, 0);
 }
 
-void loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const char* imagePath, 
-				VkImage* textureImage, VkDeviceMemory* textureImageMemory, VkFormat format,
-				VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
+void Image::loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const char* imagePath,
+						VkImage* textureImage, VkDeviceMemory* textureImageMemory, VkFormat format,
+						VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
 {
 	//---------------------
 	//--- Load an Image ---
@@ -315,7 +315,7 @@ void loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const char* i
 	VkDeviceMemory stagingBufferMemory = BufferUtils::AllocateMemoryForBuffers(device, { stagingBuffer },
 																			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 																			textureBufferOffsets);
-	BufferUtils::BindMemoryForBuffers(device, stagingBufferMemory, { stagingBuffer }, textureBufferOffsets);
+	BufferUtils::BindMemoryForBuffers(device, { stagingBuffer }, stagingBufferMemory, textureBufferOffsets);
 
 	//copy the pixel values that we got from the image loading library to the buffer
 	{
@@ -357,8 +357,8 @@ void loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const char* i
 /*
 	Resource: https://vulkan-tutorial.com/Texture_mapping/Image_view_and_sampler
 */
-void createImageView(VulkanDevice* device, VkImageView& imageView, VkImage textureImage, 
-					 VkFormat format, VkImageAspectFlags aspectFlags)
+void Image::createImageView(VulkanDevice* device, VkImageView& imageView, VkImage textureImage,
+							VkFormat format, VkImageAspectFlags aspectFlags)
 {
 	// Create the image view 
 	VkImageViewCreateInfo viewInfo = {};
@@ -381,7 +381,7 @@ void createImageView(VulkanDevice* device, VkImageView& imageView, VkImage textu
 /*
 	Resource: https://vulkan-tutorial.com/Texture_mapping/Image_view_and_sampler
 */
-void createSampler(VulkanDevice* device, VkSampler& sampler)
+void Image::createSampler(VulkanDevice* device, VkSampler& sampler)
 {
 	// Create Texture Sampler 
 	VkSamplerCreateInfo samplerInfo = {};

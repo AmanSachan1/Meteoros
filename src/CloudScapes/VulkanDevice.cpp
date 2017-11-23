@@ -1,8 +1,13 @@
-#include "vulkan_device.h"
+#include "VulkanDevice.h"
 
 VulkanDevice::VulkanDevice(VulkanInstance* instance, VkDevice vkDevice, Queues queues)
   : instance(instance), vkDevice(vkDevice), queues(queues) 
 {}
+
+VulkanDevice::~VulkanDevice()
+{
+	vkDestroyDevice(vkDevice, nullptr);
+}
 
 VulkanInstance* VulkanDevice::GetInstance() 
 {
@@ -27,9 +32,4 @@ unsigned int VulkanDevice::GetQueueIndex(QueueFlags flag)
 VulkanSwapChain* VulkanDevice::CreateSwapChain(VkSurfaceKHR surface) 
 {
     return new VulkanSwapChain(this, surface);
-}
-
-VulkanDevice::~VulkanDevice() 
-{
-    vkDestroyDevice(vkDevice, nullptr);
 }

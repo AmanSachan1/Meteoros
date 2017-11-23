@@ -1,12 +1,13 @@
 #pragma once
 
-#include "vulkan_instance.h"
-#include "vulkan_device.h"
+#include "VulkanInstance.h"
+#include "VulkanDevice.h"
 #include <vector>
-#include "forward.h"
-#include "window.h"
+#include "Forward.h"
+#include "Window.h"
 
-class VulkanSwapChain {
+class VulkanSwapChain 
+{
     friend class VulkanDevice;
 
 public:

@@ -3,18 +3,18 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
-#include <stdexcept>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include "window.h"
+#include <stdexcept>
 #include <iostream>
 
-#include <camera.h>
-#include "vulkan_instance.h"
-#include "vulkan_shader_module.h"
+#include "Window.h"
+#include "VulkanInstance.h"
+#include "ShaderModule.h"
 #include "BufferUtils.h"
-#include "vulkan_texturemapping.h"
+#include "Camera.h"
+#include "Image.h"
 
 VulkanInstance* instance;
 VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
@@ -31,35 +31,42 @@ glm::mat4* mappedCameraView;
 int window_height = 480;
 int window_width = 640;
 
-namespace {
+namespace 
+{
 	bool buttons[GLFW_MOUSE_BUTTON_LAST + 1] = { 0 };
 
-	void mouseButtonCallback(GLFWwindow*, int button, int action, int) {
+	void mouseButtonCallback(GLFWwindow*, int button, int action, int) 
+	{
 		buttons[button] = (action == GLFW_PRESS);
 	}
 
-	void cursorPosCallback(GLFWwindow*, double mouseX, double mouseY) {
+	void cursorPosCallback(GLFWwindow*, double mouseX, double mouseY) 
+	{
 		static double oldX, oldY;
 		float dX = static_cast<float>(mouseX - oldX);
 		float dY = static_cast<float>(mouseY - oldY);
 		oldX = mouseX;
 		oldY = mouseY;
 
-		if (buttons[2] || (buttons[0] && buttons[1])) {
+		if (buttons[2] || (buttons[0] && buttons[1])) 
+		{
 			camera->pan(-dX * 0.002f, dY * -0.002f);
 			memcpy(mappedCameraView, &camera->view(), sizeof(glm::mat4));
 		}
-		else if (buttons[0]) {
+		else if (buttons[0]) 
+		{
 			camera->rotate(dX * -0.01f, dY * -0.01f);
 			memcpy(mappedCameraView, &camera->view(), sizeof(glm::mat4));
 		}
-		else if (buttons[1]) {
+		else if (buttons[1]) 
+		{
 			camera->zoom(dY * -0.005f);
 			memcpy(mappedCameraView, &camera->view(), sizeof(glm::mat4));
 		}
 	}
 
-	void scrollCallback(GLFWwindow*, double, double yoffset) {
+	void scrollCallback(GLFWwindow*, double, double yoffset) 
+	{
 		camera->zoom(static_cast<float>(yoffset) * 0.04f);
 		memcpy(mappedCameraView, &camera->view(), sizeof(glm::mat4));
 	}
@@ -122,9 +129,9 @@ struct ModelUBO
 };
 
 VkFormat findSupportedFormat(VkPhysicalDevice physicalDevice,
-	const std::vector<VkFormat>& candidates,
-	VkImageTiling tiling,
-	VkFormatFeatureFlags features)
+							const std::vector<VkFormat>& candidates,
+							VkImageTiling tiling,
+							VkFormatFeatureFlags features)
 {
 	for (VkFormat format : candidates)
 	{
@@ -207,11 +214,11 @@ void createDepthResources()
 					VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
 
-	createImageView(device, depthImageView, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+	Image::createImageView(device, depthImageView, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
-	transitionImageLayout(device, commandPool, depthImage, depthFormat,
-						  VK_IMAGE_LAYOUT_UNDEFINED,
-						  VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+	Image::transitionImageLayout(device, commandPool, depthImage, depthFormat,
+								VK_IMAGE_LAYOUT_UNDEFINED,
+								VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
 
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Render_passes
@@ -386,8 +393,8 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 	// Can add more shader modules to the list of shader stages that are part of the overall graphics pipeline
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Shader_modules
 	// Create vert and frag shader modules
-	VkShaderModule vertShaderModule = createShaderModule("CloudScapes/shaders/shader.vert.spv", device->GetVulkanDevice());
-	VkShaderModule fragShaderModule = createShaderModule("CloudScapes/shaders/shader.frag.spv", device->GetVulkanDevice());
+	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.vert.spv", device->GetVulkanDevice());
+	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.frag.spv", device->GetVulkanDevice());
 	
 	// Assign each shader module to the appropriate stage in the pipeline
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
@@ -579,7 +586,7 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 
 VkPipeline CreateComputePipeline(VkPipelineLayout pipelineLayout)
 {
-	VkShaderModule compShaderModule = createShaderModule("CloudScapes/shaders/shader.comp.spv", device->GetVulkanDevice());
+	VkShaderModule compShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.comp.spv", device->GetVulkanDevice());
 
 	VkPipelineShaderStageCreateInfo compShaderStageInfo = {};
 	compShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -682,17 +689,17 @@ int main(int argc, char** argv)
 	// Create cloud textures
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
-	loadTexture(device, commandPool, "../../src/CloudScapes/textures/statue.jpg", &textureImage, &textureImageMemory, 
+	Image::loadTexture(device, commandPool, "../../src/CloudScapes/textures/statue.jpg", &textureImage, &textureImageMemory, 
 				VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, 
 				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	VkImageView textureImageView;
-	createImageView(device, textureImageView, textureImage, 
+	Image::createImageView(device, textureImageView, textureImage,
 					VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 
 	VkSampler textureSampler;
-	createSampler(device, textureSampler);
+	Image::createSampler(device, textureSampler);
 
 	// Create Camera and Model data to send over to shaders through descriptor sets 
 	CameraUBO cameraTransforms;
@@ -742,7 +749,7 @@ int main(int argc, char** argv)
 	}
 
 	// Bind the memory to the buffers
-	BufferUtils::BindMemoryForBuffers(device, vertexBufferMemory, { vertexBuffer, indexBuffer }, vertexBufferOffsets);
+	BufferUtils::BindMemoryForBuffers(device, { vertexBuffer, indexBuffer }, vertexBufferMemory, vertexBufferOffsets);
 
 	// Create uniform buffers 
 	VkBuffer cameraBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO));
@@ -760,7 +767,7 @@ int main(int argc, char** argv)
 	}
 
 	// Bind memory to buffers
-	BufferUtils::BindMemoryForBuffers(device, uniformBufferMemory, { cameraBuffer, modelBuffer }, uniformBufferOffsets);
+	BufferUtils::BindMemoryForBuffers(device, { cameraBuffer, modelBuffer }, uniformBufferMemory, uniformBufferOffsets);
 
 	// Begin Descriptor logic
 	VkDescriptorPool descriptorPool = CreateDescriptorPool();

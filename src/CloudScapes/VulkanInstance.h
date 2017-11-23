@@ -1,18 +1,18 @@
 #pragma once
 
+#include <vulkan/vulkan.h>
 #include <bitset>
 #include <vector>
-#include <vulkan/vulkan.h>
-#include "forward.h"
-#include "vulkan_device.h"
 #include <stdexcept>
 #include <set>
-#include <vector>
+
+#include "Forward.h"
+#include "VulkanDevice.h"
 
 extern const bool ENABLE_VALIDATION;
 
-class VulkanInstance {
-
+class VulkanInstance 
+{
 public:
     VulkanInstance() = delete;
     VulkanInstance(const char* applicationName, unsigned int additionalExtensionCount = 0, const char** additionalExtensions = nullptr);
@@ -33,7 +33,6 @@ public:
     ~VulkanInstance();
 
 private:
-
     void initDebugReport();
 
     VkInstance instance;

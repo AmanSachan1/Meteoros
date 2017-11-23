@@ -3,10 +3,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
 
-class Camera {
+class Camera 
+{
 public:
-	Camera() = delete;								// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
+	Camera() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
 	Camera(glm::mat4* view);
+
 	void rotate(float dAzimuth, float dAltitude);
 	void pan(float dX, float dY);
 	void zoom(float factor);
