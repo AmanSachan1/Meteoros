@@ -56,6 +56,8 @@ struct ModelUBO
 	glm::mat4 modelMatrix;
 };
 
+std::vector<Vertex> vertices;
+
 Renderer::Renderer(VulkanDevice* device, VulkanSwapChain* swapChain, Scene* scene, Camera* camera)
 	: device(device), 
 	logicalDevice(device->GetVkDevice()),
@@ -609,6 +611,101 @@ void Renderer::RecordGraphicsCommandBuffer()
 	{
 		throw std::runtime_error("Failed to allocate graphics command buffers");
 	}
+
+	// Record graphics command buffers, one for each frame of the swapchain
+	for (unsigned int i = 0; i < graphicsCommandBuffer.size(); ++i)
+	{
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // How we are using the command buffer
+																		// The command buffer can be resubmitted while it is also already pending execution.
+		beginInfo.pInheritanceInfo = nullptr; //only useful for secondary command buffers
+
+		//---------- Begin recording ----------
+		//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
+		// It's not possible to append commands to a buffer at a later time.
+		vkBeginCommandBuffer(graphicsCommandBuffer[i], &beginInfo);
+
+		VkRenderPassBeginInfo renderPassInfo = {};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		renderPassInfo.renderPass = renderPass;
+		renderPassInfo.framebuffer = frameBuffers[i]; //attachments we bind to the renderpass
+		renderPassInfo.renderArea.offset = { 0, 0 };
+		renderPassInfo.renderArea.extent = swapChain->GetVkExtent();
+
+		// Clear values used while clearing the attachments before usage or after usage
+		std::array<VkClearValue, 2> clearValues = {};
+		clearValues[0].color = { 0.0f, 0.0f, 0.0f, 1.0f }; //black
+		clearValues[1].depthStencil = { 1.0f, 0 }; //far plane
+
+		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+		renderPassInfo.pClearValues = clearValues.data();
+
+		//----------------------------------------------
+		//--- Graphics Pipeline Binding and Dispatch ---
+		//----------------------------------------------
+		// Define a memory barrier to transition the vertex buffer from a compute storage object to a vertex input
+		// Each element of the pMemoryBarriers, pBufferMemoryBarriers and pImageMemoryBarriers arrays specifies two halves of a memory dependency, as defined above.
+		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html#synchronization-memory-barriers
+		VkBufferMemoryBarrier computeToVertexBarrier = {};
+		computeToVertexBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		computeToVertexBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+		computeToVertexBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+		computeToVertexBarrier.srcQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Compute);
+		computeToVertexBarrier.dstQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Graphics);
+		computeToVertexBarrier.buffer = vertexBuffer;
+		computeToVertexBarrier.offset = 0;
+		computeToVertexBarrier.size = vertexBufferSize;
+
+		// A pipeline barrier inserts an execution dependency and a set of memory dependencies between a set of commands earlier in the command buffer and a set of commands later in the command buffer.
+		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html
+		vkCmdPipelineBarrier(graphicsCommandBuffer[i],
+							 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+							 VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+							 0,
+							 0, nullptr,
+							 1, &computeToVertexBarrier,
+							 0, nullptr);
+
+		vkCmdBeginRenderPass(graphicsCommandBuffer[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		// VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command
+		// buffer itself and no secondary command buffers will be executed.
+
+		// Bind the graphics pipeline
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+		// Bind camera descriptor set
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &cameraSet, 0, nullptr);
+		// Bind model descriptor set
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &modelSet, 0, nullptr);
+		// Bind sampler descriptor set
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 2, 1, &samplerSet, 0, nullptr);
+
+		// Bind the vertex and index buffers
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &vertexBuffer, offsets);
+
+		// Bind triangle index buffer
+		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+		// Draw indexed triangle
+		/*
+		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
+		indexCount;
+		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+		firstIndex:  Used as an offset into the index buffer
+		vertexOffset: Used as an offset into the vertex buffer
+		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+		*/
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], indexBufferSize, 1, 0, 0, 1);
+
+		vkCmdEndRenderPass(graphicsCommandBuffer[i]);
+
+		//---------- End Recording ----------
+		if (vkEndCommandBuffer(graphicsCommandBuffer[i]) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to record the graphics command buffer");
+		}
+	}// end for loop
 }
 
 void Renderer::RecordComputeCommandBuffer()
@@ -625,6 +722,39 @@ void Renderer::RecordComputeCommandBuffer()
 	{
 		throw std::runtime_error("Failed to allocate compute command buffers");
 	}
+
+	// Record command buffers, one for each frame of the swapchain
+	for (unsigned int i = 0; i < computeCommandBuffer.size(); ++i)
+	{
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // How we are using the command buffer
+																		// The command buffer can be resubmitted while it is also already pending execution.
+		beginInfo.pInheritanceInfo = nullptr; //only useful for secondary command buffers
+
+		//---------- Begin recording ----------
+		//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
+		// It's not possible to append commands to a buffer at a later time.
+		vkBeginCommandBuffer(computeCommandBuffer[i], &beginInfo);
+
+		//-----------------------------------------------------
+		//--- Compute Pipeline Binding, Dispatch & Barriers ---
+		//-----------------------------------------------------
+		//Bind the compute piepline
+		vkCmdBindPipeline(computeCommandBuffer[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+
+		//Bind Descriptor Sets for compute
+		vkCmdBindDescriptorSets(computeCommandBuffer[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeSet, 0, nullptr);
+
+		// Dispatch the compute kernel, with one thread for each vertex
+		// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
+		vkCmdDispatch(computeCommandBuffer[i], vertices.size(), 1, 1);
+
+		//---------- End Recording ----------
+		if (vkEndCommandBuffer(computeCommandBuffer[i]) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to record the compute command buffer");
+		}
+	}// end for loop
 }
 
 //----------------------------------------------
@@ -722,11 +852,9 @@ void Renderer::CreateAllDescriptorSets()
 	samplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
 
 	// Create Buffers that will be bound to descriptor Sets
-	VkBuffer vertexBuffer;
-	unsigned int vertexBufferSize;
 	VkBuffer cameraBuffer;
-	VkBuffer modelBuffer;	
-	CreateAndFillBufferResources(vertexBuffer, vertexBufferSize, vertexBuffer, vertexBuffer);
+	VkBuffer modelBuffer;
+	CreateAndFillBufferResources(vertexBuffer, vertexBufferSize, indexBuffer, indexBufferSize, vertexBuffer, vertexBuffer);
 
 	// Create cloud textures
 	VkImage textureImage;
@@ -739,7 +867,9 @@ void Renderer::CreateAllDescriptorSets()
 	WriteToAndUpdateDescriptorSets(vertexBuffer, vertexBufferSize, vertexBuffer, vertexBuffer, textureImageView, textureSampler);
 }
 
-void Renderer::CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int vertexBufferSize, VkBuffer cameraBuffer, VkBuffer modelBuffer)
+void Renderer::CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int vertexBufferSize, 
+											VkBuffer indexBuffer, unsigned int indexBufferSize, 
+											VkBuffer cameraBuffer, VkBuffer modelBuffer)
 {
 	// Create Camera and Model data to send over to shaders through descriptor sets 
 	CameraUBO cameraTransforms;
@@ -750,7 +880,7 @@ void Renderer::CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int 
 	modelTransforms.modelMatrix = glm::rotate(glm::mat4(1.f), static_cast<float>(15 * M_PI / 180), glm::vec3(0.f, 0.f, 1.f));
 
 	// Create vertices and indices vectors to bind to buffers
-	const std::vector<Vertex> vertices = {
+	vertices = {
 		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
 		{ { 0.5f, -0.5f, 0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
 		{ { 0.5f,  0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
@@ -763,22 +893,22 @@ void Renderer::CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int 
 	};
 
 	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
-		4, 5, 6, 6, 7, 4 };
+										  4, 5, 6, 6, 7, 4 };
 
 	vertexBufferSize = static_cast<uint32_t>(vertices.size() * sizeof(vertices[0]));
-	unsigned int indexBufferSize = static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
+	indexBufferSize = static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
 
 	// Create vertex and index buffers
 	vertexBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vertexBufferSize);
-	VkBuffer indexBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
+	indexBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
 	unsigned int vertexBufferOffsets[2];
 
 	// VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT bit indicates that memory allocated with this type can be mapped for host access using vkMapMemory
 	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT allows to transfer host writes to the device or make device writes visible to the host (without needing other cache mgmt commands)
 	VkDeviceMemory vertexBufferMemory = BufferUtils::AllocateMemoryForBuffers(device,
-	{ vertexBuffer, indexBuffer },
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		vertexBufferOffsets);
+																			  { vertexBuffer, indexBuffer },
+																			  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+																			  vertexBufferOffsets);
 
 	// Copy data to buffer memory
 	{
@@ -896,7 +1026,7 @@ void Renderer::WriteToAndUpdateDescriptorSets(VkBuffer vertexBuffer, unsigned in
 }
 
 //----------------------------------------------
-//-------------- Miscellaneous Functions -------
+//-------------- Format Helper Functions -------
 //----------------------------------------------
 VkFormat Renderer::findSupportedFormat(VkPhysicalDevice physicalDevice,
 									   const std::vector<VkFormat>& candidates,

@@ -37,7 +37,9 @@ public:
 	VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout);
 
 	// Helper Functions for Creating DescriptorSets
-	void CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int vertexBufferSize, VkBuffer cameraBuffer, VkBuffer modelBuffer);
+	void CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int vertexBufferSize,
+									  VkBuffer indexBuffer, unsigned int indexBufferSize,
+									  VkBuffer cameraBuffer, VkBuffer modelBuffer);
 	void CreateCloudTextureResources(VkImage textureImage, VkDeviceMemory textureImageMemory, VkImageView textureImageView, VkSampler textureSampler);
 	void WriteToAndUpdateDescriptorSets(VkBuffer vertexBuffer, unsigned int vertexBufferSize, VkBuffer cameraBuffer, VkBuffer modelBuffer,
 										VkImageView textureImageView, VkSampler textureSampler);
@@ -92,6 +94,12 @@ private:
 	std::vector<VkImageView> imageViews;
 	std::vector<VkFramebuffer> frameBuffers;
 	
+	// Change the buffers when you set it up in a models class
+	VkBuffer vertexBuffer;
+	VkBuffer indexBuffer;
+	unsigned int vertexBufferSize;
+	unsigned int indexBufferSize;
+
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
