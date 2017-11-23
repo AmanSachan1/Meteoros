@@ -22,7 +22,7 @@ class VulkanDevice
 public:
     VulkanSwapChain* CreateSwapChain(VkSurfaceKHR surface);
     VulkanInstance* GetInstance();
-    VkDevice GetVulkanDevice();
+    VkDevice GetVkDevice();
     VkQueue GetQueue(QueueFlags flag);
 	unsigned int GetQueueIndex(QueueFlags flag);
     ~VulkanDevice();

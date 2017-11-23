@@ -14,7 +14,7 @@ VkCommandBuffer Image::beginSingleTimeCommands(VulkanDevice* device, VkCommandPo
 	allocInfo.commandBufferCount = 1;
 
 	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(device->GetVulkanDevice(), &allocInfo, &commandBuffer);
+	vkAllocateCommandBuffers(device->GetVkDevice(), &allocInfo, &commandBuffer);
 
 	VkCommandBufferBeginInfo beginInfo = {};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -37,7 +37,7 @@ void Image::endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPoo
 	vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &submitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(device->GetQueue(QueueFlags::Graphics));
 
-	vkFreeCommandBuffers(device->GetVulkanDevice(), commandPool, 1, &commandBuffer);
+	vkFreeCommandBuffers(device->GetVkDevice(), commandPool, 1, &commandBuffer);
 }
 
 void Image::copyBuffer(VulkanDevice* device, VkCommandPool commandPool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
@@ -227,7 +227,7 @@ void Image::copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, V
 }
 
 void Image::createImage(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-						VkMemoryPropertyFlags properties, VkImage* image, VkDeviceMemory* imageMemory)
+						VkMemoryPropertyFlags properties, VkImage image, VkDeviceMemory imageMemory)
 {
 	//-------------
 	//--- Image ---
@@ -270,7 +270,7 @@ void Image::createImage(VulkanDevice* device, uint32_t width, uint32_t height, V
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageInfo.flags = 0; // There are some optional flags for images that are related to sparse images.
 
-	if (vkCreateImage(device->GetVulkanDevice(), &imageInfo, nullptr, image) != VK_SUCCESS)
+	if (vkCreateImage(device->GetVkDevice(), &imageInfo, nullptr, &image) != VK_SUCCESS)
 	{
 		throw std::runtime_error("failed to create image!");
 	}
@@ -279,17 +279,17 @@ void Image::createImage(VulkanDevice* device, uint32_t width, uint32_t height, V
 	//--- Allocating Memory for image ---
 	//-----------------------------------
 	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(device->GetVulkanDevice(), *image, &memRequirements);
+	vkGetImageMemoryRequirements(device->GetVkDevice(), image, &memRequirements);
 
-	*imageMemory = BufferUtils::CreateDeviceMemory(device, memRequirements.size,
+	imageMemory = BufferUtils::CreateDeviceMemory(device, memRequirements.size,
 												memRequirements.memoryTypeBits,
 												properties);
 
-	vkBindImageMemory(device->GetVulkanDevice(), *image, *imageMemory, 0);
+	vkBindImageMemory(device->GetVkDevice(), image, imageMemory, 0);
 }
 
 void Image::loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const char* imagePath,
-						VkImage* textureImage, VkDeviceMemory* textureImageMemory, VkFormat format,
+						VkImage textureImage, VkDeviceMemory textureImageMemory, VkFormat format,
 						VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
 {
 	//---------------------
@@ -320,9 +320,9 @@ void Image::loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const 
 	//copy the pixel values that we got from the image loading library to the buffer
 	{
 		void* data;
-		vkMapMemory(device->GetVulkanDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
+		vkMapMemory(device->GetVkDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
 		memcpy(data, pixels, static_cast<size_t>(imageSize));
-		vkUnmapMemory(device->GetVulkanDevice(), stagingBufferMemory);
+		vkUnmapMemory(device->GetVkDevice(), stagingBufferMemory);
 	}
 
 	stbi_image_free(pixels);
@@ -337,21 +337,21 @@ void Image::loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const 
 	
 	//Transition: Undefined → transfer destination: transfer writes that don't need to wait on anything
 	//This transition is to make image optimal as a destination
-	transitionImageLayout(device, commandPool, *textureImage, format,
+	transitionImageLayout(device, commandPool, textureImage, format,
 						  VK_IMAGE_LAYOUT_UNDEFINED, 
 						  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-	copyBufferToImage( device, commandPool, stagingBuffer, *textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	copyBufferToImage( device, commandPool, stagingBuffer, textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 	
 	//Transfer destination → shader reading: shader reads should wait on transfer writes, 
 	//specifically the shader reads in the fragment shader, because that's where we're going to use the texture
 	//This transition is to make the image an optimal source for the sampler in a shader
-	transitionImageLayout(device, commandPool, *textureImage, format, 
+	transitionImageLayout(device, commandPool, textureImage, format, 
 						VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 						VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-	vkDestroyBuffer(device->GetVulkanDevice(), stagingBuffer, nullptr);
-	vkFreeMemory(device->GetVulkanDevice(), stagingBufferMemory, nullptr);
+	vkDestroyBuffer(device->GetVkDevice(), stagingBuffer, nullptr);
+	vkFreeMemory(device->GetVkDevice(), stagingBufferMemory, nullptr);
 }
 
 /*
@@ -366,13 +366,15 @@ void Image::createImageView(VulkanDevice* device, VkImageView& imageView, VkImag
 	viewInfo.image = textureImage;
 	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	viewInfo.format = format;
+
+	// Describe the image's purpose and which part of the image should be accessed
 	viewInfo.subresourceRange.aspectMask = aspectFlags;
 	viewInfo.subresourceRange.baseMipLevel = 0;
 	viewInfo.subresourceRange.levelCount = 1;
 	viewInfo.subresourceRange.baseArrayLayer = 0;
 	viewInfo.subresourceRange.layerCount = 1;
 
-	if (vkCreateImageView(device->GetVulkanDevice(), &viewInfo, nullptr, &imageView) != VK_SUCCESS) 
+	if (vkCreateImageView(device->GetVkDevice(), &viewInfo, nullptr, &imageView) != VK_SUCCESS) 
 	{
 		throw std::runtime_error("failed to create texture image view!");
 	}
@@ -420,7 +422,7 @@ void Image::createSampler(VulkanDevice* device, VkSampler& sampler)
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 0.0f;
 
-	if (vkCreateSampler(device->GetVulkanDevice(), &samplerInfo, nullptr, &sampler) != VK_SUCCESS) 
+	if (vkCreateSampler(device->GetVkDevice(), &samplerInfo, nullptr, &sampler) != VK_SUCCESS) 
 	{
 		throw std::runtime_error("failed to create texture sampler!");
 	}

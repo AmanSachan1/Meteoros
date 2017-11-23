@@ -13,12 +13,15 @@
 #include "VulkanInstance.h"
 #include "ShaderModule.h"
 #include "BufferUtils.h"
+#include "Renderer.h"
+#include "Scene.h"
 #include "Camera.h"
 #include "Image.h"
 
 VulkanInstance* instance;
 VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
-VulkanSwapChain* swapchain; 
+VulkanSwapChain* swapchain;
+Renderer* renderer;
 
 VkImage depthImage;
 VkDeviceMemory depthImageMemory;
@@ -184,23 +187,23 @@ void createDepthImage(uint32_t width, uint32_t height, VkFormat format, VkImageT
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if (vkCreateImage(device->GetVulkanDevice(), &imageInfo, nullptr, &image) != VK_SUCCESS) {
+	if (vkCreateImage(device->GetVkDevice(), &imageInfo, nullptr, &image) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create image!");
 	}
 
 	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(device->GetVulkanDevice(), image, &memRequirements);
+	vkGetImageMemoryRequirements(device->GetVkDevice(), image, &memRequirements);
 
 	VkMemoryAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = instance->GetMemoryTypeIndex(memRequirements.memoryTypeBits, properties);
 
-	if (vkAllocateMemory(device->GetVulkanDevice(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+	if (vkAllocateMemory(device->GetVkDevice(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
 		throw std::runtime_error("failed to allocate image memory!");
 	}
 
-	vkBindImageMemory(device->GetVulkanDevice(), image, imageMemory, 0);
+	vkBindImageMemory(device->GetVkDevice(), image, imageMemory, 0);
 }
 
 void createDepthResources()
@@ -210,7 +213,7 @@ void createDepthResources()
 	VkDeviceSize imageSize = window_width * window_height * 4; // 4 channel image
 
 	//Create Depth Image and ImageViews
-	createDepthImage(swapchain->GetExtent().width, swapchain->GetExtent().height, depthFormat,
+	createDepthImage(swapchain->GetVkExtent().width, swapchain->GetVkExtent().height, depthFormat,
 					VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
 
@@ -226,7 +229,7 @@ VkRenderPass CreateRenderPass()
 {	
     // Color buffer attachment represented by one of the images from the swap chain
     VkAttachmentDescription colorAttachment = {};
-    colorAttachment.format = swapchain->GetImageFormat();
+    colorAttachment.format = swapchain->GetVkImageFormat();
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -288,7 +291,7 @@ VkRenderPass CreateRenderPass()
     renderPassInfo.pDependencies = &dependency;
 
     VkRenderPass renderPass;
-    if (vkCreateRenderPass(device->GetVulkanDevice(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) 
+    if (vkCreateRenderPass(device->GetVkDevice(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) 
 	{
         throw std::runtime_error("Failed to create render pass");
     }
@@ -296,10 +299,7 @@ VkRenderPass CreateRenderPass()
     return renderPass;
 }
 
-/*
-	Reference: https://vulkan-tutorial.com/Uniform_buffers 
-	Look for UBO's declared above
-*/
+// Reference: https://vulkan-tutorial.com/Uniform_buffers
 VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding> layoutBindings)
 {
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
@@ -309,7 +309,7 @@ VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayou
 	descriptorSetLayoutCreateInfo.pBindings = layoutBindings.data();
 
 	VkDescriptorSetLayout descriptorSetLayout;
-	vkCreateDescriptorSetLayout(device->GetVulkanDevice(), &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout);
+	vkCreateDescriptorSetLayout(device->GetVkDevice(), &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout);
 	return descriptorSetLayout;
 }
 
@@ -346,7 +346,7 @@ VkDescriptorPool CreateDescriptorPool()
 	descriptorPoolInfo.maxSets = 4;						// Update if you add more descriptor sets 
 
 	VkDescriptorPool descriptorPool;
-	vkCreateDescriptorPool(device->GetVulkanDevice(), &descriptorPoolInfo, nullptr, &descriptorPool);
+	vkCreateDescriptorPool(device->GetVkDevice(), &descriptorPoolInfo, nullptr, &descriptorPool);
 	return descriptorPool;
 }
 
@@ -359,7 +359,7 @@ VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescripto
 	allocInfo.pSetLayouts = &descriptorSetLayout;
 
 	VkDescriptorSet descriptorSet;
-	vkAllocateDescriptorSets(device->GetVulkanDevice(), &allocInfo, &descriptorSet);
+	vkAllocateDescriptorSets(device->GetVkDevice(), &allocInfo, &descriptorSet);
 	return descriptorSet;
 }
 
@@ -374,7 +374,7 @@ VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descrip
 	pipelineLayoutInfo.pPushConstantRanges = 0;
 
 	VkPipelineLayout pipelineLayout;
-	if (vkCreatePipelineLayout(device->GetVulkanDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) 
+	if (vkCreatePipelineLayout(device->GetVkDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) 
 	{
 		throw std::runtime_error("Failed to create pipeline layout");
 	}
@@ -393,8 +393,8 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 	// Can add more shader modules to the list of shader stages that are part of the overall graphics pipeline
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Shader_modules
 	// Create vert and frag shader modules
-	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.vert.spv", device->GetVulkanDevice());
-	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.frag.spv", device->GetVulkanDevice());
+	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.vert.spv", device->GetVkDevice());
+	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.frag.spv", device->GetVkDevice());
 	
 	// Assign each shader module to the appropriate stage in the pipeline
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
@@ -445,8 +445,8 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 	VkViewport viewport = {};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(swapchain->GetExtent().width);
-	viewport.height = static_cast<float>(swapchain->GetExtent().height);
+	viewport.width = static_cast<float>(swapchain->GetVkExtent().width);
+	viewport.height = static_cast<float>(swapchain->GetVkExtent().height);
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
@@ -455,7 +455,7 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 	// we simply want to draw to the entire framebuffer, so we'll specify a scissor rectangle that covers the framebuffer entirely
 	VkRect2D scissor = {};
 	scissor.offset = { 0, 0 };
-	scissor.extent = swapchain->GetExtent();
+	scissor.extent = swapchain->GetVkExtent();
 
 	// Now this viewport and scissor rectangle need to be combined into a viewport state using the 
 	// VkPipelineViewportStateCreateInfo struct. It is possible to use multiple viewports and scissor
@@ -573,20 +573,20 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 	pipelineInfo.basePipelineIndex = -1;
 
 	VkPipeline pipeline;
-	if (vkCreateGraphicsPipelines(device->GetVulkanDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+	if (vkCreateGraphicsPipelines(device->GetVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create pipeline");
 	}
 
 	// No need for the shader modules anymore, so we destory them!
-	vkDestroyShaderModule(device->GetVulkanDevice(), vertShaderModule, nullptr);
-	vkDestroyShaderModule(device->GetVulkanDevice(), fragShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), vertShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), fragShaderModule, nullptr);
 
 	return pipeline;
 }
 
 VkPipeline CreateComputePipeline(VkPipelineLayout pipelineLayout)
 {
-	VkShaderModule compShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.comp.spv", device->GetVulkanDevice());
+	VkShaderModule compShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.comp.spv", device->GetVkDevice());
 
 	VkPipelineShaderStageCreateInfo compShaderStageInfo = {};
 	compShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -600,11 +600,11 @@ VkPipeline CreateComputePipeline(VkPipelineLayout pipelineLayout)
 	pipelineInfo.layout = pipelineLayout;
 
 	VkPipeline pipeline;
-	if (vkCreateComputePipelines(device->GetVulkanDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
+	if (vkCreateComputePipelines(device->GetVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create pipeline");
 	}
 
-	vkDestroyShaderModule(device->GetVulkanDevice(), compShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), compShaderModule, nullptr);
 
 	return pipeline;
 }
@@ -614,7 +614,7 @@ std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass)
     std::vector<VkFramebuffer> frameBuffers(swapchain->GetCount());
     for (uint32_t i = 0; i < swapchain->GetCount(); i++) 
 	{
-		std::array<VkImageView, 2> attachments = { swapchain->GetImageView(i),
+		std::array<VkImageView, 2> attachments = { swapchain->GetVkImageView(i),
 												   depthImageView
 												 };
 
@@ -626,11 +626,11 @@ std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass)
         framebufferInfo.renderPass = renderPass;
         framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
         framebufferInfo.pAttachments = attachments.data();
-        framebufferInfo.width = swapchain->GetExtent().width;
-        framebufferInfo.height = swapchain->GetExtent().height;
+        framebufferInfo.width = swapchain->GetVkExtent().width;
+        framebufferInfo.height = swapchain->GetVkExtent().height;
         framebufferInfo.layers = 1;
 
-        if (vkCreateFramebuffer(device->GetVulkanDevice(), &framebufferInfo, nullptr, &frameBuffers[i]) != VK_SUCCESS) 
+        if (vkCreateFramebuffer(device->GetVkDevice(), &framebufferInfo, nullptr, &frameBuffers[i]) != VK_SUCCESS) 
 		{
             throw std::runtime_error("Failed to create framebuffer");
         }
@@ -678,7 +678,7 @@ int main(int argc, char** argv)
     poolInfo.flags = 0;
 
     commandPool;
-    if (vkCreateCommandPool(device->GetVulkanDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) 
+    if (vkCreateCommandPool(device->GetVkDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) 
 	{
         throw std::runtime_error("Failed to create command pool");
     }
@@ -689,7 +689,7 @@ int main(int argc, char** argv)
 	// Create cloud textures
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
-	Image::loadTexture(device, commandPool, "../../src/CloudScapes/textures/statue.jpg", &textureImage, &textureImageMemory, 
+	Image::loadTexture(device, commandPool, "../../src/CloudScapes/textures/statue.jpg", textureImage, textureImageMemory, 
 				VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, 
 				VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
 				VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -742,10 +742,10 @@ int main(int argc, char** argv)
 		char* data;
 		// The size is equal to vertexBufferOffsets + indexBufferSize 
 		// vertexBufferOffsets stores the amount of memory and is calculated in the call to AllocateMemoryForBuffers above
-		vkMapMemory(device->GetVulkanDevice(), vertexBufferMemory, 0, vertexBufferOffsets[1] + indexBufferSize, 0, reinterpret_cast<void**>(&data));
+		vkMapMemory(device->GetVkDevice(), vertexBufferMemory, 0, vertexBufferOffsets[1] + indexBufferSize, 0, reinterpret_cast<void**>(&data));
 		memcpy(data + vertexBufferOffsets[0], vertices.data(), vertexBufferSize);
 		memcpy(data + vertexBufferOffsets[1], indices.data(), indexBufferSize);
-		vkUnmapMemory(device->GetVulkanDevice(), vertexBufferMemory);
+		vkUnmapMemory(device->GetVkDevice(), vertexBufferMemory);
 	}
 
 	// Bind the memory to the buffers
@@ -760,10 +760,10 @@ int main(int argc, char** argv)
 	// Copy data to uniform memory 
 	{
 		char* data;
-		vkMapMemory(device->GetVulkanDevice(), uniformBufferMemory, 0, uniformBufferOffsets[1] + sizeof(ModelUBO), 0, reinterpret_cast<void**>(&data));		// reinterpret_cast = Leave data as bits, don't reformat it
+		vkMapMemory(device->GetVkDevice(), uniformBufferMemory, 0, uniformBufferOffsets[1] + sizeof(ModelUBO), 0, reinterpret_cast<void**>(&data));		// reinterpret_cast = Leave data as bits, don't reformat it
 		memcpy(data + uniformBufferOffsets[0], &cameraTransforms, sizeof(CameraUBO));
 		memcpy(data + uniformBufferOffsets[1], &modelTransforms, sizeof(ModelUBO));
-		vkUnmapMemory(device->GetVulkanDevice(), uniformBufferMemory);
+		vkUnmapMemory(device->GetVkDevice(), uniformBufferMemory);
 	}
 
 	// Bind memory to buffers
@@ -861,7 +861,7 @@ int main(int argc, char** argv)
 
 		VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeInfo, writeCameraInfo, writeModelInfo, writeSamplerInfo };
 
-		vkUpdateDescriptorSets(device->GetVulkanDevice(), 4, writeDescriptorSets, 0, nullptr);
+		vkUpdateDescriptorSets(device->GetVkDevice(), 4, writeDescriptorSets, 0, nullptr);
 	}
 
     VkRenderPass renderPass = CreateRenderPass();
@@ -889,7 +889,7 @@ int main(int argc, char** argv)
     commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     commandBufferAllocateInfo.commandBufferCount = (uint32_t)(commandBuffers.size());
 
-    if (vkAllocateCommandBuffers(device->GetVulkanDevice(), &commandBufferAllocateInfo, commandBuffers.data()) != VK_SUCCESS) 
+    if (vkAllocateCommandBuffers(device->GetVkDevice(), &commandBufferAllocateInfo, commandBuffers.data()) != VK_SUCCESS) 
 	{
         throw std::runtime_error("Failed to allocate command buffers");
     }
@@ -913,7 +913,7 @@ int main(int argc, char** argv)
         renderPassInfo.renderPass = renderPass;
         renderPassInfo.framebuffer = frameBuffers[i]; //attachments we bind to the renderpass
         renderPassInfo.renderArea.offset = { 0, 0 };
-        renderPassInfo.renderArea.extent = swapchain->GetExtent();
+        renderPassInfo.renderArea.extent = swapchain->GetVkExtent();
 
 		// Clear values used while clearing the attachments before usage or after usage
 		std::array<VkClearValue, 2> clearValues = {};
@@ -1012,7 +1012,7 @@ int main(int argc, char** argv)
 
 	int frameNumber = 0;
 	// Map the part of the buffer referring the camera view matrix so it can be updated when the camera moves
-	vkMapMemory(device->GetVulkanDevice(), uniformBufferMemory, uniformBufferOffsets[0] + offsetof(CameraUBO, viewMatrix), sizeof(glm::mat4), 0, reinterpret_cast<void**>(&mappedCameraView));
+	vkMapMemory(device->GetVkDevice(), uniformBufferMemory, uniformBufferOffsets[0] + offsetof(CameraUBO, viewMatrix), sizeof(glm::mat4), 0, reinterpret_cast<void**>(&mappedCameraView));
 	
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
     while (!ShouldQuit()) 
@@ -1030,7 +1030,7 @@ int main(int argc, char** argv)
 				vkFence: GPU to CPU synchronization
 		*/
 
-        VkSemaphore waitSemaphores[] = { swapchain->GetImageAvailableSemaphore() };
+        VkSemaphore waitSemaphores[] = { swapchain->GetImageAvailableVkSemaphore() };
         VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 		// These parameters specify which semaphores to wait on before execution begins and in which stage(s) of the pipeline to wait
         submitInfo.waitSemaphoreCount = 1;
@@ -1045,7 +1045,7 @@ int main(int argc, char** argv)
         submitInfo.pCommandBuffers = &commandBuffers[swapchain->GetIndex()];
 		
 		// The signalSemaphoreCount and pSignalSemaphores parameters specify which semaphores to signal once the command buffer(s) have finished execution.
-        VkSemaphore signalSemaphores[] = { swapchain->GetRenderFinishedSemaphore() };
+        VkSemaphore signalSemaphores[] = { swapchain->GetRenderFinishedVkSemaphore() };
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 		
@@ -1059,10 +1059,10 @@ int main(int argc, char** argv)
         glfwPollEvents();
     }// end while loop
 	
-	vkUnmapMemory(device->GetVulkanDevice(), uniformBufferMemory);
+	vkUnmapMemory(device->GetVkDevice(), uniformBufferMemory);
 
     // Wait for the device to finish executing before cleanup
-    vkDeviceWaitIdle(device->GetVulkanDevice());
+    vkDeviceWaitIdle(device->GetVkDevice());
 
 	//---------------------
 	//------ CleanUp ------
@@ -1071,40 +1071,40 @@ int main(int argc, char** argv)
 	delete camera;
 
 	//TODO: Delete texture image texture image memory
-	vkDestroyImage(device->GetVulkanDevice(), textureImage, nullptr);
-	vkFreeMemory(device->GetVulkanDevice(), textureImageMemory, nullptr);
-	vkDestroyImageView(device->GetVulkanDevice(), textureImageView, nullptr);
-	vkDestroySampler(device->GetVulkanDevice(), textureSampler, nullptr);
+	vkDestroyImage(device->GetVkDevice(), textureImage, nullptr);
+	vkFreeMemory(device->GetVkDevice(), textureImageMemory, nullptr);
+	vkDestroyImageView(device->GetVkDevice(), textureImageView, nullptr);
+	vkDestroySampler(device->GetVkDevice(), textureSampler, nullptr);
 
-	vkDestroyBuffer(device->GetVulkanDevice(), vertexBuffer, nullptr);
-	vkDestroyBuffer(device->GetVulkanDevice(), indexBuffer, nullptr);
-	vkFreeMemory(device->GetVulkanDevice(), vertexBufferMemory, nullptr);
+	vkDestroyBuffer(device->GetVkDevice(), vertexBuffer, nullptr);
+	vkDestroyBuffer(device->GetVkDevice(), indexBuffer, nullptr);
+	vkFreeMemory(device->GetVkDevice(), vertexBufferMemory, nullptr);
 
-	vkDestroyBuffer(device->GetVulkanDevice(), cameraBuffer, nullptr);
-	vkDestroyBuffer(device->GetVulkanDevice(), modelBuffer, nullptr);
-	vkFreeMemory(device->GetVulkanDevice(), uniformBufferMemory, nullptr);
+	vkDestroyBuffer(device->GetVkDevice(), cameraBuffer, nullptr);
+	vkDestroyBuffer(device->GetVkDevice(), modelBuffer, nullptr);
+	vkFreeMemory(device->GetVkDevice(), uniformBufferMemory, nullptr);
 
-	vkDestroyDescriptorSetLayout(device->GetVulkanDevice(), computeSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(device->GetVulkanDevice(), cameraSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(device->GetVulkanDevice(), modelSetLayout, nullptr);
-	vkDestroyDescriptorPool(device->GetVulkanDevice(), descriptorPool, nullptr);
+	vkDestroyDescriptorSetLayout(device->GetVkDevice(), computeSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device->GetVkDevice(), cameraSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(device->GetVkDevice(), modelSetLayout, nullptr);
+	vkDestroyDescriptorPool(device->GetVkDevice(), descriptorPool, nullptr);
 
-	vkDestroyPipeline(device->GetVulkanDevice(), computePipeline, nullptr);
-	vkDestroyPipelineLayout(device->GetVulkanDevice(), computePipelineLayout, nullptr);
+	vkDestroyPipeline(device->GetVkDevice(), computePipeline, nullptr);
+	vkDestroyPipelineLayout(device->GetVkDevice(), computePipelineLayout, nullptr);
 
-	vkDestroyPipeline(device->GetVulkanDevice(), graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(device->GetVulkanDevice(), graphicsPipelineLayout, nullptr);
+	vkDestroyPipeline(device->GetVkDevice(), graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(device->GetVkDevice(), graphicsPipelineLayout, nullptr);
 
-    vkDestroyRenderPass(device->GetVulkanDevice(), renderPass, nullptr);
-    vkFreeCommandBuffers(device->GetVulkanDevice(), commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+    vkDestroyRenderPass(device->GetVkDevice(), renderPass, nullptr);
+    vkFreeCommandBuffers(device->GetVkDevice(), commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
     for (size_t i = 0; i < frameBuffers.size(); i++) 
 	{
-        vkDestroyFramebuffer(device->GetVulkanDevice(), frameBuffers[i], nullptr);
+        vkDestroyFramebuffer(device->GetVkDevice(), frameBuffers[i], nullptr);
     }
 
     delete swapchain;
-    vkDestroyCommandPool(device->GetVulkanDevice(), commandPool, nullptr);
+    vkDestroyCommandPool(device->GetVkDevice(), commandPool, nullptr);
     vkDestroySurfaceKHR(instance->GetVkInstance(), surface, nullptr);
     delete device;
     delete instance;

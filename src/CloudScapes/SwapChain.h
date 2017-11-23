@@ -12,13 +12,14 @@ class VulkanSwapChain
 
 public:
     VkSwapchainKHR GetVulkanSwapChain() const;
-    VkFormat GetImageFormat() const;
-    VkExtent2D GetExtent() const;
+    VkFormat GetVkImageFormat() const;
+    VkExtent2D GetVkExtent() const;
     uint32_t GetIndex() const;
     uint32_t GetCount() const;
-    VkImageView GetImageView(uint32_t index) const;
-    VkSemaphore GetImageAvailableSemaphore() const;
-    VkSemaphore GetRenderFinishedSemaphore() const;
+    VkImageView GetVkImageView(uint32_t index) const;
+	VkImage GetVkImage(uint32_t index) const;
+    VkSemaphore GetImageAvailableVkSemaphore() const;
+    VkSemaphore GetRenderFinishedVkSemaphore() const;
 
     void Acquire();
     void Present();

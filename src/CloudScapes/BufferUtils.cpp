@@ -9,7 +9,7 @@ VkDeviceMemory BufferUtils::CreateDeviceMemory(VulkanDevice* device, uint32_t si
 	memoryAllocateInfo.memoryTypeIndex = device->GetInstance()->GetMemoryTypeIndex(types, propertyFlags);
 	
 	VkDeviceMemory deviceMemory;
-	if (vkAllocateMemory(device->GetVulkanDevice(), &memoryAllocateInfo, nullptr, &deviceMemory) != VK_SUCCESS) 
+	if (vkAllocateMemory(device->GetVkDevice(), &memoryAllocateInfo, nullptr, &deviceMemory) != VK_SUCCESS) 
 	{
 		throw std::runtime_error("failed to allocate device memory!");
 	}
@@ -36,7 +36,7 @@ VkDeviceMemory BufferUtils::AllocateMemoryForBuffers(VulkanDevice* device, std::
 		}
 
 		// Query its memory requirements (aka figure out what kind of memory we need and how much)
-		vkGetBufferMemoryRequirements(device->GetVulkanDevice(), buffers[i], &memoryRequirements);
+		vkGetBufferMemoryRequirements(device->GetVkDevice(), buffers[i], &memoryRequirements);
 		typeBits |= memoryRequirements.memoryTypeBits;
 	}// end for loop
 
@@ -53,7 +53,7 @@ VkBuffer BufferUtils::CreateBuffer(VulkanDevice* device, VkBufferUsageFlags allo
 	bufferCreateInfo.usage = allowedUsage;	// Which purpose the data in the buffer will be used 
 	
 	VkBuffer buffer;
-	vkCreateBuffer(device->GetVulkanDevice(), &bufferCreateInfo, nullptr, &buffer);
+	vkCreateBuffer(device->GetVkDevice(), &bufferCreateInfo, nullptr, &buffer);
 
 	return buffer;
 }
@@ -66,6 +66,6 @@ void BufferUtils::BindMemoryForBuffers(VulkanDevice* device, std::vector<VkBuffe
 {
 	for (unsigned int i = 0; i < buffers.size(); ++i) 
 	{
-		vkBindBufferMemory(device->GetVulkanDevice(), buffers[i], bufferMemory, bufferOffsets[i]);
+		vkBindBufferMemory(device->GetVkDevice(), buffers[i], bufferMemory, bufferOffsets[i]);
 	}
 }

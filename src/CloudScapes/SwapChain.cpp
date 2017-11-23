@@ -137,15 +137,15 @@ VulkanSwapChain::VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface)
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
     // Create swap chain
-    if (vkCreateSwapchainKHR(device->GetVulkanDevice(), &createInfo, nullptr, &vkSwapChain) != VK_SUCCESS) 
+    if (vkCreateSwapchainKHR(device->GetVkDevice(), &createInfo, nullptr, &vkSwapChain) != VK_SUCCESS) 
 	{
         throw std::runtime_error("Failed to create swap chain");
     }
 
     // --- Retrieve swap chain images ---
-    vkGetSwapchainImagesKHR(device->GetVulkanDevice(), vkSwapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(device->GetVkDevice(), vkSwapChain, &imageCount, nullptr);
     vkSwapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(device->GetVulkanDevice(), vkSwapChain, &imageCount, vkSwapChainImages.data());
+    vkGetSwapchainImagesKHR(device->GetVkDevice(), vkSwapChain, &imageCount, vkSwapChainImages.data());
 
     vkSwapChainImageFormat = surfaceFormat.format;
     vkSwapChainExtent = extent;
@@ -177,7 +177,7 @@ VulkanSwapChain::VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface)
         createInfo.subresourceRange.layerCount = 1;
 
         // Create the image view
-        if (vkCreateImageView(device->GetVulkanDevice(), &createInfo, nullptr, &vkSwapChainImageViews[i]) != VK_SUCCESS) 
+        if (vkCreateImageView(device->GetVkDevice(), &createInfo, nullptr, &vkSwapChainImageViews[i]) != VK_SUCCESS) 
 		{
             throw std::runtime_error("Failed to create image views");
         }
@@ -186,8 +186,8 @@ VulkanSwapChain::VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface)
     VkSemaphoreCreateInfo semaphoreInfo = {};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-    if (vkCreateSemaphore(device->GetVulkanDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
-        vkCreateSemaphore(device->GetVulkanDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS) 
+    if (vkCreateSemaphore(device->GetVkDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphore) != VK_SUCCESS ||
+        vkCreateSemaphore(device->GetVkDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphore) != VK_SUCCESS) 
 	{
         throw std::runtime_error("Failed to create semaphores");
     }
@@ -195,14 +195,14 @@ VulkanSwapChain::VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface)
 
 VulkanSwapChain::~VulkanSwapChain()
 {
-	vkDestroySemaphore(device->GetVulkanDevice(), imageAvailableSemaphore, nullptr);
-	vkDestroySemaphore(device->GetVulkanDevice(), renderFinishedSemaphore, nullptr);
+	vkDestroySemaphore(device->GetVkDevice(), imageAvailableSemaphore, nullptr);
+	vkDestroySemaphore(device->GetVkDevice(), renderFinishedSemaphore, nullptr);
 
 	for (size_t i = 0; i < vkSwapChainImageViews.size(); i++) {
-		vkDestroyImageView(device->GetVulkanDevice(), vkSwapChainImageViews[i], nullptr);
+		vkDestroyImageView(device->GetVkDevice(), vkSwapChainImageViews[i], nullptr);
 	}
 
-	vkDestroySwapchainKHR(device->GetVulkanDevice(), vkSwapChain, nullptr);
+	vkDestroySwapchainKHR(device->GetVkDevice(), vkSwapChain, nullptr);
 }
 
 void VulkanSwapChain::Acquire() 
@@ -212,7 +212,7 @@ void VulkanSwapChain::Acquire()
         // the validation layer implementation expects the application to explicitly synchronize with the GPU
         vkQueueWaitIdle(device->GetQueue(QueueFlags::Present));
     }
-    VkResult result = vkAcquireNextImageKHR(device->GetVulkanDevice(), vkSwapChain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);   
+    VkResult result = vkAcquireNextImageKHR(device->GetVkDevice(), vkSwapChain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);   
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
 	{
         throw std::runtime_error("Failed to acquire swap chain image");
@@ -248,12 +248,17 @@ VkSwapchainKHR VulkanSwapChain::GetVulkanSwapChain() const
 	return vkSwapChain;
 }
 
-VkFormat VulkanSwapChain::GetImageFormat() const
+VkFormat VulkanSwapChain::GetVkImageFormat() const
 {
 	return vkSwapChainImageFormat;
 }
 
-VkExtent2D VulkanSwapChain::GetExtent() const
+VkImage VulkanSwapChain::GetVkImage(uint32_t index) const 
+{
+	return vkSwapChainImages[index];
+}
+
+VkExtent2D VulkanSwapChain::GetVkExtent() const
 {
 	return vkSwapChainExtent;
 }
@@ -268,18 +273,18 @@ uint32_t VulkanSwapChain::GetCount() const
 	return static_cast<uint32_t>(vkSwapChainImages.size());
 }
 
-VkImageView VulkanSwapChain::GetImageView(uint32_t index) const
+VkImageView VulkanSwapChain::GetVkImageView(uint32_t index) const
 {
 	return vkSwapChainImageViews[index];
 }
 
-VkSemaphore VulkanSwapChain::GetImageAvailableSemaphore() const
+VkSemaphore VulkanSwapChain::GetImageAvailableVkSemaphore() const
 {
 	return imageAvailableSemaphore;
 
 }
 
-VkSemaphore VulkanSwapChain::GetRenderFinishedSemaphore() const
+VkSemaphore VulkanSwapChain::GetRenderFinishedVkSemaphore() const
 {
 	return renderFinishedSemaphore;
 }

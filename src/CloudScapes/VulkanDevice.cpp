@@ -14,7 +14,7 @@ VulkanInstance* VulkanDevice::GetInstance()
     return instance;
 }
 
-VkDevice VulkanDevice::GetVulkanDevice() 
+VkDevice VulkanDevice::GetVkDevice() 
 {
     return vkDevice;
 }
