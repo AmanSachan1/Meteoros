@@ -3,6 +3,11 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <stdexcept>
+#include <iostream>
+
 #include "VulkanDevice.h"
 #include "SwapChain.h"
 #include "ShaderModule.h"
@@ -22,6 +27,8 @@ public:
 
 	void InitializeRenderer();
 
+	void Frame();
+
 	void CreateCommandPools();
 	void CreateRenderPass();
 
@@ -38,10 +45,9 @@ public:
 
 	// Helper Functions for Creating DescriptorSets
 	void CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int vertexBufferSize,
-									  VkBuffer indexBuffer, unsigned int indexBufferSize,
-									  VkBuffer cameraBuffer, VkBuffer modelBuffer);
+									  VkBuffer indexBuffer, unsigned int indexBufferSize);
 	void CreateCloudTextureResources(VkImage textureImage, VkDeviceMemory textureImageMemory, VkImageView textureImageView, VkSampler textureSampler);
-	void WriteToAndUpdateDescriptorSets(VkBuffer vertexBuffer, unsigned int vertexBufferSize, VkBuffer cameraBuffer, VkBuffer modelBuffer,
+	void WriteToAndUpdateDescriptorSets(VkBuffer vertexBuffer, unsigned int vertexBufferSize, VkBuffer modelBuffer,
 										VkImageView textureImageView, VkSampler textureSampler);
 
 	// Pipelines

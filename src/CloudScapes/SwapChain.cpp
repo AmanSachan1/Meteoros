@@ -73,115 +73,7 @@ namespace
 VulkanSwapChain::VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface)
   : device(device), vkSurface(vkSurface) 
 {
-    auto* instance = device->GetInstance();
-    
-    const auto& surfaceCapabilities = instance->GetSurfaceCapabilities();
-
-    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(instance->GetSurfaceFormats());
-    VkPresentModeKHR presentMode = chooseSwapPresentMode(instance->GetPresentModes());
-    VkExtent2D extent = chooseSwapExtent(surfaceCapabilities, GetGLFWWindow());
-
-	// Triple Bufferring --> Displaying, Ready to be displayed next, Being worked on
-	// Can do multiple buffering here!
-    uint32_t imageCount = surfaceCapabilities.minImageCount + 1; // 2 + 1 = triple buffering
-    if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount) 
-	{
-        imageCount = surfaceCapabilities.maxImageCount;
-    }
-
-    // --- Create swap chain ---
-    VkSwapchainCreateInfoKHR createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-
-    // Specify surface to be tied to
-    createInfo.surface = vkSurface;
-
-    // Add details of the swap chain
-    createInfo.minImageCount = imageCount;
-    createInfo.imageFormat = surfaceFormat.format;
-    createInfo.imageColorSpace = surfaceFormat.colorSpace;
-    createInfo.imageExtent = extent;
-    createInfo.imageArrayLayers = 1;
-    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-
-    const auto& queueFamilyIndices = instance->GetQueueFamilyIndices();
-    if (queueFamilyIndices[QueueFlags::Graphics] != queueFamilyIndices[QueueFlags::Present]) 
-	{
-        // Images can be used across multiple queue families without explicit ownership transfers
-        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-        createInfo.queueFamilyIndexCount = 2;
-        unsigned int indices[] = { queueFamilyIndices[QueueFlags::Graphics], queueFamilyIndices[QueueFlags::Present] };
-        createInfo.pQueueFamilyIndices = indices;
-    } 
-	else 
-	{
-        // An image is owned by one queue family at a time and ownership must be explicitly transfered between uses
-        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        createInfo.queueFamilyIndexCount = 0;
-        createInfo.pQueueFamilyIndices = nullptr;
-    }
-
-    // Specify transform on images in the swap chain (no transformation done here)
-    createInfo.preTransform = surfaceCapabilities.currentTransform;
-  
-    // Specify alpha channel usage (set to be ignored here)
-    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-  
-    // Specify presentation mode
-    createInfo.presentMode = presentMode;
-  
-    // Specify whether we can clip pixels that are obscured by other windows
-    createInfo.clipped = VK_TRUE;
-  
-    // Reference to old swap chain in case current one becomes invalid
-    createInfo.oldSwapchain = VK_NULL_HANDLE;
-
-    // Create swap chain
-    if (vkCreateSwapchainKHR(device->GetVkDevice(), &createInfo, nullptr, &vkSwapChain) != VK_SUCCESS) 
-	{
-        throw std::runtime_error("Failed to create swap chain");
-    }
-
-    // --- Retrieve swap chain images ---
-    vkGetSwapchainImagesKHR(device->GetVkDevice(), vkSwapChain, &imageCount, nullptr);
-    vkSwapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(device->GetVkDevice(), vkSwapChain, &imageCount, vkSwapChainImages.data());
-
-    vkSwapChainImageFormat = surfaceFormat.format;
-    vkSwapChainExtent = extent;
-
-    vkSwapChainImageViews.resize(vkSwapChainImages.size());
-
-    for (size_t i = 0; i < vkSwapChainImages.size(); i++) 
-	{
-        // --- Create an image view for each swap chain image ---
-        VkImageViewCreateInfo createInfo = {};
-        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        createInfo.image = vkSwapChainImages[i];
-
-        // Specify how the image data should be interpreted
-        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        createInfo.format = vkSwapChainImageFormat;
-
-        // Specify color channel mappings (can be used for swizzling)
-        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-        // Describe the image's purpose and which part of the image should be accessed
-        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        createInfo.subresourceRange.baseMipLevel = 0;
-        createInfo.subresourceRange.levelCount = 1;
-        createInfo.subresourceRange.baseArrayLayer = 0;
-        createInfo.subresourceRange.layerCount = 1;
-
-        // Create the image view
-        if (vkCreateImageView(device->GetVkDevice(), &createInfo, nullptr, &vkSwapChainImageViews[i]) != VK_SUCCESS) 
-		{
-            throw std::runtime_error("Failed to create image views");
-        }
-    }
+	Create();
 
     VkSemaphoreCreateInfo semaphoreInfo = {};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -203,6 +95,125 @@ VulkanSwapChain::~VulkanSwapChain()
 	}
 
 	vkDestroySwapchainKHR(device->GetVkDevice(), vkSwapChain, nullptr);
+}
+
+void VulkanSwapChain::Create()
+{
+	auto* instance = device->GetInstance();
+
+	const auto& surfaceCapabilities = instance->GetSurfaceCapabilities();
+
+	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(instance->GetSurfaceFormats());
+	VkPresentModeKHR presentMode = chooseSwapPresentMode(instance->GetPresentModes());
+	VkExtent2D extent = chooseSwapExtent(surfaceCapabilities, GetGLFWWindow());
+
+	// Triple Bufferring --> Displaying, Ready to be displayed next, Being worked on
+	// Can do multiple buffering here!
+	uint32_t imageCount = surfaceCapabilities.minImageCount + 1; // 2 + 1 = triple buffering
+	if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount)
+	{
+		imageCount = surfaceCapabilities.maxImageCount;
+	}
+
+	// --- Create swap chain ---
+	VkSwapchainCreateInfoKHR createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+
+	// Specify surface to be tied to
+	createInfo.surface = vkSurface;
+
+	// Add details of the swap chain
+	createInfo.minImageCount = imageCount;
+	createInfo.imageFormat = surfaceFormat.format;
+	createInfo.imageColorSpace = surfaceFormat.colorSpace;
+	createInfo.imageExtent = extent;
+	createInfo.imageArrayLayers = 1;
+	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+	const auto& queueFamilyIndices = instance->GetQueueFamilyIndices();
+	if (queueFamilyIndices[QueueFlags::Graphics] != queueFamilyIndices[QueueFlags::Present])
+	{
+		// Images can be used across multiple queue families without explicit ownership transfers
+		createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		createInfo.queueFamilyIndexCount = 2;
+		unsigned int indices[] = { queueFamilyIndices[QueueFlags::Graphics], queueFamilyIndices[QueueFlags::Present] };
+		createInfo.pQueueFamilyIndices = indices;
+	}
+	else
+	{
+		// An image is owned by one queue family at a time and ownership must be explicitly transfered between uses
+		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.queueFamilyIndexCount = 0;
+		createInfo.pQueueFamilyIndices = nullptr;
+	}
+
+	// Specify transform on images in the swap chain (no transformation done here)
+	createInfo.preTransform = surfaceCapabilities.currentTransform;
+
+	// Specify alpha channel usage (set to be ignored here)
+	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+
+	// Specify presentation mode
+	createInfo.presentMode = presentMode;
+
+	// Specify whether we can clip pixels that are obscured by other windows
+	createInfo.clipped = VK_TRUE;
+
+	// Reference to old swap chain in case current one becomes invalid
+	createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+	// Create swap chain
+	if (vkCreateSwapchainKHR(device->GetVkDevice(), &createInfo, nullptr, &vkSwapChain) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to create swap chain");
+	}
+
+	// --- Retrieve swap chain images ---
+	vkGetSwapchainImagesKHR(device->GetVkDevice(), vkSwapChain, &imageCount, nullptr);
+	vkSwapChainImages.resize(imageCount);
+	vkGetSwapchainImagesKHR(device->GetVkDevice(), vkSwapChain, &imageCount, vkSwapChainImages.data());
+
+	vkSwapChainImageFormat = surfaceFormat.format;
+	vkSwapChainExtent = extent;
+
+	vkSwapChainImageViews.resize(vkSwapChainImages.size());
+
+	for (size_t i = 0; i < vkSwapChainImages.size(); i++)
+	{
+		// --- Create an image view for each swap chain image ---
+		VkImageViewCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image = vkSwapChainImages[i];
+
+		// Specify how the image data should be interpreted
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format = vkSwapChainImageFormat;
+
+		// Specify color channel mappings (can be used for swizzling)
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+		// Describe the image's purpose and which part of the image should be accessed
+		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		createInfo.subresourceRange.baseMipLevel = 0;
+		createInfo.subresourceRange.levelCount = 1;
+		createInfo.subresourceRange.baseArrayLayer = 0;
+		createInfo.subresourceRange.layerCount = 1;
+
+		// Create the image view
+		if (vkCreateImageView(device->GetVkDevice(), &createInfo, nullptr, &vkSwapChainImageViews[i]) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create image views");
+		}
+	}
+}
+
+void VulkanSwapChain::Recreate() 
+{
+	vkDestroySwapchainKHR(device->GetVkDevice(), vkSwapChain, nullptr);
+	Create();
 }
 
 void VulkanSwapChain::Acquire() 

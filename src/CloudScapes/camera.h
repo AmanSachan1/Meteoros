@@ -1,27 +1,39 @@
 #pragma once
 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/glm.hpp>
+#include "VulkanDevice.h"
+#include "BufferUtils.h"
+
+struct CameraUBO {
+	glm::mat4 viewMatrix;
+	glm::mat4 projectionMatrix;
+};
 
 class Camera 
 {
 public:
 	Camera() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
-	Camera(glm::mat4* view);
+	Camera(VulkanDevice* device,
+		   glm::vec3 eyePos, glm::vec3 lookatPoint,
+		   float foV_vertical, float aspectRatio, float nearClip, float farClip);
+	~Camera();
 
-	void rotate(float dAzimuth, float dAltitude);
-	void pan(float dX, float dY);
-	void zoom(float factor);
-	const glm::mat4& view();
+	void UpdateOrbit(float deltaX, float deltaY, float deltaZ);
+	VkBuffer GetBuffer() const;
 
 private:
-	void recalculate();
+	VulkanDevice* device; //member variable because it is needed for the destructor
 
-	float _azimuth;
-	float _altitude;
-	float _radius;
-	glm::vec3 _center;
-	glm::vec3 _eyeDir;
-	bool _dirty;
-	glm::mat4& _view;
+	CameraUBO cameraUBO;
+	VkBuffer buffer;
+	VkDeviceMemory bufferMemory;
+
+	void* mappedData;
+
+	glm::vec3 eyePos;
+	glm::vec3 lookAtPos;
+	float r, theta, phi;
 };

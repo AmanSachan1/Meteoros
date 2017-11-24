@@ -21,6 +21,8 @@ public:
     VkSemaphore GetImageAvailableVkSemaphore() const;
     VkSemaphore GetRenderFinishedVkSemaphore() const;
 
+	void Create();
+	void Recreate();
     void Acquire();
     void Present();
     ~VulkanSwapChain();

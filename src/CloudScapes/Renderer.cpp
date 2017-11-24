@@ -45,12 +45,6 @@ struct Vertex
 	}
 };
 
-struct CameraUBO
-{
-	glm::mat4 viewMatrix;
-	glm::mat4 projectionMatrix;
-};
-
 struct ModelUBO
 {
 	glm::mat4 modelMatrix;
@@ -115,6 +109,69 @@ void Renderer::InitializeRenderer()
 
 	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
+}
+
+//This Function submits command buffers for execution --> so that the application can 
+//actually present one image after another and not just stop after the first image
+void Renderer::Frame()
+{
+	//-------------------------------------------
+	//--------- Submit Compute Queue ------------
+	//-------------------------------------------
+
+	VkSubmitInfo computeSubmitInfo = {};
+	computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	computeSubmitInfo.commandBufferCount = 1;
+	computeSubmitInfo.pCommandBuffers = &computeCommandBuffer[swapChain->GetIndex()];
+
+	// submit the command buffer to the compute queue
+	if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to submit compute command buffer");
+	}
+
+	//-------------------------------------------
+	//--------- Submit Graphics Queue -----------
+	//-------------------------------------------
+	swapChain->Acquire();
+
+	// Submit the command buffer
+	VkSubmitInfo graphicsSubmitInfo = {};
+	graphicsSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+	/*
+	Can synchronize between queues by using certain supported features
+	VkEvent: Versatile waiting, but limited to a single queue
+	VkSemaphore: GPU to GPU synchronization
+	vkFence: GPU to CPU synchronization
+	*/
+
+	VkSemaphore waitSemaphores[] = { swapChain->GetImageAvailableVkSemaphore() };
+	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	// These parameters specify which semaphores to wait on before execution begins and in which stage(s) of the pipeline to wait
+	graphicsSubmitInfo.waitSemaphoreCount = 1;
+	graphicsSubmitInfo.pWaitSemaphores = waitSemaphores;
+	graphicsSubmitInfo.pWaitDstStageMask = waitStages;
+	// We want to wait with writing colors to the image until it's available, so we're specifying the stage of the graphics pipeline 
+	// that writes to the color attachment. That means that theoretically the implementation can already start executing our vertex 
+	// shader and such while the image is not available yet.
+
+	// specify which command buffers to actually submit for execution
+	graphicsSubmitInfo.commandBufferCount = 1;
+	graphicsSubmitInfo.pCommandBuffers = &graphicsCommandBuffer[swapChain->GetIndex()];
+
+	// The signalSemaphoreCount and pSignalSemaphores parameters specify which semaphores to signal once the command buffer(s) have finished execution.
+	VkSemaphore signalSemaphores[] = { swapChain->GetRenderFinishedVkSemaphore() };
+	graphicsSubmitInfo.signalSemaphoreCount = 1;
+	graphicsSubmitInfo.pSignalSemaphores = signalSemaphores;
+
+	// submit the command buffer to the graphics queue
+	if (vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &graphicsSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to submit draw command buffer");
+	}
+
+	// Display a frame
+	swapChain->Present();
 }
 
 //----------------------------------------------
@@ -852,33 +909,47 @@ void Renderer::CreateAllDescriptorSets()
 	samplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
 
 	// Create Buffers that will be bound to descriptor Sets
-	VkBuffer cameraBuffer;
-	VkBuffer modelBuffer;
-	CreateAndFillBufferResources(vertexBuffer, vertexBufferSize, indexBuffer, indexBufferSize, vertexBuffer, vertexBuffer);
+
+	// Create Camera and Model data to send over to shaders through descriptor sets
+	ModelUBO modelTransforms;
+	modelTransforms.modelMatrix = glm::mat4(1.0f);
+
+	// Create model buffer
+	VkBuffer modelBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelUBO));
+	unsigned int modelBufferOffset[1];
+	VkDeviceMemory modelBufferMemory = BufferUtils::AllocateMemoryForBuffers(device,
+																			{ modelBuffer },
+																			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+																			modelBufferOffset);
+
+	// Copy data to uniform memory 
+	{
+		char* data;
+		vkMapMemory(device->GetVkDevice(), modelBufferMemory, 0, sizeof(ModelUBO), 0, reinterpret_cast<void**>(&data));// reinterpret_cast = Leave data as bits, don't reformat it
+		memcpy(data, &modelTransforms, sizeof(ModelUBO));
+		vkUnmapMemory(device->GetVkDevice(), modelBufferMemory);
+	}
+
+	// Bind memory to buffers
+	BufferUtils::BindMemoryForBuffers(device, { modelBuffer }, modelBufferMemory, modelBufferOffset);
+
+	CreateAndFillBufferResources(vertexBuffer, vertexBufferSize, indexBuffer, indexBufferSize);
 
 	// Create cloud textures
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
 	VkImageView textureImageView;
 	VkSampler textureSampler;
+
 	CreateCloudTextureResources(textureImage, textureImageMemory, textureImageView, textureSampler);
 
 	//Write to and Update DescriptorSets
-	WriteToAndUpdateDescriptorSets(vertexBuffer, vertexBufferSize, vertexBuffer, vertexBuffer, textureImageView, textureSampler);
+	WriteToAndUpdateDescriptorSets(vertexBuffer, vertexBufferSize, modelBuffer, textureImageView, textureSampler);
 }
 
 void Renderer::CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int vertexBufferSize, 
-											VkBuffer indexBuffer, unsigned int indexBufferSize, 
-											VkBuffer cameraBuffer, VkBuffer modelBuffer)
+											VkBuffer indexBuffer, unsigned int indexBufferSize)
 {
-	// Create Camera and Model data to send over to shaders through descriptor sets 
-	CameraUBO cameraTransforms;
-	camera = new Camera(&cameraTransforms.viewMatrix);
-	cameraTransforms.projectionMatrix = glm::perspective(static_cast<float>(45 * M_PI / 180), 640.f / 480.f, 0.1f, 1000.f);
-
-	ModelUBO modelTransforms;
-	modelTransforms.modelMatrix = glm::rotate(glm::mat4(1.f), static_cast<float>(15 * M_PI / 180), glm::vec3(0.f, 0.f, 1.f));
-
 	// Create vertices and indices vectors to bind to buffers
 	vertices = {
 		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
@@ -923,27 +994,6 @@ void Renderer::CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int 
 
 	// Bind the memory to the buffers
 	BufferUtils::BindMemoryForBuffers(device, { vertexBuffer, indexBuffer }, vertexBufferMemory, vertexBufferOffsets);
-
-	// Create uniform buffers 
-	cameraBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO));
-	modelBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelUBO));
-	unsigned int uniformBufferOffsets[2];
-	VkDeviceMemory uniformBufferMemory = BufferUtils::AllocateMemoryForBuffers(device,
-	{ cameraBuffer, modelBuffer },
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		uniformBufferOffsets);
-
-	// Copy data to uniform memory 
-	{
-		char* data;
-		vkMapMemory(device->GetVkDevice(), uniformBufferMemory, 0, uniformBufferOffsets[1] + sizeof(ModelUBO), 0, reinterpret_cast<void**>(&data));		// reinterpret_cast = Leave data as bits, don't reformat it
-		memcpy(data + uniformBufferOffsets[0], &cameraTransforms, sizeof(CameraUBO));
-		memcpy(data + uniformBufferOffsets[1], &modelTransforms, sizeof(ModelUBO));
-		vkUnmapMemory(device->GetVkDevice(), uniformBufferMemory);
-	}
-
-	// Bind memory to buffers
-	BufferUtils::BindMemoryForBuffers(device, { cameraBuffer, modelBuffer }, uniformBufferMemory, uniformBufferOffsets);
 }
 
 void Renderer::CreateCloudTextureResources(VkImage textureImage, VkDeviceMemory textureImageMemory, VkImageView textureImageView, VkSampler textureSampler)
@@ -960,7 +1010,7 @@ void Renderer::CreateCloudTextureResources(VkImage textureImage, VkDeviceMemory 
 
 }
 
-void Renderer::WriteToAndUpdateDescriptorSets(VkBuffer vertexBuffer, unsigned int vertexBufferSize, VkBuffer cameraBuffer, VkBuffer modelBuffer, 
+void Renderer::WriteToAndUpdateDescriptorSets(VkBuffer vertexBuffer, unsigned int vertexBufferSize, VkBuffer modelBuffer, 
 											  VkImageView textureImageView, VkSampler textureSampler)
 {
 	// Compute
@@ -979,7 +1029,7 @@ void Renderer::WriteToAndUpdateDescriptorSets(VkBuffer vertexBuffer, unsigned in
 
 	// Camera 
 	VkDescriptorBufferInfo cameraBufferInfo = {};
-	cameraBufferInfo.buffer = cameraBuffer;
+	cameraBufferInfo.buffer = camera->GetBuffer();
 	cameraBufferInfo.offset = 0;
 	cameraBufferInfo.range = sizeof(CameraUBO);
 

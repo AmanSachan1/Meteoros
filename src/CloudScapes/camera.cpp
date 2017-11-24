@@ -1,57 +1,51 @@
 #include "camera.h"
 
-Camera::Camera(glm::mat4* view)
-	: _azimuth(glm::radians(-90.f)),
-	_altitude(glm::radians(0.f)),
-	_radius(5.f),
-	_center(0, 0, 0),
-	_dirty(true),
-	_view(*view) 
+Camera::Camera(VulkanDevice* device,
+			   glm::vec3 eyePos, glm::vec3 lookAtPoint,
+			   float foV_vertical, float aspectRatio, float nearClip, float farClip)
+	: device(device), eyePos(eyePos), lookAtPos(lookAtPoint)
 {
-	recalculate();
+	r = eyePos.z;
+	theta = 0.0f;
+	phi = 0.0f;
+	cameraUBO.viewMatrix = glm::lookAt(eyePos, lookAtPos, glm::vec3(0.0f, 1.0f, 0.0f));
+	cameraUBO.projectionMatrix = glm::perspective(static_cast<float>(foV_vertical * M_PI / 180), aspectRatio, nearClip, farClip);
+	cameraUBO.projectionMatrix[1][1] *= -1; // y-coordinate is flipped
+
+	buffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO));
+	unsigned int camBufferOffsets[1];
+	bufferMemory = BufferUtils::AllocateMemoryForBuffers(device, { buffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, camBufferOffsets);
+	BufferUtils::BindMemoryForBuffers(device, { buffer }, bufferMemory, camBufferOffsets);
+
+	vkMapMemory(device->GetVkDevice(), bufferMemory, 0, sizeof(CameraUBO), 0, &mappedData);
+	memcpy(mappedData, &cameraUBO, sizeof(CameraUBO));
 }
 
-void Camera::rotate(float dAzimuth, float dAltitude) 
+Camera::~Camera() 
 {
-	_dirty = true;
-	_azimuth = glm::mod(_azimuth + dAzimuth, glm::radians(360.f));
-	_altitude = glm::clamp(_altitude + dAltitude, glm::radians(-89.f), glm::radians(89.f));
+	vkUnmapMemory(device->GetVkDevice(), bufferMemory);
+	vkDestroyBuffer(device->GetVkDevice(), buffer, nullptr);
+	vkFreeMemory(device->GetVkDevice(), bufferMemory, nullptr);
 }
 
-void Camera::pan(float dX, float dY) 
+VkBuffer Camera::GetBuffer() const 
 {
-	recalculate();
-	_dirty = true;
-	glm::vec3 vX = glm::normalize(glm::cross(-_eyeDir, glm::vec3(0, 1, 0)));
-	glm::vec3 vY = glm::normalize(glm::cross(_eyeDir, vX));
-	_center += vX * dX * _radius + vY * dY * _radius;
+	return buffer;
 }
 
-void Camera::zoom(float factor) 
+void Camera::UpdateOrbit(float deltaX, float deltaY, float deltaZ) 
 {
-	_dirty = true;
-	_radius = _radius * glm::exp(-factor);
-}
+	theta += deltaX;
+	phi += deltaY;
+	r = glm::clamp(r - deltaZ, 1.0f, 500.0f);
 
-const glm::mat4& Camera::view() 
-{
-	if (_dirty) {
-		recalculate();
-	}
-	return _view;
-}
+	float radTheta = glm::radians(theta);
+	float radPhi = glm::radians(phi);
 
-void Camera::recalculate() 
-{
-	if (_dirty) 
-	{
-		glm::vec4 eye4 = glm::vec4(1, 0, 0, 1);
-		glm::mat4 r1 = glm::rotate(glm::mat4(1.0), _altitude, glm::vec3(0, 0, 1));
-		glm::mat4 r2 = glm::rotate(glm::mat4(1.0), _azimuth, glm::vec3(0, 1, 0));
-		eye4 = r2 * r1 * eye4;
-		_eyeDir = glm::vec3(eye4);
+	glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), radTheta, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::rotate(glm::mat4(1.0f), radPhi, glm::vec3(1.0f, 0.0f, 0.0f));
+	glm::mat4 finalTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f)) * rotation * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, r));
 
-		_view = glm::lookAt(_center + _eyeDir * _radius, _center, glm::vec3(0, 1, 0));
-		_dirty = false;
-	}
+	cameraUBO.viewMatrix = glm::inverse(finalTransform);
+
+	memcpy(mappedData, &cameraUBO, sizeof(CameraUBO));
 }
