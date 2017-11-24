@@ -13,10 +13,9 @@ Camera::Camera(VulkanDevice* device,
 	//Reason for flipping the y axis: https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
 	cameraUBO.projectionMatrix[1][1] *= -1; // y-coordinate is flipped
 
-	buffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO));
-	unsigned int camBufferOffsets[1];
-	bufferMemory = BufferUtils::AllocateMemoryForBuffers(device, { buffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, camBufferOffsets);
-	BufferUtils::BindMemoryForBuffers(device, { buffer }, bufferMemory, camBufferOffsets);
+	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO), 
+							VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+							buffer, bufferMemory);
 
 	vkMapMemory(device->GetVkDevice(), bufferMemory, 0, sizeof(CameraUBO), 0, &mappedData);
 	memcpy(mappedData, &cameraUBO, sizeof(CameraUBO));

@@ -309,13 +309,12 @@ void Image::loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const 
 
 	//----------------------
 	//--- Staging Buffer ---
-	//----------------------
-	unsigned int textureBufferOffsets[1];
-	VkBuffer stagingBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, imageSize);
-	VkDeviceMemory stagingBufferMemory = BufferUtils::AllocateMemoryForBuffers(device, { stagingBuffer },
-																			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-																			textureBufferOffsets);
-	BufferUtils::BindMemoryForBuffers(device, { stagingBuffer }, stagingBufferMemory, textureBufferOffsets);
+	//----------------------		
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, imageSize,
+							VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+							stagingBuffer, stagingBufferMemory);
 
 	//copy the pixel values that we got from the image loading library to the buffer
 	{
@@ -422,8 +421,7 @@ void Image::createSampler(VulkanDevice* device, VkSampler& sampler)
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 0.0f;
 
-	if (vkCreateSampler(device->GetVkDevice(), &samplerInfo, nullptr, &sampler) != VK_SUCCESS) 
-	{
+	if (vkCreateSampler(device->GetVkDevice(), &samplerInfo, nullptr, &sampler) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create texture sampler!");
 	}
 }

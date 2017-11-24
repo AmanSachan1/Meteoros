@@ -1,50 +1,5 @@
 #include "Renderer.h"
 
-struct Vertex
-{
-	glm::vec4 position;
-	glm::vec3 color;
-	glm::vec2 texCoord;
-
-	/*
-	The functions below allow us to access texture coordinates as input in the vertex shader.
-	That is necessary to be able to pass them to the fragment shader
-	for interpolation across the surface of the square
-	*/
-
-	static VkVertexInputBindingDescription getBindingDescription()
-	{
-		VkVertexInputBindingDescription bindingDescription = {};
-		bindingDescription.binding = 0;
-		bindingDescription.stride = sizeof(Vertex);
-		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		return bindingDescription;
-	}
-
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
-	{
-		std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions = {};
-
-		attributeDescriptions[0].binding = 0;
-		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		attributeDescriptions[0].offset = offsetof(Vertex, position);
-
-		attributeDescriptions[1].binding = 0;
-		attributeDescriptions[1].location = 1;
-		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-		attributeDescriptions[2].binding = 0;
-		attributeDescriptions[2].location = 2;
-		attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-		attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-		return attributeDescriptions;
-	}
-};
-
 struct ModelUBO
 {
 	glm::mat4 modelMatrix;
@@ -92,12 +47,6 @@ Renderer::~Renderer()
 
 	vkDestroyImage(logicalDevice, textureImage, nullptr);
 	vkFreeMemory(logicalDevice, textureImageMemory, nullptr);
-
-	vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
-	vkDestroyBuffer(logicalDevice, indexBuffer, nullptr);
-	vkFreeMemory(logicalDevice, vertexBufferMemory, nullptr);
-	vkDestroyBuffer(logicalDevice, modelBuffer, nullptr);
-	vkFreeMemory(logicalDevice, modelBufferMemory, nullptr);
 }
 
 void Renderer::InitializeRenderer()
@@ -720,9 +669,9 @@ void Renderer::RecordGraphicsCommandBuffer()
 		computeToVertexBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
 		computeToVertexBarrier.srcQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Compute);
 		computeToVertexBarrier.dstQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Graphics);
-		computeToVertexBarrier.buffer = vertexBuffer;
+		computeToVertexBarrier.buffer = house->getVertexBuffer();
 		computeToVertexBarrier.offset = 0;
-		computeToVertexBarrier.size = vertexBufferSize;
+		computeToVertexBarrier.size = house->getVertexBufferSize();
 
 		// A pipeline barrier inserts an execution dependency and a set of memory dependencies between a set of commands earlier in the command buffer and a set of commands later in the command buffer.
 		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html
@@ -750,10 +699,11 @@ void Renderer::RecordGraphicsCommandBuffer()
 
 		// Bind the vertex and index buffers
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &vertexBuffer, offsets);
+		const VkBuffer vertices = house->getVertexBuffer();
+		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &vertices, offsets);
 
 		// Bind triangle index buffer
-		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
 		// Draw indexed triangle
 		/*
@@ -764,7 +714,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		vertexOffset: Used as an offset into the vertex buffer
 		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
 		*/
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], indexBufferSize, 1, 0, 0, 1);
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
 
 		vkCmdEndRenderPass(graphicsCommandBuffer[i]);
 
@@ -918,87 +868,36 @@ void Renderer::CreateAllDescriptorSets()
 	modelSet = CreateDescriptorSet(descriptorPool, modelSetLayout);
 	samplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
 
-	// Create Buffers that will be bound to descriptor Sets
+	// Create Models
+	const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
+	const std::string texture_path = "../../src/CloudScapes/textures/chalet.jpg";
+	//house = new Model(device, graphicsCommandPool, model_path, texture_path);
 
-	// Create Camera and Model data to send over to shaders through descriptor sets
-	ModelUBO modelTransforms;
-	modelTransforms.modelMatrix = glm::mat4(1.0f);
+	float planeDim = 15.f;
+	float halfWidth = planeDim * 0.5f;
 
-	// Create model buffer
-	modelBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelUBO));
-	unsigned int modelBufferOffset[1];
-	modelBufferMemory = BufferUtils::AllocateMemoryForBuffers(device,
-															{ modelBuffer },
-															VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-															modelBufferOffset);
+	const std::vector<Vertex> vertices = {
+		{ { -0.5f, 0.5f,  0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
+		{ { 0.5f,  0.5f,  0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
+		{ { 0.5f,  -0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
+		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
 
-	// Copy data to uniform memory 
-	{
-		char* data;
-		vkMapMemory(device->GetVkDevice(), modelBufferMemory, 0, sizeof(ModelUBO), 0, reinterpret_cast<void**>(&data));// reinterpret_cast = Leave data as bits, don't reformat it
-		memcpy(data, &modelTransforms, sizeof(ModelUBO));
-		vkUnmapMemory(device->GetVkDevice(), modelBufferMemory);
-	}
+		{ { -0.5f, 0.5f,  -0.5f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
+		{ { 0.5f,  0.5f,  -0.5f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
+		{ { 0.5f,  -0.5f, -0.5f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
+		{ { -0.5f, -0.5f, -0.5f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } }
+	};
+	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
+		4, 5, 6, 6, 7, 4 };
 
-	// Bind memory to buffers
-	BufferUtils::BindMemoryForBuffers(device, { modelBuffer }, modelBufferMemory, modelBufferOffset);
-
-	CreateAndFillBufferResources(vertexBuffer, vertexBufferSize, indexBuffer, indexBufferSize);
+	house = new Model(device, graphicsCommandPool, vertices, indices);
+	house->SetTexture(device, graphicsCommandPool, texture_path, houseTextureImage, houseTextureImageMemory, houseTextureImageView, houseTextureSampler);
 
 	// Create cloud textures
 	CreateCloudTextureResources(textureImage, textureImageMemory, textureImageView, textureSampler);
 
 	//Write to and Update DescriptorSets
-	WriteToAndUpdateDescriptorSets(vertexBuffer, vertexBufferSize, modelBuffer, textureImageView, textureSampler);
-}
-
-void Renderer::CreateAndFillBufferResources(VkBuffer& vertexBuffer, unsigned int& vertexBufferSize, 
-											VkBuffer& indexBuffer, unsigned int& indexBufferSize)
-{
-	// Create vertices and indices vectors to bind to buffers
-	vertices = {
-		{ { -0.5f, 0.5f,  0.0f, 1.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
-		{ { 0.5f,  0.5f,  0.0f, 1.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
-		{ { 0.5f,  -0.5f, 0.0f, 1.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
-		{ { -0.5f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } },
-
-		{ { -0.5f, 0.5f,  -0.5f, 1.0f }, { 1.0f, 0.0f, 0.0f }, { 1.0f, 0.0f } },
-		{ { 0.5f,  0.5f,  -0.5f, 1.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f } },
-		{ { 0.5f,  -0.5f, -0.5f, 1.0f }, { 0.0f, 0.0f, 1.0f }, { 0.0f, 1.0f } },
-		{ { -0.5f, -0.5f, -0.5f, 1.0f }, { 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f } }
-	};
-
-	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
-										  4, 5, 6, 6, 7, 4 };
-
-	vertexBufferSize = static_cast<uint32_t>(vertices.size() * sizeof(vertices[0]));
-	indexBufferSize = static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
-
-	// Create vertex and index buffers
-	vertexBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vertexBufferSize);
-	indexBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
-	unsigned int vertexBufferOffsets[2];
-
-	// VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT bit indicates that memory allocated with this type can be mapped for host access using vkMapMemory
-	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT allows to transfer host writes to the device or make device writes visible to the host (without needing other cache mgmt commands)
-	vertexBufferMemory = BufferUtils::AllocateMemoryForBuffers(device,
-															{ vertexBuffer, indexBuffer },
-															VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-															vertexBufferOffsets);
-
-	// Copy data to buffer memory
-	{
-		char* data;
-		// The size is equal to vertexBufferOffsets + indexBufferSize 
-		// vertexBufferOffsets stores the amount of memory and is calculated in the call to AllocateMemoryForBuffers above
-		vkMapMemory(device->GetVkDevice(), vertexBufferMemory, 0, vertexBufferOffsets[1] + indexBufferSize, 0, reinterpret_cast<void**>(&data));
-		memcpy(data + vertexBufferOffsets[0], vertices.data(), vertexBufferSize);
-		memcpy(data + vertexBufferOffsets[1], indices.data(), indexBufferSize);
-		vkUnmapMemory(device->GetVkDevice(), vertexBufferMemory);
-	}
-
-	// Bind the memory to the buffers
-	BufferUtils::BindMemoryForBuffers(device, { vertexBuffer, indexBuffer }, vertexBufferMemory, vertexBufferOffsets);
+	WriteToAndUpdateDescriptorSets();
 }
 
 void Renderer::CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, VkSampler& textureSampler)
@@ -1014,14 +913,13 @@ void Renderer::CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory
 	Image::createSampler(device, textureSampler);
 }
 
-void Renderer::WriteToAndUpdateDescriptorSets(VkBuffer& vertexBuffer, unsigned int& vertexBufferSize, VkBuffer& modelBuffer, 
-											  VkImageView& textureImageView, VkSampler& textureSampler)
+void Renderer::WriteToAndUpdateDescriptorSets()
 {
 	// Compute
 	VkDescriptorBufferInfo computeBufferInfo = {};
-	computeBufferInfo.buffer = vertexBuffer;
+	computeBufferInfo.buffer = house->getVertexBuffer();
 	computeBufferInfo.offset = 0;
-	computeBufferInfo.range = vertexBufferSize;
+	computeBufferInfo.range = house->getVertexBufferSize();
 
 	VkWriteDescriptorSet writeComputeInfo = {};
 	writeComputeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1047,7 +945,7 @@ void Renderer::WriteToAndUpdateDescriptorSets(VkBuffer& vertexBuffer, unsigned i
 
 	// Model
 	VkDescriptorBufferInfo modelBufferInfo = {};
-	modelBufferInfo.buffer = modelBuffer;
+	modelBufferInfo.buffer = house->GetModelBuffer();
 	modelBufferInfo.offset = 0;
 	modelBufferInfo.range = sizeof(ModelUBO);
 

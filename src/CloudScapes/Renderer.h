@@ -12,9 +12,11 @@
 #include "SwapChain.h"
 #include "ShaderModule.h"
 #include "BufferUtils.h"
+#include "Vertex.h"
 #include "Image.h"
 #include "Camera.h"
 #include "Scene.h"
+#include "Model.h"
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
@@ -44,11 +46,8 @@ public:
 	VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout);
 
 	// Helper Functions for Creating DescriptorSets
-	void CreateAndFillBufferResources(VkBuffer& vertexBuffer, unsigned int& vertexBufferSize,
-									  VkBuffer& indexBuffer, unsigned int& indexBufferSize);
 	void CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, VkSampler& textureSampler);
-	void WriteToAndUpdateDescriptorSets(VkBuffer& vertexBuffer, unsigned int& vertexBufferSize, VkBuffer& modelBuffer,
-										VkImageView& textureImageView, VkSampler& textureSampler);
+	void WriteToAndUpdateDescriptorSets();
 
 	// Pipelines
 	VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts);
@@ -101,13 +100,12 @@ private:
 	std::vector<VkFramebuffer> frameBuffers;
 	
 	// Change the buffers when you set it up in a models class
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
-	VkBuffer indexBuffer;
-	unsigned int vertexBufferSize;
-	unsigned int indexBufferSize;
-	VkBuffer modelBuffer;
-	VkDeviceMemory modelBufferMemory;
+	Model* house;
+
+	VkImage houseTextureImage;
+	VkDeviceMemory houseTextureImageMemory;
+	VkImageView houseTextureImageView;
+	VkSampler houseTextureSampler;
 
 	VkImage textureImage;
 	VkDeviceMemory textureImageMemory;
