@@ -941,14 +941,24 @@ void Renderer::CreateAllDescriptorSets()
 	VkImageView textureImageView;
 	VkSampler textureSampler;
 
-	CreateCloudTextureResources(textureImage, textureImageMemory, textureImageView, textureSampler);
+	Image::loadTexture(device, graphicsCommandPool, "../../src/CloudScapes/textures/statue.jpg", textureImage, textureImageMemory,
+		VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	Image::createImageView(device, textureImageView, textureImage,
+		VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	Image::createSampler(device, textureSampler);
+
+	//CreateCloudTextureResources(textureImage, textureImageMemory, textureImageView, textureSampler);
 
 	//Write to and Update DescriptorSets
 	WriteToAndUpdateDescriptorSets(vertexBuffer, vertexBufferSize, modelBuffer, textureImageView, textureSampler);
 }
 
-void Renderer::CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int vertexBufferSize, 
-											VkBuffer indexBuffer, unsigned int indexBufferSize)
+void Renderer::CreateAndFillBufferResources(VkBuffer& vertexBuffer, unsigned int& vertexBufferSize, 
+											VkBuffer& indexBuffer, unsigned int& indexBufferSize)
 {
 	// Create vertices and indices vectors to bind to buffers
 	vertices = {
@@ -996,22 +1006,21 @@ void Renderer::CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int 
 	BufferUtils::BindMemoryForBuffers(device, { vertexBuffer, indexBuffer }, vertexBufferMemory, vertexBufferOffsets);
 }
 
-void Renderer::CreateCloudTextureResources(VkImage textureImage, VkDeviceMemory textureImageMemory, VkImageView textureImageView, VkSampler textureSampler)
+void Renderer::CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, VkSampler& textureSampler)
 {
 	Image::loadTexture(device, graphicsCommandPool, "../../src/CloudScapes/textures/statue.jpg", textureImage, textureImageMemory,
 		VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	
+
 	Image::createImageView(device, textureImageView, textureImage,
 		VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
-	
-	Image::createSampler(device, textureSampler);
 
+	Image::createSampler(device, textureSampler);
 }
 
-void Renderer::WriteToAndUpdateDescriptorSets(VkBuffer vertexBuffer, unsigned int vertexBufferSize, VkBuffer modelBuffer, 
-											  VkImageView textureImageView, VkSampler textureSampler)
+void Renderer::WriteToAndUpdateDescriptorSets(VkBuffer& vertexBuffer, unsigned int& vertexBufferSize, VkBuffer& modelBuffer, 
+											  VkImageView& textureImageView, VkSampler& textureSampler)
 {
 	// Compute
 	VkDescriptorBufferInfo computeBufferInfo = {};

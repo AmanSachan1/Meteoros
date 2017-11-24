@@ -44,11 +44,11 @@ public:
 	VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout);
 
 	// Helper Functions for Creating DescriptorSets
-	void CreateAndFillBufferResources(VkBuffer vertexBuffer, unsigned int vertexBufferSize,
-									  VkBuffer indexBuffer, unsigned int indexBufferSize);
-	void CreateCloudTextureResources(VkImage textureImage, VkDeviceMemory textureImageMemory, VkImageView textureImageView, VkSampler textureSampler);
-	void WriteToAndUpdateDescriptorSets(VkBuffer vertexBuffer, unsigned int vertexBufferSize, VkBuffer modelBuffer,
-										VkImageView textureImageView, VkSampler textureSampler);
+	void CreateAndFillBufferResources(VkBuffer& vertexBuffer, unsigned int& vertexBufferSize,
+									  VkBuffer& indexBuffer, unsigned int& indexBufferSize);
+	void CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, VkSampler& textureSampler);
+	void WriteToAndUpdateDescriptorSets(VkBuffer& vertexBuffer, unsigned int& vertexBufferSize, VkBuffer& modelBuffer,
+										VkImageView& textureImageView, VkSampler& textureSampler);
 
 	// Pipelines
 	VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts);

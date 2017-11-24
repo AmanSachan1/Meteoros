@@ -227,7 +227,7 @@ void Image::copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, V
 }
 
 void Image::createImage(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
-						VkMemoryPropertyFlags properties, VkImage image, VkDeviceMemory imageMemory)
+						VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
 {
 	//-------------
 	//--- Image ---
@@ -289,7 +289,7 @@ void Image::createImage(VulkanDevice* device, uint32_t width, uint32_t height, V
 }
 
 void Image::loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const char* imagePath,
-						VkImage textureImage, VkDeviceMemory textureImageMemory, VkFormat format,
+						VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkFormat format,
 						VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties)
 {
 	//---------------------
@@ -357,7 +357,7 @@ void Image::loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const 
 /*
 	Resource: https://vulkan-tutorial.com/Texture_mapping/Image_view_and_sampler
 */
-void Image::createImageView(VulkanDevice* device, VkImageView& imageView, VkImage textureImage,
+void Image::createImageView(VulkanDevice* device, VkImageView& imageView, VkImage& textureImage,
 							VkFormat format, VkImageAspectFlags aspectFlags)
 {
 	// Create the image view 
