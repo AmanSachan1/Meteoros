@@ -22,6 +22,7 @@ public:
 	~Camera();
 
 	void UpdateOrbit(float deltaX, float deltaY, float deltaZ);
+	void Zoom(float factor);
 	VkBuffer GetBuffer() const;
 
 private:

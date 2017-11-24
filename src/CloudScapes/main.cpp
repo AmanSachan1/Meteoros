@@ -67,20 +67,23 @@ namespace
 			double sensitivity = 0.5;
 			float deltaX = static_cast<float>((previousX - xPosition) * sensitivity);
 			float deltaY = static_cast<float>((previousY - yPosition) * sensitivity);
-
-			camera->UpdateOrbit(deltaX, deltaY, 0.0f);
-
 			previousX = xPosition;
 			previousY = yPosition;
-		}
-		else if (rightMouseDown) 
-		{
-			double deltaZ = static_cast<float>((previousY - yPosition) * 0.05);
 
-			camera->UpdateOrbit(0.0f, 0.0f, deltaZ);
-
-			previousY = yPosition;
+			camera->UpdateOrbit(deltaX, deltaY, 0.0f);
 		}
+		//else if (rightMouseDown) 
+		//{
+		//	double deltaZ = static_cast<float>((previousY - yPosition) * 0.05);
+		//	previousY = yPosition;
+
+		//	camera->UpdateOrbit(0.0f, 0.0f, deltaZ);
+		//}
+	}
+
+	void scrollCallback(GLFWwindow*, double, double yoffset)
+	{
+		camera->Zoom(static_cast<float>(yoffset) * 0.05f);
 	}
 }
 
@@ -126,6 +129,7 @@ int main(int argc, char** argv)
 
 	glfwSetWindowSizeCallback(GetGLFWWindow(), resizeCallback);
 	glfwSetMouseButtonCallback(GetGLFWWindow(), mouseDownCallback);
+	glfwSetScrollCallback(GetGLFWWindow(), scrollCallback);
 	glfwSetCursorPosCallback(GetGLFWWindow(), mouseMoveCallback);
 
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
