@@ -73,21 +73,31 @@ Renderer::~Renderer()
 	vkDestroyCommandPool(logicalDevice, computeCommandPool, nullptr);
 	vkDestroyCommandPool(logicalDevice, graphicsCommandPool, nullptr);
 
-	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
-
-	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
-
 	DestroyFrameResources();
 
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
+	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
+	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
 	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, modelSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, samplerSetLayout, nullptr);
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
+
+	vkDestroySampler(logicalDevice, textureSampler, nullptr);
+	vkDestroyImageView(logicalDevice, textureImageView, nullptr);
+
+	vkDestroyImage(logicalDevice, textureImage, nullptr);
+	vkFreeMemory(logicalDevice, textureImageMemory, nullptr);
+
+	vkDestroyBuffer(logicalDevice, vertexBuffer, nullptr);
+	vkDestroyBuffer(logicalDevice, indexBuffer, nullptr);
+	vkFreeMemory(logicalDevice, vertexBufferMemory, nullptr);
+	vkDestroyBuffer(logicalDevice, modelBuffer, nullptr);
+	vkFreeMemory(logicalDevice, modelBufferMemory, nullptr);
 }
 
 void Renderer::InitializeRenderer()
@@ -915,12 +925,12 @@ void Renderer::CreateAllDescriptorSets()
 	modelTransforms.modelMatrix = glm::mat4(1.0f);
 
 	// Create model buffer
-	VkBuffer modelBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelUBO));
+	modelBuffer = BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelUBO));
 	unsigned int modelBufferOffset[1];
-	VkDeviceMemory modelBufferMemory = BufferUtils::AllocateMemoryForBuffers(device,
-																			{ modelBuffer },
-																			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-																			modelBufferOffset);
+	modelBufferMemory = BufferUtils::AllocateMemoryForBuffers(device,
+															{ modelBuffer },
+															VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+															modelBufferOffset);
 
 	// Copy data to uniform memory 
 	{
@@ -936,10 +946,6 @@ void Renderer::CreateAllDescriptorSets()
 	CreateAndFillBufferResources(vertexBuffer, vertexBufferSize, indexBuffer, indexBufferSize);
 
 	// Create cloud textures
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-	VkImageView textureImageView;
-	VkSampler textureSampler;
 	CreateCloudTextureResources(textureImage, textureImageMemory, textureImageView, textureSampler);
 
 	//Write to and Update DescriptorSets
@@ -975,10 +981,10 @@ void Renderer::CreateAndFillBufferResources(VkBuffer& vertexBuffer, unsigned int
 
 	// VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT bit indicates that memory allocated with this type can be mapped for host access using vkMapMemory
 	// VK_MEMORY_PROPERTY_HOST_COHERENT_BIT allows to transfer host writes to the device or make device writes visible to the host (without needing other cache mgmt commands)
-	VkDeviceMemory vertexBufferMemory = BufferUtils::AllocateMemoryForBuffers(device,
-																			  { vertexBuffer, indexBuffer },
-																			  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-																			  vertexBufferOffsets);
+	vertexBufferMemory = BufferUtils::AllocateMemoryForBuffers(device,
+															{ vertexBuffer, indexBuffer },
+															VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+															vertexBufferOffsets);
 
 	// Copy data to buffer memory
 	{

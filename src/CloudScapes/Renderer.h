@@ -102,9 +102,17 @@ private:
 	
 	// Change the buffers when you set it up in a models class
 	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
 	VkBuffer indexBuffer;
 	unsigned int vertexBufferSize;
 	unsigned int indexBufferSize;
+	VkBuffer modelBuffer;
+	VkDeviceMemory modelBufferMemory;
+
+	VkImage textureImage;
+	VkDeviceMemory textureImageMemory;
+	VkImageView textureImageView;
+	VkSampler textureSampler;
 
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;

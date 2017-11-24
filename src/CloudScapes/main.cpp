@@ -17,7 +17,6 @@ VulkanSwapChain* swapChain;
 Renderer* renderer;
 
 Camera* camera;
-glm::mat4* mappedCameraView;
 
 int window_height = 480;
 int window_width = 640;
@@ -144,20 +143,14 @@ int main(int argc, char** argv)
 
 	//---------------------
 	//------ CleanUp ------
-	//---------------------
-	
-	//TODO: Delete texture image texture image memory
-	//vkDestroyImage(device->GetVkDevice(), textureImage, nullptr);
-	//vkFreeMemory(device->GetVkDevice(), textureImageMemory, nullptr);
-	//vkDestroyImageView(device->GetVkDevice(), textureImageView, nullptr);
-	//vkDestroySampler(device->GetVkDevice(), textureSampler, nullptr);
+	//---------------------	
+	delete renderer;
+	delete scene;
+	delete camera;
 
     delete swapChain;
     vkDestroySurfaceKHR(instance->GetVkInstance(), surface, nullptr);
     delete device;
     delete instance;
-	delete scene;
-	delete camera;
-	delete renderer;
     DestroyWindow();
 }
