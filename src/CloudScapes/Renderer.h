@@ -117,11 +117,11 @@ private:
 	VkImageView depthImageView;
 
 	VkDescriptorPool descriptorPool;
-	VkDescriptorSetLayout computeSetLayout;
+	VkDescriptorSetLayout computeBufferSetLayout;
 	VkDescriptorSetLayout cameraSetLayout;
 	VkDescriptorSetLayout modelSetLayout;
 	VkDescriptorSetLayout samplerSetLayout;
-	VkDescriptorSet computeSet;
+	VkDescriptorSet computeBufferSet;
 	VkDescriptorSet cameraSet;
 	VkDescriptorSet modelSet;
 	VkDescriptorSet samplerSet;

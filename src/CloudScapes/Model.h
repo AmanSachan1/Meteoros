@@ -8,6 +8,7 @@
 #include "Vertex.h"
 #include "BufferUtils.h"
 #include "Image.h"
+#include <unordered_map>
 
 struct ModelBufferObject {
 	glm::mat4 modelMatrix;
@@ -34,8 +35,6 @@ public:
 
 	VkBuffer getVertexBuffer() const;
 	VkBuffer getIndexBuffer() const;
-	VkBuffer* getPointerToVertexBuffer() const;
-	VkBuffer* getPointerToIndexBuffer() const;
 
 	const ModelBufferObject& getModelBufferObject() const;
 

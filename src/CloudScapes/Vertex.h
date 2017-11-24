@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
 #include <array>
 
 struct Vertex
@@ -16,6 +18,10 @@ struct Vertex
 	That is necessary to be able to pass them to the fragment shader
 	for interpolation across the surface of the square
 	*/
+
+	bool operator==(const Vertex& other) const {
+		return position == other.position && color == other.color && texCoord == other.texCoord;
+	}
 
 	static VkVertexInputBindingDescription getBindingDescription()
 	{
@@ -49,3 +55,13 @@ struct Vertex
 		return attributeDescriptions;
 	}
 };
+
+namespace std {
+	template<> struct hash<Vertex> {
+		size_t operator()(Vertex const& vertex) const {
+			return ((hash<glm::vec3>()(vertex.position) ^
+				(hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+				(hash<glm::vec2>()(vertex.texCoord) << 1);
+		}
+	};
+}

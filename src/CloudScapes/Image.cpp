@@ -4,53 +4,6 @@
 #include "../../external/ImageLibraries/stb_image.h"
 
 //Reference: https://vulkan-tutorial.com/Texture_mapping/Images
-
-VkCommandBuffer Image::beginSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool)
-{
-	VkCommandBufferAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocInfo.commandPool = commandPool;
-	allocInfo.commandBufferCount = 1;
-
-	VkCommandBuffer commandBuffer;
-	vkAllocateCommandBuffers(device->GetVkDevice(), &allocInfo, &commandBuffer);
-
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-	return commandBuffer;
-}
-
-void Image::endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkCommandBuffer commandBuffer)
-{
-	vkEndCommandBuffer(commandBuffer);
-
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffer;
-
-	vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &submitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(device->GetQueue(QueueFlags::Graphics));
-
-	vkFreeCommandBuffers(device->GetVkDevice(), commandPool, 1, &commandBuffer);
-}
-
-void Image::copyBuffer(VulkanDevice* device, VkCommandPool commandPool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
-{
-	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
-
-	VkBufferCopy copyRegion = {};
-	copyRegion.size = size;
-	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-	endSingleTimeCommands(device, commandPool, commandBuffer);
-}
-
 bool Image::hasStencilComponent(VkFormat format)
 {
 	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;

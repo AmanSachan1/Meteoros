@@ -4,13 +4,10 @@
 #include <vector>
 #include "VulkanDevice.h"
 #include "BufferUtils.h"
+#include "Commands.h"
 
 namespace Image
 {
-	VkCommandBuffer beginSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool);
-	void endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkCommandBuffer commandBuffer);
-
-	void copyBuffer(VulkanDevice* device, VkCommandPool commandPool, VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 	void copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, VkBuffer buffer, VkImage& image, uint32_t width, uint32_t height);
 
 	void transitionImageLayout(VulkanDevice* device, VkCommandPool commandPool, VkImage& image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);

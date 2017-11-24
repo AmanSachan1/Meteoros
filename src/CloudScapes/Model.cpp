@@ -26,12 +26,12 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::string 
 	LoadModel(model_path);
 
 	if (vertices.size() > 0) {
-		BufferUtils::CreateBufferFromData(device, commandPool, this->vertices.data(), vertices.size() * sizeof(Vertex),
+		BufferUtils::CreateBufferFromData(device, commandPool, vertices.data(), vertices.size() * sizeof(Vertex),
 										VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBuffer, vertexBufferMemory);
 	}
 
 	if (indices.size() > 0) {
-		BufferUtils::CreateBufferFromData(device, commandPool, this->indices.data(), indices.size() * sizeof(uint32_t),
+		BufferUtils::CreateBufferFromData(device, commandPool, indices.data(), indices.size() * sizeof(uint32_t),
 										VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBuffer, indexBufferMemory);
 	}
 
@@ -99,6 +99,7 @@ void Model::LoadModel(const std::string model_path)
 		throw std::runtime_error(err);
 	}
 
+	std::unordered_map<Vertex, uint32_t> uniqueVertices = {};
 	for (const auto& shape : shapes) 
 	{
 		for (const auto& index : shape.mesh.indices)
@@ -118,8 +119,13 @@ void Model::LoadModel(const std::string model_path)
 			vertex.texCoord = glm::vec2(attrib.texcoords[2 * index.texcoord_index + 0],
 										1.0f - attrib.texcoords[2 * index.texcoord_index + 1]);
 
-			vertices.push_back(vertex);
-			indices.push_back(indices.size());
+			//prevents vertex duplication
+			if (uniqueVertices.count(vertex) == 0) {
+				uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+				vertices.push_back(vertex);
+			}
+
+			indices.push_back(uniqueVertices[vertex]);
 		}
 	}
 }

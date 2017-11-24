@@ -36,7 +36,7 @@ Renderer::~Renderer()
 	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
-	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, computeBufferSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, modelSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, samplerSetLayout, nullptr);
@@ -60,7 +60,7 @@ void Renderer::InitializeRenderer()
 
 	CreateFrameResources();
 
-	computePipelineLayout = CreatePipelineLayout({ computeSetLayout });
+	computePipelineLayout = CreatePipelineLayout({ computeBufferSetLayout });
 	CreateComputePipeline();
 
 	graphicsPipelineLayout = CreatePipelineLayout({ cameraSetLayout, modelSetLayout, samplerSetLayout });
@@ -761,7 +761,7 @@ void Renderer::RecordComputeCommandBuffer()
 		vkCmdBindPipeline(computeCommandBuffer[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 
 		//Bind Descriptor Sets for compute
-		vkCmdBindDescriptorSets(computeCommandBuffer[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeSet, 0, nullptr);
+		vkCmdBindDescriptorSets(computeCommandBuffer[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeBufferSet, 0, nullptr);
 
 		// Dispatch the compute kernel, with one thread for each vertex
 		// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
@@ -843,7 +843,7 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	// Stage Flags --> which shader you're referencing this descriptor from 
 	// pImmutableSamplers --> for image sampling related descriptors
 
-	computeSetLayout = CreateDescriptorSetLayout({
+	computeBufferSetLayout = CreateDescriptorSetLayout({
 		{ 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
 	});
 
@@ -863,7 +863,7 @@ void Renderer::CreateAllDescriptorSetLayouts()
 void Renderer::CreateAllDescriptorSets()
 {
 	// Initialize descriptor sets
-	computeSet = CreateDescriptorSet(descriptorPool, computeSetLayout);
+	computeBufferSet = CreateDescriptorSet(descriptorPool, computeBufferSetLayout);
 	cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
 	modelSet = CreateDescriptorSet(descriptorPool, modelSetLayout);
 	samplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
@@ -915,19 +915,19 @@ void Renderer::CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory
 
 void Renderer::WriteToAndUpdateDescriptorSets()
 {
-	// Compute
+	// Compute Buffer
 	VkDescriptorBufferInfo computeBufferInfo = {};
 	computeBufferInfo.buffer = house->getVertexBuffer();
 	computeBufferInfo.offset = 0;
 	computeBufferInfo.range = house->getVertexBufferSize();
 
-	VkWriteDescriptorSet writeComputeInfo = {};
-	writeComputeInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeComputeInfo.dstSet = computeSet;
-	writeComputeInfo.dstBinding = 0;
-	writeComputeInfo.descriptorCount = 1;									// How many 
-	writeComputeInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	writeComputeInfo.pBufferInfo = &computeBufferInfo;
+	VkWriteDescriptorSet writeComputeBufferInfo = {};
+	writeComputeBufferInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeComputeBufferInfo.dstSet = computeBufferSet;
+	writeComputeBufferInfo.dstBinding = 0;
+	writeComputeBufferInfo.descriptorCount = 1;									// How many 
+	writeComputeBufferInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	writeComputeBufferInfo.pBufferInfo = &computeBufferInfo;
 
 	// Camera 
 	VkDescriptorBufferInfo cameraBufferInfo = {};
@@ -972,7 +972,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeSamplerInfo.descriptorCount = 1;
 	writeSamplerInfo.pImageInfo = &imageInfo;
 
-	VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeInfo, writeCameraInfo, writeModelInfo, writeSamplerInfo };
+	VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeBufferInfo, writeCameraInfo, writeModelInfo, writeSamplerInfo };
 
 	vkUpdateDescriptorSets(device->GetVkDevice(), 4, writeDescriptorSets, 0, nullptr);
 }
