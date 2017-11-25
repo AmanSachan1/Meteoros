@@ -24,5 +24,8 @@ Replace the path to glslangValidator.exe with the path to where you installed th
 ##Resources
 
 - Image Loading Library: https://github.com/nothings/stb
+- Obj Loading Library: https://github.com/syoyo/tinyobjloader
+
+- Setting Up Compute Shader that writes to a texture that is sampled by the fragment shader: https://github.com/SaschaWillems/Vulkan/tree/master/examples/raytracing
 
 - Why to include stb in .cpp file: https://stackoverflow.com/questions/43348798/double-inclusion-and-headers-only-library-stbi-image 

@@ -52,6 +52,7 @@ public:
 
 	// Pipelines
 	VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts);
+	void CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpass);
 	void CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subpass);
 	void CreateComputePipeline();
 
@@ -95,8 +96,10 @@ private:
 	VkCommandBuffer computeCommandBuffer;
 	VkCommandPool commandPool; // can use the same command pool for both types of command buffers
 
+	VkPipelineLayout cloudsPipelineLayout;
 	VkPipelineLayout graphicsPipelineLayout;
 	VkPipelineLayout computePipelineLayout;
+	VkPipeline cloudsPipeline;
 	VkPipeline graphicsPipeline;
 	VkPipeline computePipeline;
 

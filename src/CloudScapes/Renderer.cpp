@@ -57,7 +57,7 @@ void Renderer::InitializeRenderer()
 	CreateCommandPools();
 	CreateRenderPass();
 
-	prepareTextureTarget(window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	prepareTextureTarget(window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM); // To pass texture created in compute to frag shader
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -70,6 +70,9 @@ void Renderer::InitializeRenderer()
 
 	graphicsPipelineLayout = CreatePipelineLayout({ cameraSetLayout, modelSetLayout, samplerSetLayout });
 	CreateGraphicsPipeline(renderPass, 0);
+
+	cloudsPipelineLayout = CreatePipelineLayout({ cameraSetLayout, modelSetLayout, samplerSetLayout });
+	CreateCloudsPipeline(renderPass, 0);
 
 	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
@@ -434,6 +437,204 @@ void Renderer::CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subp
 	vkDestroyShaderModule(device->GetVkDevice(), fragShaderModule, nullptr);
 }
 
+void Renderer::CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpass)
+{
+	//--------------------------------------------------------
+	//---------------- Set up shader stages ------------------
+	//--------------------------------------------------------
+	// Can add more shader modules to the list of shader stages that are part of the overall graphics pipeline
+	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Shader_modules
+	// Create vert and frag shader modules
+	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/clouds.vert.spv", device->GetVkDevice());
+	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/clouds.frag.spv", device->GetVkDevice());
+
+	// Assign each shader module to the appropriate stage in the pipeline
+	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
+	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertShaderStageInfo.module = vertShaderModule;
+	vertShaderStageInfo.pName = "main";
+
+	VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
+	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragShaderStageInfo.module = fragShaderModule;
+	fragShaderStageInfo.pName = "main";
+
+	//Add Shadermodules to the list of shader stages
+	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+
+	//--------------------------------------------------------
+	//------------- Set up fixed-function stages -------------
+	//--------------------------------------------------------
+
+	// -------- Vertex input binding --------
+	// Tell Vulkan how to pass this data format to the vertex shader once it's been uploaded to GPU memory 
+	// Vertex binding describes at which rate to load data from memory throughout the vertices
+	VkVertexInputBindingDescription vertexInputBinding = Vertex::getBindingDescription();
+	// Inpute attribute bindings describe shader attribute locations and memory layouts
+	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = Vertex::getAttributeDescriptions();
+
+	// -------- Vertex input --------
+	// Because we're hard coding the vertex data directly in the vertex shader, we'll fill in this structure to specify 
+	// that there is no vertex data to load for now. We'll write the vertex buffers later.
+	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
+	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.pVertexBindingDescriptions = &vertexInputBinding;
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
+	vertexInputInfo.pVertexAttributeDescriptions = vertexInputAttributes.data();
+
+	// -------- Input assembly --------
+	// The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn 
+	// from the vertices and if primitive restart should be enabled.
+	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
+	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+	// Viewports and Scissors (rectangles that define in which regions pixels are stored)
+	VkViewport viewport = {};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(swapChain->GetVkExtent().width);
+	viewport.height = static_cast<float>(swapChain->GetVkExtent().height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	// While viewports define the transformation from the image to the framebuffer, 
+	// scissor rectangles define in which regions pixels will actually be stored.
+	// we simply want to draw to the entire framebuffer, so we'll specify a scissor rectangle that covers the framebuffer entirely
+	VkRect2D scissor = {};
+	scissor.offset = { 0, 0 };
+	scissor.extent = swapChain->GetVkExtent();
+
+	// Now this viewport and scissor rectangle need to be combined into a viewport state using the 
+	// VkPipelineViewportStateCreateInfo struct. It is possible to use multiple viewports and scissor
+	// rectangles on some graphics cards, so its members reference an array of them. Using multiple requires 
+	// enabling a GPU feature (see logical device creation).
+	VkPipelineViewportStateCreateInfo viewportState = {};
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportState.viewportCount = 1;
+	viewportState.pViewports = &viewport;
+	viewportState.scissorCount = 1;
+	viewportState.pScissors = &scissor;
+
+	// -------- Rasterize --------
+	// The rasterizer takes the geometry that is shaped by the vertices from the vertex shader and turns
+	// it into fragments to be colored by the fragment shader.
+	// It also performs depth testing, face culling and the scissor test, and it can be configured to output 
+	// fragments that fill entire polygons or just the edges (wireframe rendering). All this is configured 
+	// using the VkPipelineRasterizationStateCreateInfo structure.
+	VkPipelineRasterizationStateCreateInfo rasterizer = {};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE;
+	rasterizer.rasterizerDiscardEnable = VK_FALSE; // If rasterizerDiscardEnable is set to VK_TRUE, then geometry never 
+												   // passes through the rasterizer stage. This basically disables any output to the framebuffer.
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //make fragments instead of lines or points
+	rasterizer.lineWidth = 1.0f;
+	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	//TODO:: could be useful to ensure that the clouds are behind everything
+	rasterizer.depthBiasEnable = VK_FALSE; // The rasterizer can alter the depth values by adding a constant value or biasing 
+										   // them based on a fragment's slope. This is sometimes used for shadow mapping, but 
+										   // we won't be using it.Just set depthBiasEnable to VK_FALSE.
+	rasterizer.depthBiasConstantFactor = 0.0f;
+	rasterizer.depthBiasClamp = 0.0f;
+	rasterizer.depthBiasSlopeFactor = 0.0f;
+
+	// -------- Multisampling --------
+	// (turned off here)
+	// The VkPipelineMultisampleStateCreateInfo struct configures multisampling, which is one of the ways to perform anti-aliasing. 
+	// It works by combining the fragment shader results of multiple polygons that rasterize to the same pixel. This mainly occurs 
+	// along edges, which is also where the most noticeable aliasing artifacts occur. Because it doesn't need to run the fragment 
+	// shader multiple times if only one polygon maps to a pixel, it is significantly less expensive than simply rendering to a 
+	// higher resolution and then downscaling. Enabling it requires enabling a GPU feature.
+	VkPipelineMultisampleStateCreateInfo multisampling = {};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling.sampleShadingEnable = VK_FALSE;
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multisampling.minSampleShading = 1.0f;
+	multisampling.pSampleMask = nullptr;
+	multisampling.alphaToCoverageEnable = VK_FALSE;
+	multisampling.alphaToOneEnable = VK_FALSE;
+
+	// -------- Depth and Stencil Testing --------
+	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
+	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+
+	//The depthTestEnable field specifies if the depth of new fragments should be compared to the 
+	//depth buffer to see if they should be discarded. The depthWriteEnable field specifies if the 
+	//new depth of fragments that pass the depth test should actually be written to the depth buffer. 
+	//This is useful for drawing transparent objects. They should be compared to the previously rendered 
+	//opaque objects, but not cause further away transparent objects to not be drawn.
+	depthStencil.depthTestEnable = VK_TRUE;
+	depthStencil.depthWriteEnable = VK_TRUE;
+
+	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // specifies the comparison that is performed to keep or discard fragments.
+
+	depthStencil.depthBoundsTestEnable = VK_FALSE;
+	depthStencil.minDepthBounds = 0.0f;
+	depthStencil.maxDepthBounds = 1.0f;
+
+	depthStencil.stencilTestEnable = VK_FALSE;
+	depthStencil.front = {};
+	depthStencil.back = {};
+
+	// -------- Color Blending ---------
+	// (turned off here, but showing options for learning) --> Color Blending is usually for transparency
+	// --> Configuration per attached framebuffer
+	// TODO:: Could be useful for transparency for clouds infront of Terrain or other models
+	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	colorBlendAttachment.blendEnable = VK_FALSE;
+	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+	// --> Global color blending settings
+	VkPipelineColorBlendStateCreateInfo colorBlending = {};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlending.logicOpEnable = VK_FALSE;
+	colorBlending.logicOp = VK_LOGIC_OP_COPY;
+	colorBlending.attachmentCount = 1;
+	colorBlending.pAttachments = &colorBlendAttachment;
+	colorBlending.blendConstants[0] = 0.0f;
+	colorBlending.blendConstants[1] = 0.0f;
+	colorBlending.blendConstants[2] = 0.0f;
+	colorBlending.blendConstants[3] = 0.0f;
+
+	// -------- Create clouds pipeline ---------
+	VkGraphicsPipelineCreateInfo pipelineInfo = {};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineInfo.stageCount = 2; //vert and frag --> change if you add more
+	pipelineInfo.pStages = shaderStages; //defined above
+	pipelineInfo.pVertexInputState = &vertexInputInfo; //defined above
+	pipelineInfo.pInputAssemblyState = &inputAssembly; //defined above
+	pipelineInfo.pViewportState = &viewportState; //defined above
+	pipelineInfo.pRasterizationState = &rasterizer; //defined above
+	pipelineInfo.pMultisampleState = &multisampling; //defined above
+	pipelineInfo.pDepthStencilState = &depthStencil; //defined above
+	pipelineInfo.pColorBlendState = &colorBlending; //defined above
+	pipelineInfo.pDynamicState = nullptr; //defined above
+	pipelineInfo.layout = cloudsPipelineLayout; // passed in
+	pipelineInfo.renderPass = renderPass; // passed in
+	pipelineInfo.subpass = subpass; // passed in
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Vulkan allows you to create a new graphics pipeline by deriving from an existing pipeline. We aren't doing this.
+	pipelineInfo.basePipelineIndex = -1;
+
+	if (vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &cloudsPipeline) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create pipeline");
+	}
+
+	// No need for the shader modules anymore, so we destory them!
+	vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
+}
+
 void Renderer::CreateComputePipeline()
 {
 	VkShaderModule compShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.comp.spv", device->GetVkDevice());
@@ -662,9 +863,9 @@ void Renderer::RecordGraphicsCommandBuffer()
 		renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
 		renderPassInfo.pClearValues = clearValues.data();
 
-		//----------------------------------------------
-		//--- Graphics Pipeline Binding and Dispatch ---
-		//----------------------------------------------
+		//---------------------------------------------------------
+		//--- Graphics and Clouds Pipeline Binding and Dispatch ---
+		//---------------------------------------------------------
 		// Define a memory barrier to transition the vertex buffer from a compute storage object to a vertex input
 		// Each element of the pMemoryBarriers, pBufferMemoryBarriers and pImageMemoryBarriers arrays specifies two halves of a memory dependency, as defined above.
 		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html#synchronization-memory-barriers
@@ -691,6 +892,43 @@ void Renderer::RecordGraphicsCommandBuffer()
 		// VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command
 		// buffer itself and no secondary command buffers will be executed.
 
+		//------------------------
+		//--- Clouds Pipeline---
+		//------------------------
+
+		// Bind the clouds pipeline
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+		// Bind camera descriptor set
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 0, 1, &cameraSet, 0, nullptr);
+		// Bind model descriptor set
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 1, 1, &modelSet, 0, nullptr);
+		// Bind sampler descriptor set
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 2, 1, &samplerSet, 0, nullptr);
+
+		// Bind the vertex and index buffers
+		VkDeviceSize offsets[] = { 0 };
+		const VkBuffer vertices = house->getVertexBuffer();
+		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &vertices, offsets);
+
+		// Bind triangle index buffer
+		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+		// Draw indexed triangle
+		/*
+		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
+		indexCount;
+		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+		firstIndex:  Used as an offset into the index buffer
+		vertexOffset: Used as an offset into the vertex buffer
+		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+		*/
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
+
+		//------------------------
+		//--- Graphics Pipeline---
+		//------------------------
+
 		// Bind the graphics pipeline
 		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
@@ -702,8 +940,6 @@ void Renderer::RecordGraphicsCommandBuffer()
 		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 2, 1, &samplerSet, 0, nullptr);
 
 		// Bind the vertex and index buffers
-		VkDeviceSize offsets[] = { 0 };
-		const VkBuffer vertices = house->getVertexBuffer();
 		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &vertices, offsets);
 
 		// Bind triangle index buffer
