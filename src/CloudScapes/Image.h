@@ -21,9 +21,12 @@ namespace Image
 	bool hasStencilComponent(VkFormat format);
 
 	//load an image and upload it into a Vulkan image object
-	void loadTexture(VulkanDevice* device, VkCommandPool& commandPool, const char* imagePath,
+	void loadImageFromFile(VulkanDevice* device, VkCommandPool& commandPool, const char* imagePath,
 		VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkFormat format,
 		VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 
-	void createSampler(VulkanDevice* device, VkSampler& sampler);
+	void createSampler(VulkanDevice* device, VkSampler& sampler, VkSamplerAddressMode addressMode, float maxAnisotropy);
+
+	void setImageLayout(VkCommandBuffer cmdbuffer, VkImage image, VkImageAspectFlags aspectMask,
+						VkImageLayout oldImageLayout, VkImageLayout newImageLayout);
 }

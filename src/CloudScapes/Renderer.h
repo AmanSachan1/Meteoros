@@ -17,6 +17,7 @@
 #include "Camera.h"
 #include "Scene.h"
 #include "Model.h"
+#include "Texture2D.h"
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
@@ -24,7 +25,7 @@ class Renderer
 {
 public:
 	Renderer() = delete; // To enforce the creation of a the type of renderer we want without leaving the vulkan device, vulkan swapchain, etc as assumptions or nullptrs
-	Renderer(VulkanDevice* device, VulkanSwapChain* swapChain, Scene* scene, Camera* camera);
+	Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, int width, int height);
 	~Renderer();
 
 	void InitializeRenderer();
@@ -69,25 +70,30 @@ public:
 	void RecordComputeCommandBuffer();
 
 	// Format Helper Functions
-	VkFormat findSupportedFormat(VkPhysicalDevice physicalDevice,
-								const std::vector<VkFormat>& candidates,
+	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
 								VkImageTiling tiling, VkFormatFeatureFlags features);
 	VkFormat findDepthFormat();
+
+	//Prepare a texture target that is used to store compute shader calculations
+	void prepareTextureTarget(uint32_t width, uint32_t height, VkFormat format);
 
 private:
 	VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
 	VkDevice logicalDevice;
+	VkPhysicalDevice physicalDevice;
 
 	VulkanSwapChain* swapChain;
 
 	Camera* camera;
 	Scene* scene;
 
+	int window_width;
+	int window_height;
+
 	// We create a vector of command buffers because we want a command buffer for each frame of the swap chain
 	std::vector<VkCommandBuffer> graphicsCommandBuffer;
-	std::vector<VkCommandBuffer> computeCommandBuffer;
-	VkCommandPool graphicsCommandPool;
-	VkCommandPool computeCommandPool;
+	VkCommandBuffer computeCommandBuffer;
+	VkCommandPool commandPool; // can use the same command pool for both types of command buffers
 
 	VkPipelineLayout graphicsPipelineLayout;
 	VkPipelineLayout computePipelineLayout;
@@ -115,6 +121,15 @@ private:
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
+
+	Texture2D* rayMarchedComputeTexture;
+
+	VkDescriptorSetLayout rayMarchedTextureSetLayout;
+	VkDescriptorSet rayMarchedPreCompute;
+	VkDescriptorSet rayMarchedSet;
+
+	VkDescriptorSetLayout computeTextureSetLayout;	// Compute shader binding layout
+	VkDescriptorSet computeTextureSet;				// Compute shader bindings
 
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSetLayout computeBufferSetLayout;

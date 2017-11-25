@@ -124,7 +124,7 @@ int main(int argc, char** argv)
 
 	Scene* scene = new Scene(device);
 
-	renderer = new Renderer(device, swapChain, scene, camera);
+	renderer = new Renderer(device, instance->GetPhysicalDevice(), swapChain, scene, camera, window_width, window_height);
 
 	glfwSetWindowSizeCallback(GetGLFWWindow(), resizeCallback);
 	glfwSetMouseButtonCallback(GetGLFWWindow(), mouseDownCallback);

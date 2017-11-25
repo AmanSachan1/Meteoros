@@ -6,3 +6,4 @@
 
 VkCommandBuffer beginSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool);
 void endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkCommandBuffer commandBuffer);
+void endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkQueue queue, VkCommandBuffer commandBuffer);

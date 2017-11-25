@@ -21,6 +21,8 @@ VkCommandBuffer beginSingleTimeCommands(VulkanDevice* device, VkCommandPool comm
 	return commandBuffer;
 }
 
+// This function flushes the command buffer; that is it submits the command to the queue and then 
+// free's memory associated with the command buffer(thereby flushing it)
 void endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkCommandBuffer commandBuffer)
 {
 	vkEndCommandBuffer(commandBuffer);
@@ -32,6 +34,21 @@ void endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkCo
 
 	vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &submitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(device->GetQueue(QueueFlags::Graphics));
+
+	vkFreeCommandBuffers(device->GetVkDevice(), commandPool, 1, &commandBuffer);
+}
+
+void endSingleTimeCommands(VulkanDevice* device, VkCommandPool commandPool, VkQueue queue, VkCommandBuffer commandBuffer)
+{
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(queue);
 
 	vkFreeCommandBuffers(device->GetVkDevice(), commandPool, 1, &commandBuffer);
 }

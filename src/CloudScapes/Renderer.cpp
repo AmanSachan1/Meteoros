@@ -7,12 +7,15 @@ struct ModelUBO
 
 std::vector<Vertex> vertices;
 
-Renderer::Renderer(VulkanDevice* device, VulkanSwapChain* swapChain, Scene* scene, Camera* camera)
+Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, int width, int height)
 	: device(device), 
 	logicalDevice(device->GetVkDevice()),
+	physicalDevice(physicalDevice),
 	swapChain(swapChain),
 	scene(scene),
-	camera(camera)
+	camera(camera),
+	window_width(width),
+	window_height(height)
 {
 	InitializeRenderer();
 }
@@ -22,11 +25,11 @@ Renderer::~Renderer()
 	vkDeviceWaitIdle(logicalDevice);
 
 	// TODO: Destroy any resources you created
-	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
-	vkFreeCommandBuffers(logicalDevice, computeCommandPool, static_cast<uint32_t>(computeCommandBuffer.size()), computeCommandBuffer.data());
+	vkFreeCommandBuffers(logicalDevice, commandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
+	vkFreeCommandBuffers(logicalDevice, commandPool, 1, &computeCommandBuffer);
 
-	vkDestroyCommandPool(logicalDevice, computeCommandPool, nullptr);
-	vkDestroyCommandPool(logicalDevice, graphicsCommandPool, nullptr);
+	vkDestroyCommandPool(logicalDevice, commandPool, nullptr);
+	vkDestroyCommandPool(logicalDevice, commandPool, nullptr);
 
 	DestroyFrameResources();
 
@@ -53,6 +56,8 @@ void Renderer::InitializeRenderer()
 {
 	CreateCommandPools();
 	CreateRenderPass();
+
+	prepareTextureTarget(window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -82,7 +87,7 @@ void Renderer::Frame()
 	computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
 	computeSubmitInfo.commandBufferCount = 1;
-	computeSubmitInfo.pCommandBuffers = &computeCommandBuffer[swapChain->GetIndex()];
+	computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
 
 	// submit the command buffer to the compute queue
 	if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
@@ -487,7 +492,7 @@ void Renderer::RecreateFrameResources()
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
 
-	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
+	vkFreeCommandBuffers(logicalDevice, commandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
 
 	DestroyFrameResources();
 	CreateFrameResources();
@@ -549,7 +554,7 @@ void Renderer::createDepthResources()
 	Image::createImageView(device, depthImageView, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 	// Transition the image for use as depth-stencil
-	Image::transitionImageLayout(device, graphicsCommandPool, depthImage, depthFormat,
+	Image::transitionImageLayout(device, commandPool, depthImage, depthFormat,
 								VK_IMAGE_LAYOUT_UNDEFINED,
 								VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
@@ -590,7 +595,7 @@ void Renderer::CreateCommandPools()
 	graphicsPoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Graphics];
 	graphicsPoolInfo.flags = 0;
 
-	if (vkCreateCommandPool(logicalDevice, &graphicsPoolInfo, nullptr, &graphicsCommandPool) != VK_SUCCESS) {
+	if (vkCreateCommandPool(logicalDevice, &graphicsPoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create graphics command pool");
 	}
 
@@ -599,7 +604,7 @@ void Renderer::CreateCommandPools()
 	computePoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Compute];
 	computePoolInfo.flags = 0;
 
-	if (vkCreateCommandPool(logicalDevice, &computePoolInfo, nullptr, &computeCommandPool) != VK_SUCCESS) {
+	if (vkCreateCommandPool(logicalDevice, &computePoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create compute command pool");
 	}
 }
@@ -619,7 +624,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 	*/
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.commandPool = graphicsCommandPool;
+	commandBufferAllocateInfo.commandPool = commandPool;
 	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	commandBufferAllocateInfo.commandBufferCount = (uint32_t)(graphicsCommandBuffer.size());
 
@@ -663,25 +668,24 @@ void Renderer::RecordGraphicsCommandBuffer()
 		// Define a memory barrier to transition the vertex buffer from a compute storage object to a vertex input
 		// Each element of the pMemoryBarriers, pBufferMemoryBarriers and pImageMemoryBarriers arrays specifies two halves of a memory dependency, as defined above.
 		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html#synchronization-memory-barriers
-		VkBufferMemoryBarrier computeToVertexBarrier = {};
-		computeToVertexBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-		computeToVertexBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-		computeToVertexBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-		computeToVertexBarrier.srcQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Compute);
-		computeToVertexBarrier.dstQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Graphics);
-		computeToVertexBarrier.buffer = house->getVertexBuffer();
-		computeToVertexBarrier.offset = 0;
-		computeToVertexBarrier.size = house->getVertexBufferSize();
+		VkImageMemoryBarrier imageMemoryBarrier = {};
+		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		imageMemoryBarrier.image = rayMarchedComputeTexture->textureImage;
+		imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+		imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+		imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;		
 
 		// A pipeline barrier inserts an execution dependency and a set of memory dependencies between a set of commands earlier in the command buffer and a set of commands later in the command buffer.
 		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html
 		vkCmdPipelineBarrier(graphicsCommandBuffer[i],
 							 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-							 VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+							 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
 							 0,
 							 0, nullptr,
-							 1, &computeToVertexBarrier,
-							 0, nullptr);
+							 0, nullptr,
+							 1, &imageMemoryBarrier);
 
 		vkCmdBeginRenderPass(graphicsCommandBuffer[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		// VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command
@@ -727,51 +731,46 @@ void Renderer::RecordGraphicsCommandBuffer()
 
 void Renderer::RecordComputeCommandBuffer()
 {
-	computeCommandBuffer.resize(swapChain->GetCount());
-
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.commandPool = computeCommandPool;
+	commandBufferAllocateInfo.commandPool = commandPool;
 	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = (uint32_t)(computeCommandBuffer.size());
+	commandBufferAllocateInfo.commandBufferCount = 1;
 
-	if (vkAllocateCommandBuffers(logicalDevice, &commandBufferAllocateInfo, computeCommandBuffer.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(logicalDevice, &commandBufferAllocateInfo, &computeCommandBuffer) != VK_SUCCESS)
 	{
 		throw std::runtime_error("Failed to allocate compute command buffers");
 	}
 
-	// Record command buffers, one for each frame of the swapchain
-	for (unsigned int i = 0; i < computeCommandBuffer.size(); ++i)
-	{
-		VkCommandBufferBeginInfo beginInfo = {};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // How we are using the command buffer
-																		// The command buffer can be resubmitted while it is also already pending execution.
-		beginInfo.pInheritanceInfo = nullptr; //only useful for secondary command buffers
+	// Record command buffer-> should not nead one for every frame of the swapchain
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // How we are using the command buffer
+																	// The command buffer can be resubmitted while it is also already pending execution.
+	beginInfo.pInheritanceInfo = nullptr; //only useful for secondary command buffers
 
-		//---------- Begin recording ----------
-		//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
-		// It's not possible to append commands to a buffer at a later time.
-		vkBeginCommandBuffer(computeCommandBuffer[i], &beginInfo);
+	//---------- Begin recording ----------
+	//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
+	// It's not possible to append commands to a buffer at a later time.
+	vkBeginCommandBuffer(computeCommandBuffer, &beginInfo);
 
-		//-----------------------------------------------------
-		//--- Compute Pipeline Binding, Dispatch & Barriers ---
-		//-----------------------------------------------------
-		//Bind the compute piepline
-		vkCmdBindPipeline(computeCommandBuffer[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+	//-----------------------------------------------------
+	//--- Compute Pipeline Binding, Dispatch & Barriers ---
+	//-----------------------------------------------------
+	//Bind the compute piepline
+	vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 
-		//Bind Descriptor Sets for compute
-		vkCmdBindDescriptorSets(computeCommandBuffer[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeBufferSet, 0, nullptr);
+	//Bind Descriptor Sets for compute
+	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeTextureSet, 0, nullptr);
 
-		// Dispatch the compute kernel, with one thread for each vertex
-		// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
-		vkCmdDispatch(computeCommandBuffer[i], vertices.size(), 1, 1);
+	// Dispatch the compute kernel, with one thread for each vertex
+	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
+	vkCmdDispatch(computeCommandBuffer, rayMarchedComputeTexture->width / 16, rayMarchedComputeTexture->height / 16, 1);
 
-		//---------- End Recording ----------
-		if (vkEndCommandBuffer(computeCommandBuffer[i]) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to record the compute command buffer");
-		}
-	}// end for loop
+	//---------- End Recording ----------
+	if (vkEndCommandBuffer(computeCommandBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to record the compute command buffer");
+	}
 }
 
 //----------------------------------------------
@@ -790,7 +789,7 @@ void Renderer::CreateDescriptorPool()
 		// Model
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
 		// Compute (modifies vertex buffer)
-		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 		// Sampler
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }
 	};
@@ -800,7 +799,7 @@ void Renderer::CreateDescriptorPool()
 	descriptorPoolInfo.pNext = nullptr;
 	descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size()); 
 	descriptorPoolInfo.pPoolSizes = poolSizes.data();
-	descriptorPoolInfo.maxSets = static_cast<uint32_t>(poolSizes.size()); 
+	descriptorPoolInfo.maxSets = static_cast<uint32_t>(poolSizes.size() - 1); 
 
 	if (vkCreateDescriptorPool(device->GetVkDevice(), &descriptorPoolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create descriptor pool");
@@ -843,8 +842,12 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	// Stage Flags --> which shader you're referencing this descriptor from 
 	// pImmutableSamplers --> for image sampling related descriptors
 
-	computeBufferSetLayout = CreateDescriptorSetLayout({
-		{ 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
+	//computeBufferSetLayout = CreateDescriptorSetLayout({
+	//	{ 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
+	//});
+
+	computeTextureSetLayout = CreateDescriptorSetLayout({
+		{ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
 	});
 
 	cameraSetLayout = CreateDescriptorSetLayout({
@@ -863,7 +866,8 @@ void Renderer::CreateAllDescriptorSetLayouts()
 void Renderer::CreateAllDescriptorSets()
 {
 	// Initialize descriptor sets
-	computeBufferSet = CreateDescriptorSet(descriptorPool, computeBufferSetLayout);
+	//computeBufferSet = CreateDescriptorSet(descriptorPool, computeBufferSetLayout);
+	computeTextureSet = CreateDescriptorSet(descriptorPool, computeTextureSetLayout);
 	cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
 	modelSet = CreateDescriptorSet(descriptorPool, modelSetLayout);
 	samplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
@@ -871,7 +875,7 @@ void Renderer::CreateAllDescriptorSets()
 	// Create Models
 	const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
 	const std::string texture_path = "../../src/CloudScapes/textures/chalet.jpg";
-	//house = new Model(device, graphicsCommandPool, model_path, texture_path);
+	//house = new Model(device, commandPool, model_path, texture_path);
 
 	float planeDim = 15.f;
 	float halfWidth = planeDim * 0.5f;
@@ -890,8 +894,8 @@ void Renderer::CreateAllDescriptorSets()
 	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
 		4, 5, 6, 6, 7, 4 };
 
-	house = new Model(device, graphicsCommandPool, vertices, indices);
-	house->SetTexture(device, graphicsCommandPool, texture_path, houseTextureImage, houseTextureImageMemory, houseTextureImageView, houseTextureSampler);
+	house = new Model(device, commandPool, vertices, indices);
+	house->SetTexture(device, commandPool, texture_path, houseTextureImage, houseTextureImageMemory, houseTextureImageView, houseTextureSampler);
 
 	// Create cloud textures
 	CreateCloudTextureResources(textureImage, textureImageMemory, textureImageView, textureSampler);
@@ -902,32 +906,47 @@ void Renderer::CreateAllDescriptorSets()
 
 void Renderer::CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, VkSampler& textureSampler)
 {
-	Image::loadTexture(device, graphicsCommandPool, "../../src/CloudScapes/textures/statue.jpg", textureImage, textureImageMemory,
-		VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	Image::loadImageFromFile(device, commandPool, "../../src/CloudScapes/textures/statue.jpg", textureImage, textureImageMemory,
+							VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+							VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	Image::createImageView(device, textureImageView, textureImage,
 		VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 
-	Image::createSampler(device, textureSampler);
+	Image::createSampler(device, textureSampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
 }
 
 void Renderer::WriteToAndUpdateDescriptorSets()
 {
-	// Compute Buffer
-	VkDescriptorBufferInfo computeBufferInfo = {};
-	computeBufferInfo.buffer = house->getVertexBuffer();
-	computeBufferInfo.offset = 0;
-	computeBufferInfo.range = house->getVertexBufferSize();
+	//// Compute Buffer
+	//VkDescriptorBufferInfo computeBufferInfo = {};
+	//computeBufferInfo.buffer = house->getVertexBuffer();
+	//computeBufferInfo.offset = 0;
+	//computeBufferInfo.range = house->getVertexBufferSize();
 
-	VkWriteDescriptorSet writeComputeBufferInfo = {};
-	writeComputeBufferInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeComputeBufferInfo.dstSet = computeBufferSet;
-	writeComputeBufferInfo.dstBinding = 0;
-	writeComputeBufferInfo.descriptorCount = 1;									// How many 
-	writeComputeBufferInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	writeComputeBufferInfo.pBufferInfo = &computeBufferInfo;
+	//VkWriteDescriptorSet writeComputeBufferInfo = {};
+	//writeComputeBufferInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	//writeComputeBufferInfo.dstSet = computeBufferSet;
+	//writeComputeBufferInfo.dstBinding = 0;
+	//writeComputeBufferInfo.descriptorCount = 1;									// How many 
+	//writeComputeBufferInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	//writeComputeBufferInfo.pBufferInfo = &computeBufferInfo;
+
+	// Compute Texture
+	VkDescriptorImageInfo computeTextureInfo = {};
+	computeTextureInfo.imageLayout = rayMarchedComputeTexture->textureLayout;
+	computeTextureInfo.imageView = rayMarchedComputeTexture->textureImageView;
+	computeTextureInfo.sampler = rayMarchedComputeTexture->textureSampler;
+
+	VkWriteDescriptorSet writeComputeTextureInfo = {};
+	writeComputeTextureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeComputeTextureInfo.pNext = NULL;
+	writeComputeTextureInfo.dstSet = computeTextureSet;
+	writeComputeTextureInfo.dstBinding = 0;
+	writeComputeTextureInfo.descriptorCount = 1;									// How many 
+	writeComputeTextureInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeComputeTextureInfo.pImageInfo = &computeTextureInfo;
 
 	// Camera 
 	VkDescriptorBufferInfo cameraBufferInfo = {};
@@ -959,20 +978,20 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 
 	// Texture
 	VkDescriptorImageInfo imageInfo = {};
-	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView = textureImageView;
-	imageInfo.sampler = textureSampler;
+	imageInfo.imageLayout = rayMarchedComputeTexture->textureLayout;
+	imageInfo.imageView = rayMarchedComputeTexture->textureImageView;
+	imageInfo.sampler = rayMarchedComputeTexture->textureSampler;
 
 	VkWriteDescriptorSet writeSamplerInfo = {};
 	writeSamplerInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeSamplerInfo.pNext = NULL;
 	writeSamplerInfo.dstSet = samplerSet;
 	writeSamplerInfo.dstBinding = 0;
-	writeSamplerInfo.dstArrayElement = 0;
 	writeSamplerInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	writeSamplerInfo.descriptorCount = 1;
 	writeSamplerInfo.pImageInfo = &imageInfo;
 
-	VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeBufferInfo, writeCameraInfo, writeModelInfo, writeSamplerInfo };
+	VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeTextureInfo, writeCameraInfo, writeModelInfo, writeSamplerInfo };
 
 	vkUpdateDescriptorSets(device->GetVkDevice(), 4, writeDescriptorSets, 0, nullptr);
 }
@@ -980,8 +999,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 //----------------------------------------------
 //-------------- Format Helper Functions -------
 //----------------------------------------------
-VkFormat Renderer::findSupportedFormat(VkPhysicalDevice physicalDevice,
-									   const std::vector<VkFormat>& candidates,
+VkFormat Renderer::findSupportedFormat(const std::vector<VkFormat>& candidates,
 									   VkImageTiling tiling, VkFormatFeatureFlags features)
 {
 	for (VkFormat format : candidates)
@@ -1002,16 +1020,74 @@ VkFormat Renderer::findSupportedFormat(VkPhysicalDevice physicalDevice,
 
 VkFormat Renderer::findDepthFormat()
 {
-	return VK_FORMAT_D24_UNORM_S8_UINT;
+	return findSupportedFormat({ VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT },
+								VK_IMAGE_TILING_OPTIMAL,
+								VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+								);
+}
 
-	//TODO
-	//If you want to get sophisticated and fins a depth format compatible with any GPU do the checks below:
-	/*
-	return findSupportedFormat(
-	physicalDevice,
-	{ VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT },
-	VK_IMAGE_TILING_OPTIMAL,
-	VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-	);
-	*/
+void Renderer::prepareTextureTarget(uint32_t width, uint32_t height, VkFormat format)
+{
+	// Get device properties for the requested texture format
+	VkFormatProperties formatProperties;
+	
+	vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProperties);
+	// Check if requested image format supports image storage operations
+	assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT);
+
+	rayMarchedComputeTexture = new Texture2D(device, commandPool);
+	rayMarchedComputeTexture->width = width;
+	rayMarchedComputeTexture->height = height;
+
+	VkImageCreateInfo imageInfo = {};
+	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageInfo.pNext = NULL;
+	imageInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageInfo.extent.width = width;
+	imageInfo.extent.height = height;
+	imageInfo.extent.depth = 1;
+	imageInfo.mipLevels = 1;
+	imageInfo.arrayLayers = 1;
+	imageInfo.format = format;
+	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	// Image will be sampled in the fragment shader and used as storage target in the compute shader
+	imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+
+	//The samples flag is related to multisampling. This is only relevant for images that will be used as attachments, so stick to one sample
+	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageInfo.flags = 0; // There are some optional flags for images that are related to sparse images.
+
+	if (vkCreateImage(logicalDevice, &imageInfo, nullptr, &rayMarchedComputeTexture->textureImage) != VK_SUCCESS)
+	{
+		throw std::runtime_error("failed to create image!");
+	}
+
+	VkMemoryRequirements memReqs;
+	vkGetImageMemoryRequirements(logicalDevice, rayMarchedComputeTexture->textureImage, &memReqs);
+
+	VkMemoryAllocateInfo memAllocInfo = {};
+	memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memAllocInfo.pNext = NULL;
+	memAllocInfo.allocationSize = memReqs.size;
+	memAllocInfo.memoryTypeIndex = device->GetInstance()->GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	vkAllocateMemory(logicalDevice, &memAllocInfo, nullptr, &rayMarchedComputeTexture->textureImageMemory);
+	vkBindImageMemory(logicalDevice, rayMarchedComputeTexture->textureImage, rayMarchedComputeTexture->textureImageMemory, 0);
+
+	VkCommandBuffer layoutCmd = beginSingleTimeCommands(device, commandPool);
+
+	rayMarchedComputeTexture->textureLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+	Image::setImageLayout(layoutCmd,
+		rayMarchedComputeTexture->textureImage,
+		VK_IMAGE_ASPECT_COLOR_BIT,
+		VK_IMAGE_LAYOUT_UNDEFINED,
+		rayMarchedComputeTexture->textureLayout);
+
+	endSingleTimeCommands(device, commandPool, device->GetQueue(QueueFlags::Compute), layoutCmd);
+
+	Image::createSampler(device, rayMarchedComputeTexture->textureSampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 1.0f);
+
+	Image::createImageView(device, rayMarchedComputeTexture->textureImageView, rayMarchedComputeTexture->textureImage, format, VK_IMAGE_ASPECT_COLOR_BIT);
 }
