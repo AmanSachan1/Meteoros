@@ -65,7 +65,7 @@ void Renderer::InitializeRenderer()
 
 	CreateFrameResources();
 
-	computePipelineLayout = CreatePipelineLayout({ computeBufferSetLayout });
+	computePipelineLayout = CreatePipelineLayout({ computeTextureSetLayout });
 	CreateComputePipeline();
 
 	graphicsPipelineLayout = CreatePipelineLayout({ cameraSetLayout, modelSetLayout, samplerSetLayout });
@@ -799,7 +799,7 @@ void Renderer::CreateDescriptorPool()
 	descriptorPoolInfo.pNext = nullptr;
 	descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size()); 
 	descriptorPoolInfo.pPoolSizes = poolSizes.data();
-	descriptorPoolInfo.maxSets = static_cast<uint32_t>(poolSizes.size() - 1); 
+	descriptorPoolInfo.maxSets = static_cast<uint32_t>(poolSizes.size()); 
 
 	if (vkCreateDescriptorPool(device->GetVkDevice(), &descriptorPoolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create descriptor pool");
