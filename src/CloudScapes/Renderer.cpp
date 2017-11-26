@@ -1,13 +1,6 @@
 #include "Renderer.h"
 
-struct ModelUBO
-{
-	glm::mat4 modelMatrix;
-};
-
-std::vector<Vertex> vertices;
-
-Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, int width, int height)
+Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height)
 	: device(device), 
 	logicalDevice(device->GetVkDevice()),
 	physicalDevice(physicalDevice),
@@ -53,7 +46,9 @@ void Renderer::InitializeRenderer()
 	CreateCommandPools();
 	CreateRenderPass();
 
-	prepareTextureTarget(window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM); // To pass texture created in compute to frag shader
+	//To pass texture created in compute to frag shader
+	rayMarchedComputeTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	rayMarchedComputeTexture->createTextureAsBackGround(logicalDevice, physicalDevice, commandPool);
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -869,7 +864,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-		imageMemoryBarrier.image = rayMarchedComputeTexture->textureImage;
+		imageMemoryBarrier.image = rayMarchedComputeTexture->GetTextureImage();
 		imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 		imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 		imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;		
@@ -994,7 +989,7 @@ void Renderer::RecordComputeCommandBuffer()
 
 	// Dispatch the compute kernel, with one thread for each vertex
 	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
-	vkCmdDispatch(computeCommandBuffer, rayMarchedComputeTexture->width / 16, rayMarchedComputeTexture->height / 16, 1);
+	vkCmdDispatch(computeCommandBuffer, rayMarchedComputeTexture->GetWidth() / 16, rayMarchedComputeTexture->GetHeight() / 16, 1);
 
 	//---------- End Recording ----------
 	if (vkEndCommandBuffer(computeCommandBuffer) != VK_SUCCESS) {
@@ -1158,9 +1153,9 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	//-------------------------------
 	// Texture Compute Shader Writes To
 	VkDescriptorImageInfo computeTextureInfo = {};
-	computeTextureInfo.imageLayout = rayMarchedComputeTexture->textureLayout;
-	computeTextureInfo.imageView = rayMarchedComputeTexture->textureImageView;
-	computeTextureInfo.sampler = rayMarchedComputeTexture->textureSampler;
+	computeTextureInfo.imageLayout = rayMarchedComputeTexture->GetTextureLayout();
+	computeTextureInfo.imageView = rayMarchedComputeTexture->GetTextureImageView();
+	computeTextureInfo.sampler = rayMarchedComputeTexture->GetTextureSampler();
 
 	VkWriteDescriptorSet writeComputeTextureInfo = {};
 	writeComputeTextureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1172,11 +1167,6 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeComputeTextureInfo.pImageInfo = &computeTextureInfo;
 
 	// Texture Quad Reads in
-	VkDescriptorImageInfo PostComputeTextureInfo = {};
-	PostComputeTextureInfo.imageLayout = rayMarchedComputeTexture->textureLayout;
-	PostComputeTextureInfo.imageView = rayMarchedComputeTexture->textureImageView;
-	PostComputeTextureInfo.sampler = rayMarchedComputeTexture->textureSampler;
-
 	VkWriteDescriptorSet writeCloudSamplerInfo = {};
 	writeCloudSamplerInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeCloudSamplerInfo.pNext = NULL;
@@ -1184,7 +1174,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeCloudSamplerInfo.dstBinding = 0;
 	writeCloudSamplerInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	writeCloudSamplerInfo.descriptorCount = 1;
-	writeCloudSamplerInfo.pImageInfo = &PostComputeTextureInfo;
+	writeCloudSamplerInfo.pImageInfo = &computeTextureInfo;
 
 	//-------------------------------
 	//----Geometry DescriptorSets----
@@ -1208,7 +1198,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	VkDescriptorBufferInfo modelBufferInfo = {};
 	modelBufferInfo.buffer = house->GetModelBuffer();
 	modelBufferInfo.offset = 0;
-	modelBufferInfo.range = sizeof(ModelUBO);
+	modelBufferInfo.range = sizeof(ModelBufferObject);
 
 	VkWriteDescriptorSet writeModelInfo = {};
 	writeModelInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1266,70 +1256,4 @@ VkFormat Renderer::findDepthFormat()
 								VK_IMAGE_TILING_OPTIMAL,
 								VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 								);
-}
-
-void Renderer::prepareTextureTarget(uint32_t width, uint32_t height, VkFormat format)
-{
-	// Get device properties for the requested texture format
-	VkFormatProperties formatProperties;
-	
-	vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &formatProperties);
-	// Check if requested image format supports image storage operations
-	assert(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT);
-
-	rayMarchedComputeTexture = new Texture2D(device, commandPool);
-	rayMarchedComputeTexture->width = width;
-	rayMarchedComputeTexture->height = height;
-
-	VkImageCreateInfo imageInfo = {};
-	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.pNext = NULL;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.extent.width = width;
-	imageInfo.extent.height = height;
-	imageInfo.extent.depth = 1;
-	imageInfo.mipLevels = 1;
-	imageInfo.arrayLayers = 1;
-	imageInfo.format = format;
-	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	// Image will be sampled in the fragment shader and used as storage target in the compute shader
-	imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-
-	//The samples flag is related to multisampling. This is only relevant for images that will be used as attachments, so stick to one sample
-	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	imageInfo.flags = 0; // There are some optional flags for images that are related to sparse images.
-
-	if (vkCreateImage(logicalDevice, &imageInfo, nullptr, &rayMarchedComputeTexture->textureImage) != VK_SUCCESS)
-	{
-		throw std::runtime_error("failed to create image!");
-	}
-
-	VkMemoryRequirements memReqs;
-	vkGetImageMemoryRequirements(logicalDevice, rayMarchedComputeTexture->textureImage, &memReqs);
-
-	VkMemoryAllocateInfo memAllocInfo = {};
-	memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	memAllocInfo.pNext = NULL;
-	memAllocInfo.allocationSize = memReqs.size;
-	memAllocInfo.memoryTypeIndex = device->GetInstance()->GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	vkAllocateMemory(logicalDevice, &memAllocInfo, nullptr, &rayMarchedComputeTexture->textureImageMemory);
-	vkBindImageMemory(logicalDevice, rayMarchedComputeTexture->textureImage, rayMarchedComputeTexture->textureImageMemory, 0);
-
-	VkCommandBuffer layoutCmd = beginSingleTimeCommands(device, commandPool);
-
-	rayMarchedComputeTexture->textureLayout = VK_IMAGE_LAYOUT_GENERAL;
-
-	Image::setImageLayout(layoutCmd,
-		rayMarchedComputeTexture->textureImage,
-		VK_IMAGE_ASPECT_COLOR_BIT,
-		VK_IMAGE_LAYOUT_UNDEFINED,
-		rayMarchedComputeTexture->textureLayout);
-
-	endSingleTimeCommands(device, commandPool, device->GetQueue(QueueFlags::Compute), layoutCmd);
-
-	Image::createSampler(device, rayMarchedComputeTexture->textureSampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER, 1.0f);
-
-	Image::createImageView(device, rayMarchedComputeTexture->textureImageView, rayMarchedComputeTexture->textureImage, format, VK_IMAGE_ASPECT_COLOR_BIT);
 }

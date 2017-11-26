@@ -25,7 +25,7 @@ class Renderer
 {
 public:
 	Renderer() = delete; // To enforce the creation of a the type of renderer we want without leaving the vulkan device, vulkan swapchain, etc as assumptions or nullptrs
-	Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, int width, int height);
+	Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height);
 	~Renderer();
 
 	void InitializeRenderer();
@@ -75,9 +75,6 @@ public:
 								VkImageTiling tiling, VkFormatFeatureFlags features);
 	VkFormat findDepthFormat();
 
-	//Prepare a texture target that is used to store compute shader calculations
-	void prepareTextureTarget(uint32_t width, uint32_t height, VkFormat format);
-
 private:
 	VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
 	VkDevice logicalDevice;
@@ -88,8 +85,8 @@ private:
 	Camera* camera;
 	Scene* scene;
 
-	int window_width;
-	int window_height;
+	uint32_t window_width;
+	uint32_t window_height;
 
 	// We create a vector of command buffers because we want a command buffer for each frame of the swap chain
 	std::vector<VkCommandBuffer> graphicsCommandBuffer;
