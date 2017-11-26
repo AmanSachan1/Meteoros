@@ -110,16 +110,7 @@ private:
 	
 	// Change the buffers when you set it up in a models class
 	Model* house;
-
-	VkImage houseTextureImage;
-	VkDeviceMemory houseTextureImageMemory;
-	VkImageView houseTextureImageView;
-	VkSampler houseTextureSampler;
-
-	VkImage textureImage;
-	VkDeviceMemory textureImageMemory;
-	VkImageView textureImageView;
-	VkSampler textureSampler;
+	Model* quad;
 
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
@@ -127,20 +118,20 @@ private:
 
 	Texture2D* rayMarchedComputeTexture;
 
-	VkDescriptorSetLayout rayMarchedTextureSetLayout;
-	VkDescriptorSet rayMarchedPreCompute;
-	VkDescriptorSet rayMarchedSet;
-
-	VkDescriptorSetLayout computeTextureSetLayout;	// Compute shader binding layout
-	VkDescriptorSet computeTextureSet;				// Compute shader bindings
-
 	VkDescriptorPool descriptorPool;
-	VkDescriptorSetLayout computeBufferSetLayout;
+
 	VkDescriptorSetLayout cameraSetLayout;
 	VkDescriptorSetLayout modelSetLayout;
 	VkDescriptorSetLayout samplerSetLayout;
-	VkDescriptorSet computeBufferSet;
+
+	// Cloud Pipeline Descriptor Sets + compute pipeline descriptor Set Layout
+	VkDescriptorSetLayout cloudPreComputeSetLayout;	// Compute shader binding layout
+	VkDescriptorSet cloudPreComputeSet;			// Compute shader bindings
+	VkDescriptorSetLayout cloudPostComputeSetLayout;
+	VkDescriptorSet cloudPostComputeSet;
+	
+	// Geometry specific descriptor sets
 	VkDescriptorSet cameraSet;
-	VkDescriptorSet modelSet;
-	VkDescriptorSet samplerSet;
+	VkDescriptorSet geomModelSet;
+	VkDescriptorSet geomSamplerSet;
 };

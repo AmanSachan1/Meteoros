@@ -29,27 +29,23 @@ Renderer::~Renderer()
 	vkFreeCommandBuffers(logicalDevice, commandPool, 1, &computeCommandBuffer);
 
 	vkDestroyCommandPool(logicalDevice, commandPool, nullptr);
-	vkDestroyCommandPool(logicalDevice, commandPool, nullptr);
 
 	DestroyFrameResources();
 
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, cloudsPipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
+	vkDestroyPipeline(logicalDevice, cloudsPipeline, nullptr);
 	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
-	vkDestroyDescriptorSetLayout(logicalDevice, computeBufferSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, cloudPreComputeSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, samplerSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, modelSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, samplerSetLayout, nullptr);
+	
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
-
-	vkDestroySampler(logicalDevice, textureSampler, nullptr);
-	vkDestroyImageView(logicalDevice, textureImageView, nullptr);
-
-	vkDestroyImage(logicalDevice, textureImage, nullptr);
-	vkFreeMemory(logicalDevice, textureImageMemory, nullptr);
 }
 
 void Renderer::InitializeRenderer()
@@ -65,14 +61,14 @@ void Renderer::InitializeRenderer()
 
 	CreateFrameResources();
 
-	computePipelineLayout = CreatePipelineLayout({ computeTextureSetLayout });
+	computePipelineLayout = CreatePipelineLayout({ cloudPreComputeSetLayout });
 	CreateComputePipeline();
+
+	cloudsPipelineLayout = CreatePipelineLayout({ samplerSetLayout });
+	CreateCloudsPipeline(renderPass, 0);
 
 	graphicsPipelineLayout = CreatePipelineLayout({ cameraSetLayout, modelSetLayout, samplerSetLayout });
 	CreateGraphicsPipeline(renderPass, 0);
-
-	cloudsPipelineLayout = CreatePipelineLayout({ cameraSetLayout, modelSetLayout, samplerSetLayout });
-	CreateCloudsPipeline(renderPass, 0);
 
 	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
@@ -897,22 +893,17 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//------------------------
 
 		// Bind the clouds pipeline
-		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-
-		// Bind camera descriptor set
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 0, 1, &cameraSet, 0, nullptr);
-		// Bind model descriptor set
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 1, 1, &modelSet, 0, nullptr);
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipeline);
 		// Bind sampler descriptor set
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 2, 1, &samplerSet, 0, nullptr);
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 0, 1, &cloudPostComputeSet, 0, nullptr);
 
 		// Bind the vertex and index buffers
-		VkDeviceSize offsets[] = { 0 };
-		const VkBuffer vertices = house->getVertexBuffer();
-		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &vertices, offsets);
+		VkDeviceSize quadOffsets[] = { 0 };
+		const VkBuffer quadVertices = quad->getVertexBuffer();
+		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &quadVertices, quadOffsets);
 
 		// Bind triangle index buffer
-		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], quad->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
 		// Draw indexed triangle
 		/*
@@ -935,12 +926,14 @@ void Renderer::RecordGraphicsCommandBuffer()
 		// Bind camera descriptor set
 		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &cameraSet, 0, nullptr);
 		// Bind model descriptor set
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &modelSet, 0, nullptr);
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &geomModelSet, 0, nullptr);
 		// Bind sampler descriptor set
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 2, 1, &samplerSet, 0, nullptr);
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 2, 1, &geomSamplerSet, 0, nullptr);
 
 		// Bind the vertex and index buffers
-		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &vertices, offsets);
+		VkDeviceSize geomOffsets[] = { 0 };
+		const VkBuffer geomVertices = house->getVertexBuffer();
+		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
 
 		// Bind triangle index buffer
 		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
@@ -997,7 +990,7 @@ void Renderer::RecordComputeCommandBuffer()
 	vkCmdBindPipeline(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
 
 	//Bind Descriptor Sets for compute
-	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeTextureSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &cloudPreComputeSet, 0, nullptr);
 
 	// Dispatch the compute kernel, with one thread for each vertex
 	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
@@ -1020,14 +1013,16 @@ void Renderer::CreateDescriptorPool()
 	// compute and graphics descriptor sets are allocated from the same pool
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 		// Format for elements: { type, descriptorCount }
+		// Compute Texture Write 
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
+		// Sampler that reads the image created by the compute Shader 
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		
 		// Camera
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1},
-		// Model
+		// House Model Matrix
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
-		// Compute (modifies vertex buffer)
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
-		// Sampler
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
@@ -1078,22 +1073,19 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	// Stage Flags --> which shader you're referencing this descriptor from 
 	// pImmutableSamplers --> for image sampling related descriptors
 
-	//computeBufferSetLayout = CreateDescriptorSetLayout({
-	//	{ 0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
-	//});
-
-	computeTextureSetLayout = CreateDescriptorSetLayout({
+	cloudPreComputeSetLayout = CreateDescriptorSetLayout({
 		{ 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr },
+	});
+	cloudPostComputeSetLayout = CreateDescriptorSetLayout({
+		{ 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 	});
 
 	cameraSetLayout = CreateDescriptorSetLayout({
 		{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
 	});
-
 	modelSetLayout = CreateDescriptorSetLayout({
 		{ 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
 	});
-
 	samplerSetLayout = CreateDescriptorSetLayout({
 		{ 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
 	});
@@ -1102,19 +1094,17 @@ void Renderer::CreateAllDescriptorSetLayouts()
 void Renderer::CreateAllDescriptorSets()
 {
 	// Initialize descriptor sets
-	//computeBufferSet = CreateDescriptorSet(descriptorPool, computeBufferSetLayout);
-	computeTextureSet = CreateDescriptorSet(descriptorPool, computeTextureSetLayout);
+	cloudPreComputeSet = CreateDescriptorSet(descriptorPool, cloudPreComputeSetLayout);
+	cloudPostComputeSet = CreateDescriptorSet(descriptorPool, cloudPostComputeSetLayout);
+
 	cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
-	modelSet = CreateDescriptorSet(descriptorPool, modelSetLayout);
-	samplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
+	geomModelSet = CreateDescriptorSet(descriptorPool, modelSetLayout);
+	geomSamplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
 
 	// Create Models
 	const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
 	const std::string texture_path = "../../src/CloudScapes/textures/chalet.jpg";
 	//house = new Model(device, commandPool, model_path, texture_path);
-
-	float planeDim = 15.f;
-	float halfWidth = planeDim * 0.5f;
 
 	const std::vector<Vertex> vertices = {
 		{ { -0.5f, 0.5f,  0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
@@ -1122,19 +1112,27 @@ void Renderer::CreateAllDescriptorSets()
 		{ { 0.5f,  -0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
 		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
 
-		{ { -0.5f, 0.5f,  -0.5f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
-		{ { 0.5f,  0.5f,  -0.5f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
-		{ { 0.5f,  -0.5f, -0.5f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { -0.5f, -0.5f, -0.5f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } }
+		{ { -0.5f, 0.5f,  -0.5f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
+		{ { 0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
+		{ { 0.5f,  -0.5f, -0.5f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
+		{ { -0.5f, -0.5f, -0.5f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
 	};
 	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
-		4, 5, 6, 6, 7, 4 };
+										  4, 5, 6, 6, 7, 4 };
+
+	const std::vector<Vertex> quadVertices = {
+		{ { -1.0f, -1.0f, 0.99999f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
+		{ { 1.0f,  -1.0f, 0.99999f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
+		{ { 1.0f,  1.0f, 0.99999f, 1.0f }, { 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
+		{ { -1.0f, 1.0f, 0.99999f, 1.0f }, { 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
+	};
+	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
+	quad = new Model(device, commandPool, quadVertices, quadIndices);
 
 	house = new Model(device, commandPool, vertices, indices);
-	house->SetTexture(device, commandPool, texture_path, houseTextureImage, houseTextureImageMemory, houseTextureImageView, houseTextureSampler);
+	house->SetTexture(device, commandPool, texture_path);
 
 	// Create cloud textures
-	CreateCloudTextureResources(textureImage, textureImageMemory, textureImageView, textureSampler);
 
 	//Write to and Update DescriptorSets
 	WriteToAndUpdateDescriptorSets();
@@ -1155,21 +1153,10 @@ void Renderer::CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory
 
 void Renderer::WriteToAndUpdateDescriptorSets()
 {
-	//// Compute Buffer
-	//VkDescriptorBufferInfo computeBufferInfo = {};
-	//computeBufferInfo.buffer = house->getVertexBuffer();
-	//computeBufferInfo.offset = 0;
-	//computeBufferInfo.range = house->getVertexBufferSize();
-
-	//VkWriteDescriptorSet writeComputeBufferInfo = {};
-	//writeComputeBufferInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	//writeComputeBufferInfo.dstSet = computeBufferSet;
-	//writeComputeBufferInfo.dstBinding = 0;
-	//writeComputeBufferInfo.descriptorCount = 1;									// How many 
-	//writeComputeBufferInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	//writeComputeBufferInfo.pBufferInfo = &computeBufferInfo;
-
-	// Compute Texture
+	//-------------------------------
+	//-------Cloud DescriptorSets----
+	//-------------------------------
+	// Texture Compute Shader Writes To
 	VkDescriptorImageInfo computeTextureInfo = {};
 	computeTextureInfo.imageLayout = rayMarchedComputeTexture->textureLayout;
 	computeTextureInfo.imageView = rayMarchedComputeTexture->textureImageView;
@@ -1178,11 +1165,30 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	VkWriteDescriptorSet writeComputeTextureInfo = {};
 	writeComputeTextureInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo.pNext = NULL;
-	writeComputeTextureInfo.dstSet = computeTextureSet;
+	writeComputeTextureInfo.dstSet = cloudPreComputeSet;
 	writeComputeTextureInfo.dstBinding = 0;
 	writeComputeTextureInfo.descriptorCount = 1;									// How many 
 	writeComputeTextureInfo.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	writeComputeTextureInfo.pImageInfo = &computeTextureInfo;
+
+	// Texture Quad Reads in
+	VkDescriptorImageInfo PostComputeTextureInfo = {};
+	PostComputeTextureInfo.imageLayout = rayMarchedComputeTexture->textureLayout;
+	PostComputeTextureInfo.imageView = rayMarchedComputeTexture->textureImageView;
+	PostComputeTextureInfo.sampler = rayMarchedComputeTexture->textureSampler;
+
+	VkWriteDescriptorSet writeCloudSamplerInfo = {};
+	writeCloudSamplerInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeCloudSamplerInfo.pNext = NULL;
+	writeCloudSamplerInfo.dstSet = cloudPostComputeSet;
+	writeCloudSamplerInfo.dstBinding = 0;
+	writeCloudSamplerInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeCloudSamplerInfo.descriptorCount = 1;
+	writeCloudSamplerInfo.pImageInfo = &PostComputeTextureInfo;
+
+	//-------------------------------
+	//----Geometry DescriptorSets----
+	//-------------------------------
 
 	// Camera 
 	VkDescriptorBufferInfo cameraBufferInfo = {};
@@ -1206,7 +1212,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 
 	VkWriteDescriptorSet writeModelInfo = {};
 	writeModelInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeModelInfo.dstSet = modelSet;
+	writeModelInfo.dstSet = geomModelSet;
 	writeModelInfo.dstBinding = 0;
 	writeModelInfo.descriptorCount = 1;
 	writeModelInfo.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1214,22 +1220,22 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 
 	// Texture
 	VkDescriptorImageInfo imageInfo = {};
-	imageInfo.imageLayout = rayMarchedComputeTexture->textureLayout;
-	imageInfo.imageView = rayMarchedComputeTexture->textureImageView;
-	imageInfo.sampler = rayMarchedComputeTexture->textureSampler;
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageInfo.imageView = house->GetTextureView();
+	imageInfo.sampler = house->GetTextureSampler();
 
 	VkWriteDescriptorSet writeSamplerInfo = {};
 	writeSamplerInfo.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeSamplerInfo.pNext = NULL;
-	writeSamplerInfo.dstSet = samplerSet;
+	writeSamplerInfo.dstSet = geomSamplerSet;
 	writeSamplerInfo.dstBinding = 0;
 	writeSamplerInfo.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	writeSamplerInfo.descriptorCount = 1;
 	writeSamplerInfo.pImageInfo = &imageInfo;
 
-	VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeTextureInfo, writeCameraInfo, writeModelInfo, writeSamplerInfo };
+	VkWriteDescriptorSet writeDescriptorSets[] = { writeComputeTextureInfo, writeCloudSamplerInfo, writeCameraInfo, writeModelInfo, writeSamplerInfo };
 
-	vkUpdateDescriptorSets(device->GetVkDevice(), 4, writeDescriptorSets, 0, nullptr);
+	vkUpdateDescriptorSets(device->GetVkDevice(), 5, writeDescriptorSets, 0, nullptr);
 }
 
 //----------------------------------------------

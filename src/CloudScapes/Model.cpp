@@ -7,7 +7,7 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::vector<
 	: device(device), vertices(vertices), indices(indices)
 {
 	if (vertices.size() > 0) {
-		BufferUtils::CreateBufferFromData(device, commandPool, this->vertices.data(), vertices.size() * sizeof(Vertex), 
+		BufferUtils::CreateBufferFromData(device, commandPool, this->vertices.data(), vertices.size() * sizeof(vertices[0]),
 										VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBuffer, vertexBufferMemory);
 	}
 
@@ -39,7 +39,7 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::string 
 	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, sizeof(ModelBufferObject),
 									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
 
-	SetTexture(device, commandPool, texture_path, texture, textureMemory, textureView, textureSampler);
+	SetTexture(device, commandPool, texture_path);
 }
 
 Model::~Model()
@@ -68,16 +68,14 @@ Model::~Model()
 	}
 }
 
-void Model::SetTexture(VulkanDevice* device, VkCommandPool commandPool, const std::string texture_path,
-					VkImage& textureImage, VkDeviceMemory& textureImageMemory, 
-					VkImageView& textureImageView, VkSampler& textureSampler)
+void Model::SetTexture(VulkanDevice* device, VkCommandPool commandPool, const std::string texture_path)
 {
-	Image::loadImageFromFile(device, commandPool, texture_path.c_str(), textureImage, textureImageMemory,
+	Image::loadImageFromFile(device, commandPool, texture_path.c_str(), texture, textureMemory,
 					VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
 					VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	Image::createImageView(device, textureImageView, textureImage,
+	Image::createImageView(device, textureView, texture,
 						VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 
 	Image::createSampler(device, textureSampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
@@ -148,15 +146,6 @@ VkBuffer Model::getIndexBuffer() const
 	return indexBuffer;
 }
 
-//VkBuffer* Model::getPointerToVertexBuffer() const
-//{
-//	return vertexBuffer;
-//}
-//VkBuffer* Model::getPointerToIndexBuffer() const
-//{
-//	return indexBuffer;
-//}
-
 uint32_t Model::getVertexBufferSize() const
 {
 	return static_cast<uint32_t>(vertices.size() * sizeof(vertices[0]));
@@ -174,6 +163,14 @@ const ModelBufferObject& Model::getModelBufferObject() const
 VkBuffer Model::GetModelBuffer() const
 {
 	return modelBuffer;
+}
+VkImage Model::GetTexture() const
+{
+	return texture;
+}
+VkDeviceMemory Model::GetTextureMemory() const
+{
+	return textureMemory;
 }
 VkImageView Model::GetTextureView() const
 {

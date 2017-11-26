@@ -22,9 +22,7 @@ public:
 	Model(VulkanDevice* device, VkCommandPool commandPool, const std::string model_path, const std::string texture_path);
 	~Model();
 
-	void SetTexture(VulkanDevice* device, VkCommandPool commandPool, const std::string texture_path,
-					VkImage& textureImage, VkDeviceMemory& textureImageMemory,
-					VkImageView& textureImageView, VkSampler& textureSampler);
+	void SetTexture(VulkanDevice* device, VkCommandPool commandPool, const std::string texture_path);
 	void LoadModel(const std::string model_path);
 
 	const std::vector<Vertex>& getVertices() const;
@@ -39,6 +37,8 @@ public:
 	const ModelBufferObject& getModelBufferObject() const;
 
 	VkBuffer GetModelBuffer() const;
+	VkImage GetTexture() const;
+	VkDeviceMemory GetTextureMemory() const;
 	VkImageView GetTextureView() const;
 	VkSampler GetTextureSampler() const;
 
