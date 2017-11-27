@@ -18,6 +18,7 @@
 #include "Scene.h"
 #include "Model.h"
 #include "Texture2D.h"
+#include "Texture3D.h"
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
@@ -45,11 +46,8 @@ public:
 	// Descriptor Sets
 	void CreateAllDescriptorSets();
 	VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout);
-
-	// Helper Functions for Creating DescriptorSets
-	void CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, VkSampler& textureSampler);
-	void WriteToAndUpdateDescriptorSets();
-
+	void WriteToAndUpdateDescriptorSets(); // Helper Functions for Creating DescriptorSets
+	
 	// Pipelines
 	VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts);
 	void CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpass);
@@ -74,6 +72,9 @@ public:
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
 								VkImageTiling tiling, VkFormatFeatureFlags features);
 	VkFormat findDepthFormat();
+
+	//Cloud Resource Functions
+	void createCloudResources();
 
 private:
 	VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
@@ -114,6 +115,32 @@ private:
 	VkImageView depthImageView;
 
 	Texture2D* rayMarchedComputeTexture;
+	/*
+	3D cloudBaseShapeTexture
+	4 channels…
+	128^3 resolution…
+	The first channel is the Perlin-Worley noise.
+	The other 3 channels are Worley noise at increasing frequencies. 
+	This 3d texture is used to define the base shape for our clouds.
+	*/
+	Texture3D* cloudBaseShapeTexture;
+	/*
+	3D cloudDetailsTexture
+	3 channels…
+	32^3 resolution…
+	Uses Worley noise at increasing frequencies. 
+	This texture is used to add detail to the base cloud shape defined by the first 3d noise.
+	32
+	*/
+	Texture3D* cloudDetailsTexture;
+	/*
+	2D cloudMotionTexture
+	3 channels…
+	128^2 resolution…
+	Uses curl noise. Which is non divergent and is used to fake fluid motion. 
+	We use this noise to distort our cloud shapes and add a sense of turbulence.
+	*/
+	Texture2D* cloudMotionTexture;
 
 	VkDescriptorPool descriptorPool;
 

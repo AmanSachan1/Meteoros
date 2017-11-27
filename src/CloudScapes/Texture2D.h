@@ -12,6 +12,8 @@ public:
 	Texture2D(VulkanDevice* device, uint32_t width, uint32_t height, VkFormat format);
 	~Texture2D();
 
+	void create2DTexture(VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
+						 VkSamplerAddressMode addressMode, float maxAnisotropy);
 	void createTextureImage(VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 	void createTextureSampler(VkSamplerAddressMode addressMode, float maxAnisotropy);
 	void createTextureImageView();

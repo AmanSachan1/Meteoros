@@ -5,6 +5,7 @@
 #include "VulkanDevice.h"
 #include "BufferUtils.h"
 #include "Commands.h"
+#include "Forward.h"
 
 namespace Image
 {

@@ -39,6 +39,11 @@ Renderer::~Renderer()
 	vkDestroyDescriptorSetLayout(logicalDevice, modelSetLayout, nullptr);
 	
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
+
+	delete rayMarchedComputeTexture;
+	delete cloudBaseShapeTexture;
+	//delete cloudDetailsTexture;
+	//delete cloudMotionTexture;
 }
 
 void Renderer::InitializeRenderer()
@@ -49,6 +54,8 @@ void Renderer::InitializeRenderer()
 	//To pass texture created in compute to frag shader
 	rayMarchedComputeTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
 	rayMarchedComputeTexture->createTextureAsBackGround(logicalDevice, physicalDevice, commandPool);
+
+	createCloudResources();
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -989,7 +996,12 @@ void Renderer::RecordComputeCommandBuffer()
 
 	// Dispatch the compute kernel, with one thread for each vertex
 	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
-	vkCmdDispatch(computeCommandBuffer, rayMarchedComputeTexture->GetWidth() / 16, rayMarchedComputeTexture->GetHeight() / 16, 1);
+	
+	const int blockSize1d = 16;
+	int numBlocksX = (rayMarchedComputeTexture->GetWidth() + blockSize1d - 1) / blockSize1d;
+	int numBlocksY = (rayMarchedComputeTexture->GetHeight() + blockSize1d - 1) / blockSize1d;
+	int numBlocksZ = 1;
+	vkCmdDispatch(computeCommandBuffer, numBlocksX, numBlocksY, numBlocksZ);
 
 	//---------- End Recording ----------
 	if (vkEndCommandBuffer(computeCommandBuffer) != VK_SUCCESS) {
@@ -1133,19 +1145,6 @@ void Renderer::CreateAllDescriptorSets()
 	WriteToAndUpdateDescriptorSets();
 }
 
-void Renderer::CreateCloudTextureResources(VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkImageView& textureImageView, VkSampler& textureSampler)
-{
-	Image::loadImageFromFile(device, commandPool, "../../src/CloudScapes/textures/statue.jpg", textureImage, textureImageMemory,
-							VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
-							VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-							VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	Image::createImageView(device, textureImageView, textureImage,
-		VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
-
-	Image::createSampler(device, textureSampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
-}
-
 void Renderer::WriteToAndUpdateDescriptorSets()
 {
 	//-------------------------------
@@ -1256,4 +1255,12 @@ VkFormat Renderer::findDepthFormat()
 								VK_IMAGE_TILING_OPTIMAL,
 								VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 								);
+}
+
+//----------------------------------------------
+//-------------- Create Clouds Resources -------
+//----------------------------------------------
+void Renderer::createCloudResources()
+{
+
 }
