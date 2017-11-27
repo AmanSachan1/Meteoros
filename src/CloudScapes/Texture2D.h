@@ -2,8 +2,8 @@
 
 #include "VulkanDevice.h"
 #include "BufferUtils.h"
+#include "imageLoadingUtility.h"
 #include "Image.h"
-#include "Model.h"
 
 class Texture2D
 {

@@ -16,7 +16,7 @@ class Camera
 {
 public:
 	Camera() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
-	Camera(VulkanDevice* device,
+	Camera(VulkanDevice* device, VmaAllocator& g_vma_Allocator,
 		   glm::vec3 eyePos, glm::vec3 lookatPoint,
 		   float foV_vertical, float aspectRatio, float nearClip, float farClip);
 	~Camera();

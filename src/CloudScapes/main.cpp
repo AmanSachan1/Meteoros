@@ -118,7 +118,7 @@ int main(int argc, char** argv)
     
 	swapChain = device->CreateSwapChain(surface);
 
-	camera = new Camera(device, 
+	camera = new Camera(device, g_vma_Allocator,
 						glm::vec3(0.0f, 1.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), 
 						45.0f, window_width / window_height, 0.1f, 1000.0f);
 

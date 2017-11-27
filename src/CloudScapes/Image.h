@@ -6,6 +6,7 @@
 #include "BufferUtils.h"
 #include "Commands.h"
 #include "Forward.h"
+#include "VMA_Utility.h"
 
 namespace Image
 {
@@ -20,11 +21,6 @@ namespace Image
 		VkFormat format, VkImageAspectFlags aspectFlags);
 
 	bool hasStencilComponent(VkFormat format);
-
-	//load an image and upload it into a Vulkan image object
-	void loadImageFromFile(VulkanDevice* device, VkCommandPool& commandPool, const char* imagePath,
-		VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkFormat format,
-		VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 
 	void createSampler(VulkanDevice* device, VkSampler& sampler, VkSamplerAddressMode addressMode, float maxAnisotropy);
 

@@ -248,8 +248,10 @@ void VulkanSwapChain::Present()
 
     VkResult result = vkQueuePresentKHR(device->GetQueue(QueueFlags::Present), &presentInfo);
 
-    if (result != VK_SUCCESS) 
-	{
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+		Recreate();
+	}
+	else if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to present swap chain image");
     }
 }

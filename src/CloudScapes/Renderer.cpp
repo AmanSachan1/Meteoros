@@ -983,7 +983,9 @@ void Renderer::RecordComputeCommandBuffer()
 	//---------- Begin recording ----------
 	//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
 	// It's not possible to append commands to a buffer at a later time.
-	vkBeginCommandBuffer(computeCommandBuffer, &beginInfo);
+	if (vkBeginCommandBuffer(computeCommandBuffer, &beginInfo) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to begin recording compute command buffer");
+	}
 
 	//-----------------------------------------------------
 	//--- Compute Pipeline Binding, Dispatch & Barriers ---
@@ -994,13 +996,13 @@ void Renderer::RecordComputeCommandBuffer()
 	//Bind Descriptor Sets for compute
 	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &cloudPreComputeSet, 0, nullptr);
 
-	// Dispatch the compute kernel, with one thread for each vertex
+	// Dispatch the compute kernel
 	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);
 	
-	const int blockSize1d = 16;
-	int numBlocksX = (rayMarchedComputeTexture->GetWidth() + blockSize1d - 1) / blockSize1d;
-	int numBlocksY = (rayMarchedComputeTexture->GetHeight() + blockSize1d - 1) / blockSize1d;
-	int numBlocksZ = 1;
+	const uint32_t blockSize1d = 16;
+	uint32_t numBlocksX = (rayMarchedComputeTexture->GetWidth() + blockSize1d - 1) / blockSize1d;
+	uint32_t numBlocksY = (rayMarchedComputeTexture->GetHeight() + blockSize1d - 1) / blockSize1d;
+	uint32_t numBlocksZ = 1;
 	vkCmdDispatch(computeCommandBuffer, numBlocksX, numBlocksY, numBlocksZ);
 
 	//---------- End Recording ----------
@@ -1116,7 +1118,7 @@ void Renderer::CreateAllDescriptorSets()
 	geomSamplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
 
 	// Create Models
-	const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
+	const std::string model_path = "../../src/CloudScapes/models/teapot.obj";
 	const std::string texture_path = "../../src/CloudScapes/textures/chalet.jpg";
 	//house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
 
@@ -1272,6 +1274,6 @@ void Renderer::createCloudResources()
 	const std::string folder_path = "../../src/CloudScapes/textures/CloudsBaseShape/";
 	const std::string textureBaseName = "CloudBaseShape";
 	const std::string fileExtension = ".tga";
-	Texture3D* cloudBaseShapeTexture = new Texture3D(device, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
+	Texture3D* cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
 	//cloudBaseShapeTexture->create3DTextureFromMany2DTextures(commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
 }

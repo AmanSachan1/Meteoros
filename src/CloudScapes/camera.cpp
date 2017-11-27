@@ -1,6 +1,6 @@
 #include "camera.h"
 
-Camera::Camera(VulkanDevice* device,
+Camera::Camera(VulkanDevice* device, VmaAllocator& g_vma_Allocator,
 			   glm::vec3 eyePos, glm::vec3 lookAtPoint,
 			   float foV_vertical, float aspectRatio, float nearClip, float farClip)
 	: device(device), eyePos(eyePos), lookAtPos(lookAtPoint)

@@ -10,12 +10,12 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vm
 	if ((vertices.size() > 0) && 
 		(indices.size() > 0) ) 
 	{
-		BufferUtils::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
+		VMA_Utility::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
 			vertexBuffer, indexBuffer, g_vma_VertexBufferAlloc, g_vma_IndexBufferAlloc);
 	}
 
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	BufferUtils::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
+	VMA_Utility::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
 									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, g_vma_ModelBufferAlloc);
 }
 
@@ -27,12 +27,12 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vm
 	if ((vertices.size() > 0) &&
 		(indices.size() > 0))
 	{
-		BufferUtils::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
+		VMA_Utility::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
 			vertexBuffer, indexBuffer, g_vma_VertexBufferAlloc, g_vma_IndexBufferAlloc);
 	}
 
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	BufferUtils::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
+	VMA_Utility::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
 										VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, g_vma_ModelBufferAlloc);
 
 	SetTexture(device, commandPool, texture_path);
@@ -66,7 +66,7 @@ Model::~Model()
 
 void Model::SetTexture(VulkanDevice* device, VkCommandPool commandPool, const std::string texture_path)
 {
-	Image::loadImageFromFile(device, commandPool, texture_path.c_str(), texture, textureMemory,
+	ImageLoadingUtility::loadImageFromFile(device, commandPool, texture_path.c_str(), texture, textureMemory,
 					VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
 					VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);

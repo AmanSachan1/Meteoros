@@ -8,6 +8,7 @@
 #include "Vertex.h"
 #include "BufferUtils.h"
 #include "Image.h"
+#include "ImageLoadingUtility.h"
 #include <unordered_map>
 
 struct ModelBufferObject {
