@@ -17,7 +17,9 @@ public:
 	void create3DTextureSampler(VkSamplerAddressMode addressMode, float maxAnisotropy);
 	void create3DTextureImageView();
 
-	void create3DTextureFromMany2DTextures(VkCommandPool commandPool, const std::string folder_path, const std::string textureBaseName, int num2DImages, int numChannels);
+	void create3DTextureFromMany2DTextures(VkCommandPool commandPool, 
+		const std::string folder_path, const std::string textureBaseName, 
+		const std::string fileExtension, int num2DImages, int numChannels);
 
 	uint32_t GetWidth() const;
 	uint32_t GetHeight() const;

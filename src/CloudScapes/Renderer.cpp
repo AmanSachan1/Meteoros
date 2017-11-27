@@ -1100,6 +1100,13 @@ void Renderer::CreateAllDescriptorSetLayouts()
 
 void Renderer::CreateAllDescriptorSets()
 {
+	// Create memory allocator
+
+	VmaAllocatorCreateInfo allocatorInfo = {};
+	allocatorInfo.physicalDevice = physicalDevice;
+	allocatorInfo.device = logicalDevice;
+	ERR_GUARD_VULKAN(vmaCreateAllocator(&allocatorInfo, &g_vma_Allocator));
+	assert(g_vma_Allocator);
 	// Initialize descriptor sets
 	cloudPreComputeSet = CreateDescriptorSet(descriptorPool, cloudPreComputeSetLayout);
 	cloudPostComputeSet = CreateDescriptorSet(descriptorPool, cloudPostComputeSetLayout);
@@ -1111,7 +1118,7 @@ void Renderer::CreateAllDescriptorSets()
 	// Create Models
 	const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
 	const std::string texture_path = "../../src/CloudScapes/textures/chalet.jpg";
-	//house = new Model(device, commandPool, model_path, texture_path);
+	//house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
 
 	const std::vector<Vertex> vertices = {
 		{ { -0.5f, 0.5f,  0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
@@ -1134,9 +1141,9 @@ void Renderer::CreateAllDescriptorSets()
 		{ { -1.0f, 1.0f, 0.99999f, 1.0f }, { 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
 	};
 	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
-	quad = new Model(device, commandPool, quadVertices, quadIndices);
+	quad = new Model(device, commandPool, g_vma_Allocator, quadVertices, quadIndices);
 
-	house = new Model(device, commandPool, vertices, indices);
+	house = new Model(device, commandPool, g_vma_Allocator, vertices, indices);
 	house->SetTexture(device, commandPool, texture_path);
 
 	// Create cloud textures
@@ -1262,5 +1269,9 @@ VkFormat Renderer::findDepthFormat()
 //----------------------------------------------
 void Renderer::createCloudResources()
 {
-
+	const std::string folder_path = "../../src/CloudScapes/textures/CloudsBaseShape/";
+	const std::string textureBaseName = "CloudBaseShape";
+	const std::string fileExtension = ".tga";
+	Texture3D* cloudBaseShapeTexture = new Texture3D(device, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
+	//cloudBaseShapeTexture->create3DTextureFromMany2DTextures(commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
 }

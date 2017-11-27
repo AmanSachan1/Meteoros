@@ -1,43 +1,39 @@
 #include "model.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "../../external/ObjLoadingLibraries/tiny_obj_loader.h"
+#include "../../external/tiny_obj_loader.h"
 
-Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
+Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator,
+			const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
 	: device(device), vertices(vertices), indices(indices)
 {
-	if (vertices.size() > 0) {
-		BufferUtils::CreateBufferFromData(device, commandPool, this->vertices.data(), vertices.size() * sizeof(vertices[0]),
-										VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBuffer, vertexBufferMemory);
-	}
-
-	if (indices.size() > 0) {
-		BufferUtils::CreateBufferFromData(device, commandPool, this->indices.data(), indices.size() * sizeof(uint32_t), 
-										VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBuffer, indexBufferMemory);
+	if ((vertices.size() > 0) && 
+		(indices.size() > 0) ) 
+	{
+		BufferUtils::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
+			vertexBuffer, indexBuffer, g_vma_VertexBufferAlloc, g_vma_IndexBufferAlloc);
 	}
 
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, sizeof(ModelBufferObject), 
-									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
+	BufferUtils::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
+									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, g_vma_ModelBufferAlloc);
 }
 
-Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::string model_path, const std::string texture_path)
+Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator, 
+			const std::string model_path, const std::string texture_path)
 {
 	LoadModel(model_path);
 
-	if (vertices.size() > 0) {
-		BufferUtils::CreateBufferFromData(device, commandPool, vertices.data(), vertices.size() * sizeof(Vertex),
-										VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBuffer, vertexBufferMemory);
-	}
-
-	if (indices.size() > 0) {
-		BufferUtils::CreateBufferFromData(device, commandPool, indices.data(), indices.size() * sizeof(uint32_t),
-										VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBuffer, indexBufferMemory);
+	if ((vertices.size() > 0) &&
+		(indices.size() > 0))
+	{
+		BufferUtils::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
+			vertexBuffer, indexBuffer, g_vma_VertexBufferAlloc, g_vma_IndexBufferAlloc);
 	}
 
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, sizeof(ModelBufferObject),
-									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
+	BufferUtils::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
+										VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, g_vma_ModelBufferAlloc);
 
 	SetTexture(device, commandPool, texture_path);
 }

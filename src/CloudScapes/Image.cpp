@@ -5,7 +5,7 @@
 #include "Texture3D.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "../../external/ImageLibraries/stb_image.h"
+#include "../../external/stb_image.h"
 
 //Reference: https://vulkan-tutorial.com/Texture_mapping/Images
 bool Image::hasStencilComponent(VkFormat format)
@@ -801,7 +801,9 @@ void Texture3D::create3DTextureImageView()
 }
 
 // load multiple 2D Textures From a folder and create a 3D image from them
-void Texture3D::create3DTextureFromMany2DTextures(VkCommandPool commandPool, const std::string folder_path, const std::string textureBaseName, int num2DImages, int numChannels)
+void Texture3D::create3DTextureFromMany2DTextures(VkCommandPool commandPool,
+	const std::string folder_path, const std::string textureBaseName,
+	const std::string fileExtension, int num2DImages, int numChannels)
 {
 	//---------------------
 	//--- Load Images -----
@@ -813,13 +815,16 @@ void Texture3D::create3DTextureFromMany2DTextures(VkCommandPool commandPool, con
 
 	for (int i = 0; i<num2DImages; i++)
 	{
-		std::string imageIdentifier = textureBaseName + " (" + std::to_string(i) + ")";
+		std::string imageIdentifier = folder_path + textureBaseName + " (" + std::to_string(i+1) + ")" + fileExtension;
 		const char* imagePath = imageIdentifier.c_str();
-		texture2DPixels.push_back(static_cast<unsigned char*>(stbi_load(imagePath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha)));
+		stbi_uc* pixels = stbi_load(imagePath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		texture2DPixels.push_back(static_cast<unsigned char*>(pixels));
 		if (!texture2DPixels[i])
 		{
 			throw std::runtime_error("failed to load texture image!");
 		}
+
+		stbi_image_free(pixels);
 	}
 
 	//----------------------
@@ -866,6 +871,9 @@ void Texture3D::create3DTextureFromMany2DTextures(VkCommandPool commandPool, con
 
 	vkDestroyBuffer(device->GetVkDevice(), stagingBuffer, nullptr);
 	vkFreeMemory(device->GetVkDevice(), stagingBufferMemory, nullptr);
+
+	create3DTextureSampler(VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
+	create3DTextureImageView();
 }
 
 uint32_t Texture3D::GetWidth() const

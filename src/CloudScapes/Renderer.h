@@ -8,6 +8,8 @@
 #include <stdexcept>
 #include <iostream>
 
+#include "../../external/vk_mem_alloc.h"
+
 #include "VulkanDevice.h"
 #include "SwapChain.h"
 #include "ShaderModule.h"
@@ -21,6 +23,7 @@
 #include "Texture3D.h"
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
+static VmaAllocator g_vma_Allocator; // needed as a global object by the VMA library
 
 class Renderer 
 {
@@ -78,9 +81,9 @@ public:
 
 private:
 	VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
+
 	VkDevice logicalDevice;
 	VkPhysicalDevice physicalDevice;
-
 	VulkanSwapChain* swapChain;
 
 	Camera* camera;
