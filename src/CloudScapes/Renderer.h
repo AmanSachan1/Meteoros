@@ -118,6 +118,8 @@ private:
 	VkImageView depthImageView;
 
 	Texture2D* rayMarchedComputeTexture;
+	
+	Texture3D* cloudBaseShapeTexture;
 	/*
 	3D cloudBaseShapeTexture
 	4 channels…
@@ -126,16 +128,15 @@ private:
 	The other 3 channels are Worley noise at increasing frequencies. 
 	This 3d texture is used to define the base shape for our clouds.
 	*/
-	Texture3D* cloudBaseShapeTexture;
+	Texture3D* cloudDetailsTexture;
 	/*
 	3D cloudDetailsTexture
 	3 channels…
 	32^3 resolution…
 	Uses Worley noise at increasing frequencies. 
 	This texture is used to add detail to the base cloud shape defined by the first 3d noise.
-	32
 	*/
-	Texture3D* cloudDetailsTexture;
+	Texture2D* cloudMotionTexture;
 	/*
 	2D cloudMotionTexture
 	3 channels…
@@ -143,8 +144,7 @@ private:
 	Uses curl noise. Which is non divergent and is used to fake fluid motion. 
 	We use this noise to distort our cloud shapes and add a sense of turbulence.
 	*/
-	Texture2D* cloudMotionTexture;
-
+	
 	VkDescriptorPool descriptorPool;
 
 	VkDescriptorSetLayout cameraSetLayout;

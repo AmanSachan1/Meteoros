@@ -18,7 +18,7 @@ public:
 	void create3DTextureSampler(VkSamplerAddressMode addressMode, float maxAnisotropy);
 	void create3DTextureImageView();
 
-	void create3DTextureFromMany2DTextures(VkCommandPool commandPool, VmaAllocator& g_vma_Allocator,
+	void create3DTextureFromMany2DTextures(VkDevice logicalDevice, VkCommandPool commandPool,
 		const std::string folder_path, const std::string textureBaseName, 
 		const std::string fileExtension, int num2DImages, int numChannels);
 
@@ -36,7 +36,7 @@ private:
 	VmaAllocator g_vma_Allocator;
 
 	VmaAllocation vma_TextureImageAlloc;
-	std::vector <unsigned char*> texture2DPixels; // stores the data stored by the image loading library
+	 // stores the data stored by the image loading library
 
 	uint32_t width, height, depth;
 	VkFormat textureFormat;

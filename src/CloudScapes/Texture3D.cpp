@@ -75,11 +75,21 @@ void Texture3D::create3DTextureImage(VkImageTiling tiling, VkImageUsageFlags usa
 		throw std::runtime_error("failed to create 3D texture!");
 	}
 
-	VmaAllocationCreateInfo imageAllocCreateInfo = {};
-	imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	VmaAllocationInfo allocInfo;
+	//VmaAllocationCreateInfo imageAllocCreateInfo = {};
+	//imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+	//VmaAllocationInfo allocInfo;
 
-	VMA_Utility::createImageVMA(g_vma_Allocator, imageInfo, imageAllocCreateInfo, textureImage3D, vma_TextureImageAlloc, allocInfo);
+	//VMA_Utility::createImageVMA(g_vma_Allocator, imageInfo, imageAllocCreateInfo, textureImage3D, vma_TextureImageAlloc, allocInfo);
+
+	// Device local memory to back up image
+	VkMemoryAllocateInfo memAllocInfo{};
+	memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	VkMemoryRequirements memReqs = {};
+	vkGetImageMemoryRequirements(device->GetVkDevice(), textureImage3D, &memReqs);
+	memAllocInfo.allocationSize = memReqs.size;
+	memAllocInfo.memoryTypeIndex = device->GetInstance()->GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	vkAllocateMemory(device->GetVkDevice(), &memAllocInfo, nullptr, &textureImageMemory3D);
+	vkBindImageMemory(device->GetVkDevice(), textureImage3D, textureImageMemory3D, 0);
 }
 void Texture3D::create3DTextureSampler(VkSamplerAddressMode addressMode, float maxAnisotropy)
 {
@@ -147,39 +157,21 @@ void Texture3D::create3DTextureImageView()
 }
 
 // load multiple 2D Textures From a folder and create a 3D image from them
-void Texture3D::create3DTextureFromMany2DTextures(VkCommandPool commandPool, VmaAllocator& g_vma_Allocator,
+void Texture3D::create3DTextureFromMany2DTextures(VkDevice logicalDevice, VkCommandPool commandPool,
 	const std::string folder_path, const std::string textureBaseName,
 	const std::string fileExtension, int num2DImages, int numChannels)
 {
 	int texWidth, texHeight, texChannels;
+	VkDeviceSize Image3DSize = width * height * depth * numChannels;
+	unsigned char* texture2DPixels = new uint8_t[Image3DSize];
 	ImageLoadingUtility::loadmultiple2DTextures(texture2DPixels, folder_path, textureBaseName, fileExtension,
 												num2DImages, texWidth, texHeight, texChannels);
-
-	//----------------------
-	//--- Staging Buffer ---
-	//----------------------		
-	VkBuffer stagingBuffer;
-	VkDeviceMemory stagingBufferMemory;
-	//assuming the 2D images have the same width and height
-	VkDeviceSize Image3DSize = texWidth * texHeight * numChannels * num2DImages; // 4 channel image
-
-	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, Image3DSize,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		stagingBuffer, stagingBufferMemory);
-
-	//BufferUtils::createBufferFromDataVMA(device, commandPool, g_vma_Allocator,
-	//	texture2DPixels.data(), Image3DSize, VK_IMAGE_USAGE_SAMPLED_BIT,
-	//	VkBuffer& buffer, VmaAllocation& g_vma_BufferAlloc);
-
-	//copy the pixel values for all the 2D textures that we got from all the images loaded using the library to the buffer
-	{
-		void* data;
-		vkMapMemory(device->GetVkDevice(), stagingBufferMemory, 0, Image3DSize, 0, &data);
-		memcpy(data, texture2DPixels.data(), static_cast<size_t>(Image3DSize));
-		vkUnmapMemory(device->GetVkDevice(), stagingBufferMemory);
-	}
-
+	
 	//IMPORTANT: Did not free memory stored in the vector because if we want to modify the individual textures we should just change that one texture
+	
+	VmaAllocation stagingBufferAlloc = VK_NULL_HANDLE;
+	VkBuffer stagingBuffer = VMA_Utility::createStagingBuffer(device, commandPool, g_vma_Allocator, texture2DPixels, stagingBufferAlloc, Image3DSize);
+	
 	create3DTextureImage(VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	//----------------------------------------------------
@@ -190,19 +182,15 @@ void Texture3D::create3DTextureFromMany2DTextures(VkCommandPool commandPool, Vma
 
 	//Transition: Undefined → transfer destination: transfer writes that don't need to wait on anything
 	//This transition is to make image optimal as a destination
-	Image::transitionImageLayout(device, commandPool, textureImage3D, textureFormat,
-		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
+	Image::transitionImageLayout(device, commandPool, textureImage3D, textureFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	Image::copyBufferToImage(device, commandPool, stagingBuffer, textureImage3D, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 
-	//Transfer destination → shader reading: shader reads should wait on transfer writes, 
-	//specifically the shader reads in the fragment shader, because that's where we're going to use the texture
-	//This transition is to make the image an optimal source for the sampler in a shader
+	//Transfer destination → shader reading
 	Image::transitionImageLayout(device, commandPool, textureImage3D, textureFormat,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-	vkDestroyBuffer(device->GetVkDevice(), stagingBuffer, nullptr);
-	vkFreeMemory(device->GetVkDevice(), stagingBufferMemory, nullptr);
+	VMA_Utility::destroyStagingBuffer(g_vma_Allocator, stagingBuffer, stagingBufferAlloc);
+
 
 	create3DTextureSampler(VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
 	create3DTextureImageView();

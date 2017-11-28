@@ -10,6 +10,13 @@ Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, Vulkan
 	window_width(width),
 	window_height(height)
 {
+	// Create memory allocator
+	VmaAllocatorCreateInfo allocatorInfo = {};
+	allocatorInfo.physicalDevice = physicalDevice;
+	allocatorInfo.device = logicalDevice;
+	ERR_GUARD_VULKAN(vmaCreateAllocator(&allocatorInfo, &g_vma_Allocator));
+	assert(g_vma_Allocator);
+
 	InitializeRenderer();
 }
 
@@ -1102,13 +1109,6 @@ void Renderer::CreateAllDescriptorSetLayouts()
 
 void Renderer::CreateAllDescriptorSets()
 {
-	// Create memory allocator
-
-	VmaAllocatorCreateInfo allocatorInfo = {};
-	allocatorInfo.physicalDevice = physicalDevice;
-	allocatorInfo.device = logicalDevice;
-	ERR_GUARD_VULKAN(vmaCreateAllocator(&allocatorInfo, &g_vma_Allocator));
-	assert(g_vma_Allocator);
 	// Initialize descriptor sets
 	cloudPreComputeSet = CreateDescriptorSet(descriptorPool, cloudPreComputeSetLayout);
 	cloudPostComputeSet = CreateDescriptorSet(descriptorPool, cloudPostComputeSetLayout);
@@ -1274,6 +1274,6 @@ void Renderer::createCloudResources()
 	const std::string folder_path = "../../src/CloudScapes/textures/CloudsBaseShape/";
 	const std::string textureBaseName = "CloudBaseShape";
 	const std::string fileExtension = ".tga";
-	Texture3D* cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
-	//cloudBaseShapeTexture->create3DTextureFromMany2DTextures(commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
+	Texture3D* cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 2, VK_FORMAT_R8G8B8A8_UNORM);
+	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
 }

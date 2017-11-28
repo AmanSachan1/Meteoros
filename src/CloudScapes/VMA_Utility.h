@@ -22,4 +22,13 @@ namespace VMA_Utility
 
 	void createImageVMA(VmaAllocator& g_vma_Allocator, VkImageCreateInfo& imageInfo, VmaAllocationCreateInfo& imageAllocCreateInfo,
 						VkImage& image, VmaAllocation& ImageAlloc, VmaAllocationInfo allocInfo);
+
+	VkBuffer createStagingBuffer(VulkanDevice* device, VkCommandPool& commandPool, VmaAllocator& g_vma_Allocator,
+								 void* bufferData, VmaAllocation& stagingBufferAlloc, VkDeviceSize bufferSize);
+
+	void destroyStagingBuffer(VmaAllocator& g_vma_Allocator, VkBuffer& stagingBuffer, VmaAllocation& stagingBufferAlloc);
+
+	void create3DTexturefromData(VulkanDevice* device, VkDevice& logicalDevice, VkCommandPool& commandPool, VmaAllocator& g_vma_Allocator,
+		VkDeviceSize imageSize, uint32_t width, uint32_t height, uint32_t depth, void* textureData,
+		VkImage &textureImage, VmaAllocation& textureImageAlloc);
 }

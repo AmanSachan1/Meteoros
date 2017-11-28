@@ -4,6 +4,7 @@
 #include <vector>
 #include "VulkanDevice.h"
 #include "Image.h"
+#include <cstring>
 #include "../../external/stb_image.h"
 
 namespace ImageLoadingUtility
@@ -13,7 +14,7 @@ namespace ImageLoadingUtility
 						VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkFormat format,
 						VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 
-	void loadmultiple2DTextures(std::vector <unsigned char*>& texture2DPixels,
+	void loadmultiple2DTextures(unsigned char*& texture2DPixels,
 								const std::string folder_path, const std::string textureBaseName,
 								const std::string fileExtension, int num2DImages,
 								int& texWidth, int& texHeight, int& texChannels);
