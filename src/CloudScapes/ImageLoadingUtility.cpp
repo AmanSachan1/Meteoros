@@ -83,7 +83,8 @@ void ImageLoadingUtility::loadmultiple2DTextures(unsigned char*& texture2DPixels
 	const uint32_t texMemSize = texWidth * texHeight * num2DImages * 4;
 	unsigned char* texturePixels = new uint8_t[texMemSize];
 	memset(texturePixels, 0, texMemSize);
-
+	
+#pragma omp parallel for
 	for (int z = 0; z<num2DImages; z++)
 	{
 		std::string imageIdentifier = folder_path + textureBaseName + " (" + std::to_string(z + 1) + ")" + fileExtension;

@@ -147,18 +147,17 @@ private:
 	
 	VkDescriptorPool descriptorPool;
 
-	VkDescriptorSetLayout cameraSetLayout;
-	VkDescriptorSetLayout modelSetLayout;
-	VkDescriptorSetLayout samplerSetLayout;
+	//Descriptor Set Layouts for each pipeline
+	VkDescriptorSetLayout computeSetLayout;	// Compute shader binding layout
+	VkDescriptorSetLayout cloudSetLayout;
+	VkDescriptorSetLayout graphicsSetLayout;
 
 	// Cloud Pipeline Descriptor Sets + compute pipeline descriptor Set Layout
-	VkDescriptorSetLayout cloudPreComputeSetLayout;	// Compute shader binding layout
-	VkDescriptorSet cloudPreComputeSet;			// Compute shader bindings
-	VkDescriptorSetLayout cloudPostComputeSetLayout;
-	VkDescriptorSet cloudPostComputeSet;
-	
+	VkDescriptorSet computeSet;	// Compute shader bindings
+
+	// Descriptor Set for cloud Data
+	VkDescriptorSet cloudSet;
+
 	// Geometry specific descriptor sets
-	VkDescriptorSet cameraSet;
-	VkDescriptorSet geomModelSet;
-	VkDescriptorSet geomSamplerSet;
+	VkDescriptorSet graphicsSet;
 };

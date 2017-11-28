@@ -14,7 +14,7 @@ layout(set = 0, binding = 0) uniform CameraUBO
 	mat4 projectionMatrix;
 };
 
-layout(set = 1, binding = 0) uniform ModelUBO
+layout(set = 0, binding = 1) uniform ModelUBO
 {
 	mat4 modelMatrix;
 };
