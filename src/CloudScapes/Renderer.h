@@ -22,6 +22,10 @@
 #include "Texture2D.h"
 #include "Texture3D.h"
 
+
+
+
+
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 static VmaAllocator g_vma_Allocator; // needed as a global object by the VMA library
 
@@ -78,6 +82,12 @@ public:
 
 	//Cloud Resource Functions
 	void createCloudResources();
+
+	// IMGUI
+	void ImGuiSetup(GLFWwindow* window);
+	//void ImGuiLoadFonts();
+	void ImGuiRender();
+	void ImGuiShutdown();
 
 private:
 	VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)

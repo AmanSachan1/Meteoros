@@ -1,5 +1,10 @@
 #include "Renderer.h"
 
+
+// IMGUI
+#include "../../external/imgui/imgui.h"
+#include "../../external/imgui/examples/vulkan_example/imgui_impl_glfw_vulkan.h"
+
 Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height)
 	: device(device), 
 	logicalDevice(device->GetVkDevice()),
@@ -91,7 +96,8 @@ void Renderer::Frame()
 	computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
 
 	// submit the command buffer to the compute queue
-	if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+	if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) 
+	{
 		throw std::runtime_error("Failed to submit compute command buffer");
 	}
 
@@ -131,7 +137,8 @@ void Renderer::Frame()
 	graphicsSubmitInfo.pSignalSemaphores = signalSemaphores;
 
 	// submit the command buffer to the graphics queue
-	if (vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &graphicsSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+	if (vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &graphicsSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) 
+	{
 		throw std::runtime_error("Failed to submit draw command buffer");
 	}
 
@@ -890,6 +897,20 @@ void Renderer::RecordGraphicsCommandBuffer()
 		// VK_SUBPASS_CONTENTS_INLINE: The render pass commands will be embedded in the primary command
 		// buffer itself and no secondary command buffers will be executed.
 
+
+
+
+
+
+		// CALL ImGui_ImplGlfwVulkan_Render, but with graphics command buffer?
+		//ImGui_ImplGlfwVulkan_Render(graphicsCommandBuffer[i]);
+
+
+
+
+
+
+
 		//------------------------
 		//--- Clouds Pipeline---
 		//------------------------
@@ -1107,6 +1128,7 @@ void Renderer::CreateAllDescriptorSets()
 	allocatorInfo.device = logicalDevice;
 	ERR_GUARD_VULKAN(vmaCreateAllocator(&allocatorInfo, &g_vma_Allocator));
 	assert(g_vma_Allocator);
+
 	// Initialize descriptor sets
 	cloudPreComputeSet = CreateDescriptorSet(descriptorPool, cloudPreComputeSetLayout);
 	cloudPostComputeSet = CreateDescriptorSet(descriptorPool, cloudPostComputeSetLayout);
@@ -1116,10 +1138,16 @@ void Renderer::CreateAllDescriptorSets()
 	geomSamplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
 
 	// Create Models
-	const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
-	const std::string texture_path = "../../src/CloudScapes/textures/chalet.jpg";
-	//house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
+	//const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
 
+	const std::string model_path = "../../src/CloudScapes/models/DesignChair1.obj";
+
+	const std::string texture_path = "../../src/CloudScapes/textures/chalet.jpg";
+
+	// THIS IS SUPPOSED TO BE THE CORRECT WAY ---------------------------------------
+	Model* house2 = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
+
+	// HACK TO LOAD MODELS THIS IS HOW WE'RE CURRENTLY DOING IT ---------------------------------------
 	const std::vector<Vertex> vertices = {
 		{ { -0.5f, 0.5f,  0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
 		{ { 0.5f,  0.5f,  0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
@@ -1134,6 +1162,11 @@ void Renderer::CreateAllDescriptorSets()
 	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
 										  4, 5, 6, 6, 7, 4 };
 
+	house = new Model(device, commandPool, g_vma_Allocator, vertices, indices);
+	house->SetTexture(device, commandPool, texture_path);
+	// END LOAD MODEL HACK -----------------------------------------------------------------------------
+	
+	// Background quad (currently being colored by UV's)
 	const std::vector<Vertex> quadVertices = {
 		{ { -1.0f, -1.0f, 0.99999f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
 		{ { 1.0f,  -1.0f, 0.99999f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
@@ -1143,8 +1176,7 @@ void Renderer::CreateAllDescriptorSets()
 	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
 	quad = new Model(device, commandPool, g_vma_Allocator, quadVertices, quadIndices);
 
-	house = new Model(device, commandPool, g_vma_Allocator, vertices, indices);
-	house->SetTexture(device, commandPool, texture_path);
+
 
 	// Create cloud textures
 
@@ -1275,3 +1307,64 @@ void Renderer::createCloudResources()
 	Texture3D* cloudBaseShapeTexture = new Texture3D(device, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
 	//cloudBaseShapeTexture->create3DTextureFromMany2DTextures(commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
 }
+
+
+//----------------------------------------------
+//------------------- ImGui --------------------
+//----------------------------------------------
+
+/*
+Put this in for ImGui
+
+Maybe put this instead?
+#define ERR_GUARD_VULKAN(Expr) do { VkResult res__ = (Expr); if (res__ < 0) assert(0); } while(0)
+
+*/
+static void check_vk_result(VkResult err)
+{
+	if (err == 0) return;
+	printf("VkResult %d\n", err);
+	if (err < 0)
+		abort();
+}
+
+
+void Renderer::ImGuiSetup(GLFWwindow* window)
+{
+	// Setup ImGui binding
+	ImGui_ImplGlfwVulkan_Init_Data imgui_init_data = {};
+	//imgui_init_data.allocator = g_vma_Allocator;	// We're using VmaAllocator g_vma_Allocator instead?
+	imgui_init_data.gpu = physicalDevice;
+	imgui_init_data.device = logicalDevice;
+	imgui_init_data.render_pass = renderPass;
+	//imgui_init_data.pipeline_cache = 
+	imgui_init_data.descriptor_pool = descriptorPool;
+	imgui_init_data.check_vk_result = check_vk_result;
+	
+	ImGui_ImplGlfwVulkan_Init(window, true, &imgui_init_data);
+}
+
+//void Renderer::ImGuiLoadFonts()
+//{
+//	// Look at lines 628 - 669 in 
+//	// https://github.com/ocornut/imgui/blob/master/examples/vulkan_example/main.cpp
+//}
+
+void Renderer::ImGuiRender()
+{
+	ImGui_ImplGlfwVulkan_NewFrame();
+
+	// Design window
+	// 1. Show a simple window.
+	// Tip: if we don't call ImGui::Begin()/ImGui::End() 
+	// the widgets appears in a window automatically called "Debug".
+	{
+		ImGui::Text("Hello, world!");
+	}
+}
+
+void Renderer::ImGuiShutdown()
+{
+	ImGui_ImplGlfwVulkan_Shutdown();
+}
+

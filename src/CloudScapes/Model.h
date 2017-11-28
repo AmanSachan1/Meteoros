@@ -18,10 +18,13 @@ class Model
 {
 public:
 	Model() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
+	
 	Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator,
 		const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices);
+
 	Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator,
 		const std::string model_path, const std::string texture_path);
+	
 	~Model();
 
 	void SetTexture(VulkanDevice* device, VkCommandPool commandPool, const std::string texture_path);

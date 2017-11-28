@@ -12,6 +12,7 @@
 #include "Camera.h"
 #include "Image.h"
 
+
 VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
 VulkanSwapChain* swapChain;
 Renderer* renderer;
@@ -131,10 +132,16 @@ int main(int argc, char** argv)
 	glfwSetScrollCallback(GetGLFWWindow(), scrollCallback);
 	glfwSetCursorPosCallback(GetGLFWWindow(), mouseMoveCallback);
 
+	// CALL IMGUI FUNCTIONS HERE
+	//renderer->ImGuiSetup(GetGLFWWindow());
+
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
     while (!ShouldQuit()) 
 	{
 		glfwPollEvents();
+		
+		//renderer->ImGuiRender();
+
 		renderer->Frame();
     }// end while loop
 
@@ -143,7 +150,10 @@ int main(int argc, char** argv)
 
 	//---------------------
 	//------ CleanUp ------
-	//---------------------	
+	//---------------------
+
+	//renderer->ImGuiShutdown();
+
 	delete renderer;
 	delete scene;
 	delete camera;
@@ -153,4 +163,5 @@ int main(int argc, char** argv)
     delete device;
     delete instance;
     DestroyWindow();
+
 }

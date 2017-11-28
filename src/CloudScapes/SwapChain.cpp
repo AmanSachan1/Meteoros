@@ -223,8 +223,10 @@ void VulkanSwapChain::Acquire()
         // the validation layer implementation expects the application to explicitly synchronize with the GPU
         vkQueueWaitIdle(device->GetQueue(QueueFlags::Present));
     }
-    VkResult result = vkAcquireNextImageKHR(device->GetVkDevice(), vkSwapChain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);   
-    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
+    
+	VkResult result = vkAcquireNextImageKHR(device->GetVkDevice(), vkSwapChain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);   
+    
+	if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
 	{
         throw std::runtime_error("Failed to acquire swap chain image");
     }
@@ -252,6 +254,10 @@ void VulkanSwapChain::Present()
 	{
         throw std::runtime_error("Failed to present swap chain image");
     }
+
+	// Put this sync? To avoid memory leaks?
+	//vkQueueWaitIdle(device->GetQueue(QueueFlags::Present));
+
 }
 
 VkSwapchainKHR VulkanSwapChain::GetVulkanSwapChain() const
