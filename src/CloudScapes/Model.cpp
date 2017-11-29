@@ -42,23 +42,34 @@ Model::~Model()
 {
 	if (indices.size() > 0) 
 	{
-		vkDestroyBuffer(device->GetVkDevice(), indexBuffer, nullptr);
-		vkFreeMemory(device->GetVkDevice(), indexBufferMemory, nullptr);
+		//vkDestroyBuffer(device->GetVkDevice(), indexBuffer, nullptr);
+		//vkFreeMemory(device->GetVkDevice(), indexBufferMemory, nullptr);
+
+		//vmaDestroyBuffer(g_vma_Allocator, indexBuffer, g_vma_IndexBufferAlloc);
 	}
 
 	if (vertices.size() > 0) 
 	{
-		vkDestroyBuffer(device->GetVkDevice(), vertexBuffer, nullptr);
-		vkFreeMemory(device->GetVkDevice(), vertexBufferMemory, nullptr);
+		//vkDestroyBuffer(device->GetVkDevice(), vertexBuffer, nullptr);
+		//vkFreeMemory(device->GetVkDevice(), vertexBufferMemory, nullptr);
+
+		//(g_vma_Allocator, vertexBuffer, g_vma_VertexBufferAlloc);
 	}
 
-	vkDestroyBuffer(device->GetVkDevice(), modelBuffer, nullptr);
-	vkFreeMemory(device->GetVkDevice(), modelBufferMemory, nullptr);
+	//vkDestroyBuffer(device->GetVkDevice(), modelBuffer, nullptr);
+	//vkFreeMemory(device->GetVkDevice(), modelBufferMemory, nullptr);
 
+	//(g_vma_Allocator, modelBuffer, g_vma_ModelBufferAlloc);
+
+	if (texture != VK_NULL_HANDLE) {
+		vkDestroyImage(device->GetVkDevice(), texture, nullptr);
+	}
+	if (textureMemory != VK_NULL_HANDLE) {
+		vkFreeMemory(device->GetVkDevice(), textureMemory, nullptr);
+	}
 	if (textureView != VK_NULL_HANDLE) {
 		vkDestroyImageView(device->GetVkDevice(), textureView, nullptr);
 	}
-
 	if (textureSampler != VK_NULL_HANDLE) {
 		vkDestroySampler(device->GetVkDevice(), textureSampler, nullptr);
 	}

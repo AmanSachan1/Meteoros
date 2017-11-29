@@ -75,12 +75,6 @@ void Texture3D::create3DTextureImage(VkImageTiling tiling, VkImageUsageFlags usa
 		throw std::runtime_error("failed to create 3D texture!");
 	}
 
-	//VmaAllocationCreateInfo imageAllocCreateInfo = {};
-	//imageAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-	//VmaAllocationInfo allocInfo;
-
-	//VMA_Utility::createImageVMA(g_vma_Allocator, imageInfo, imageAllocCreateInfo, textureImage3D, vma_TextureImageAlloc, allocInfo);
-
 	// Device local memory to back up image
 	VkMemoryAllocateInfo memAllocInfo{};
 	memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;

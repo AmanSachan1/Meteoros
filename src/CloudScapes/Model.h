@@ -47,6 +47,7 @@ public:
 
 private:
 	VulkanDevice* device; //member variable because it is needed for the destructor
+	VmaAllocator g_vma_Allocator;
 
 	std::vector<Vertex> vertices;
 	VkBuffer vertexBuffer;

@@ -4,7 +4,56 @@
 layout (local_size_x = 16, local_size_y = 16) in;
 layout (set = 0, binding = 0, rgba8) uniform writeonly image2D resultImage;
 
-layout (set = 0, binding = 1) uniform sampler3D cloudBaseShape;
+layout (set = 0, binding = 1) uniform sampler3D cloudBaseShapeSampler;
+
+//CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
+vec2 stratusHeightRange = vec2(0.0, 0.2);
+vec2 cumulusHeightRange = vec2(0.05, 0.55);
+vec2 cumulonimbusHeightRange = vec2(0.1, 1.0);
+
+// Maps values from one range to another
+float Remap(float value, float original_min, float original_max, float new_min, float new_max)
+{
+	return new_min + ( ((value-original_min) / (original_max - original_min)) * (new_max - new_min) );
+}
+
+float GetHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
+{
+	float height_fraction = (inPos.z - inCloudMinMax.x) / (inCloudMinMax.y - inCloudMinMax.x);
+	return clamp(height_fraction, 0.0, 1.0);
+}
+
+float GetDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
+{
+	float stratusHeightFraction = GetHeightFractionForPoint(point, stratusHeightRange);
+	float cumulusHeightFraction = GetHeightFractionForPoint(point, cumulusHeightRange);
+	float cumulonimbusHeightFraction = GetHeightFractionForPoint(point, cumulonimbusHeightRange);
+
+	return stratusHeightFraction*cumulusHeightFraction*cumulonimbusHeightFraction;
+	// return 1.0;
+}
+
+float SampleCloudDensity(vec3 point, vec3 weather_data)
+{
+	//Read in the low-frequency Perlin-Worley noises and Worley noises
+	vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point);
+
+	//Build an FBM out of the low-frequency Worley Noises that are used to add detail to the Low-frequency Perlin Worley noise
+	float lowFrequencyFBM = (lowFrequencyNoises.g * 0.625) + 
+							(lowFrequencyNoises.b * 0.25) + 
+							(lowFrequencyNoises.a * 0.125);
+
+	//Define the base cloud shape by dilating it with the low-frequency FBM
+	float baseCloud = Remap( lowFrequencyNoises.r, -(1.0 - lowFrequencyFBM), 1.0, 0.0, 1.0 );
+
+	//Get the density-height gradient
+	float densityHeightGradient = GetDensityHeightGradientForPoint(point, weather_data);
+
+	//Apply Height function to the base cloud shape
+	baseCloud *= densityHeightGradient;
+	return baseCloud;
+}
+
 
 void main() 
 {
@@ -12,7 +61,14 @@ void main()
 	vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
 
 	vec3 uv3D = vec3(uv, 2.5);
-	vec4 color = texture(cloudBaseShape, uv3D);
+	vec4 color = texture(cloudBaseShapeSampler, uv3D);
+
+	// base_cloud = remap(low_freq_noise, high_freq_noise, 1.0, 0.0, 1.0);
+	// cloud_with_coverage = remap(noise, cloud_coverage, 1.0, 0.0, 1.0);
+	vec3 weather_data = vec3(1,1,1);
+	vec3 point = vec3(uv3D);
+	float density = SampleCloudDensity(point, weather_data);
+	color = vec4(density);
 
     imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), color);
 }

@@ -35,9 +35,6 @@ private:
 	VulkanDevice* device; //member variable because it is needed for the destructor
 	VmaAllocator g_vma_Allocator;
 
-	VmaAllocation vma_TextureImageAlloc;
-	 // stores the data stored by the image loading library
-
 	uint32_t width, height, depth;
 	VkFormat textureFormat;
 	VkImageLayout textureLayout;

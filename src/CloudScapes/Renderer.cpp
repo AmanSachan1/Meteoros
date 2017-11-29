@@ -46,6 +46,9 @@ Renderer::~Renderer()
 	
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
+	delete quad;
+	delete house;
+
 	delete rayMarchedComputeTexture;
 	delete cloudBaseShapeTexture;
 	//delete cloudDetailsTexture;
@@ -61,13 +64,8 @@ void Renderer::InitializeRenderer()
 	rayMarchedComputeTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
 	rayMarchedComputeTexture->createTextureAsBackGround(logicalDevice, physicalDevice, commandPool);
 
-
-	const std::string folder_path = "../../src/CloudScapes/textures/CloudsBaseShape/";
-	const std::string textureBaseName = "CloudBaseShape";
-	const std::string fileExtension = ".tga";
-	cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 2, VK_FORMAT_R8G8B8A8_UNORM);
-	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
-	//createCloudResources();
+	//Create the textures that will be passed to the compute shader to create clouds
+	createCloudResources();
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -1307,5 +1305,9 @@ VkFormat Renderer::findDepthFormat()
 //----------------------------------------------
 void Renderer::createCloudResources()
 {
-
+	const std::string folder_path = "../../src/CloudScapes/textures/CloudsBaseShape/";
+	const std::string textureBaseName = "CloudBaseShape";
+	const std::string fileExtension = ".tga";
+	cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 2, VK_FORMAT_R8G8B8A8_UNORM);
+	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
 }
