@@ -67,7 +67,7 @@ void VMA_Utility::createVertexandIndexBuffersVMA(VulkanDevice* device, VkCommand
 
 	// No need to flush stagingIndexBuffer memory because CPU_ONLY memory is always HOST_COHERENT.
 
-	ibInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	ibInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 	ibAllocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 	ibAllocCreateInfo.flags = 0;
 	ERR_GUARD_VULKAN(vmaCreateBuffer(g_vma_Allocator, &ibInfo, &ibAllocCreateInfo, &indexBuffer, &g_vma_IndexBufferAlloc, nullptr));

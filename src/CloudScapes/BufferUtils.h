@@ -11,7 +11,7 @@
 
 namespace BufferUtils 
 {
-	void CreateBuffer(VulkanDevice* device, VkBufferUsageFlags allowedUsage, uint32_t size,
+	void CreateBuffer(VulkanDevice* device, VkBufferUsageFlags allowedUsage, VkDeviceSize size,
 					VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 
 	void CreateBufferFromData(VulkanDevice* device, VkCommandPool commandPool, void* bufferData, VkDeviceSize bufferSize, 

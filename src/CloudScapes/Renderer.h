@@ -126,7 +126,7 @@ private:
 	The other 3 channels are Worley noise at increasing frequencies. 
 	This 3d texture is used to define the base shape for our clouds.
 	*/
-	Texture3D* cloudBaseShapeTexture;
+	//Texture3D* cloudBaseShapeTexture;
 	/*
 	3D cloudDetailsTexture
 	3 channels…
@@ -135,7 +135,7 @@ private:
 	This texture is used to add detail to the base cloud shape defined by the first 3d noise.
 	32
 	*/
-	Texture3D* cloudDetailsTexture;
+	//Texture3D* cloudDetailsTexture;
 	/*
 	2D cloudMotionTexture
 	3 channels…

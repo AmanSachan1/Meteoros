@@ -4,19 +4,24 @@
 #include "../../external/tiny_obj_loader.h"
 
 Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator,
-			const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
-	: device(device), vertices(vertices), indices(indices)
+			const std::vector<Vertex> &vertices_constvector, const std::vector<uint32_t> &indices_constvector)
+	: device(device), vertices(vertices_constvector), indices(indices_constvector)
 {
 	if ((vertices.size() > 0) && 
 		(indices.size() > 0) ) 
 	{
-		VMA_Utility::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
-			vertexBuffer, indexBuffer, g_vma_VertexBufferAlloc, g_vma_IndexBufferAlloc);
+		// Create Vertex Buffer 
+		VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertices.size();
+		BufferUtils::CreateBufferFromData(device, commandPool, vertices.data(), vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBuffer, vertexBufferMemory);
+
+		// Create Index Buffer
+		VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
+		BufferUtils::CreateBufferFromData(device, commandPool, indices.data(), indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBuffer, indexBufferMemory);
 	}
 
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	VMA_Utility::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
-									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, g_vma_ModelBufferAlloc);
+	VkDeviceSize mboSize = sizeof(ModelBufferObject);
+	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, mboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
 }
 
 Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator, 
@@ -27,13 +32,18 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vm
 	if ((vertices.size() > 0) &&
 		(indices.size() > 0))
 	{
-		VMA_Utility::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
-			vertexBuffer, indexBuffer, g_vma_VertexBufferAlloc, g_vma_IndexBufferAlloc);
+		// Create Vertex Buffer 
+		VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertices.size();
+		BufferUtils::CreateBufferFromData(device, commandPool, this->vertices.data(), vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBuffer, vertexBufferMemory);
+
+		// Create Index Buffer
+		VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
+		BufferUtils::CreateBufferFromData(device, commandPool, this->indices.data(), indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBuffer, indexBufferMemory);
 	}
 
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	VMA_Utility::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
-										VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, g_vma_ModelBufferAlloc);
+	VkDeviceSize mboSize = sizeof(ModelBufferObject);
+	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, mboSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
 
 	SetTexture(device, commandPool, texture_path);
 }
@@ -76,15 +86,19 @@ void Model::SetTexture(VulkanDevice* device, VkCommandPool commandPool, const st
 
 	Image::createSampler(device, textureSampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
 }
+
 void Model::LoadModel(const std::string model_path)
 {
 	// The attrib container holds all of the positions, normals and texture coordinates 
 	// in its attrib.vertices, attrib.normals and attrib.texcoords vectors.
 	tinyobj::attrib_t attrib;
+	
 	// The shapes container contains all of the separate objects and their faces.
 	std::vector<tinyobj::shape_t> shapes;
+	
 	// OBJ models can define a material and texture per face --> ignored for now
 	std::vector<tinyobj::material_t> materials;
+	
 	std::string err;
 
 	//Faces in OBJ files can actually contain an arbitrary number of vertices, whereas our application can only render triangles. 
@@ -144,11 +158,11 @@ VkBuffer Model::getIndexBuffer() const
 
 uint32_t Model::getVertexBufferSize() const
 {
-	return static_cast<uint32_t>(vertices.size() * sizeof(vertices[0]));
+	return static_cast<uint32_t>(vertices.size() * sizeof(Vertex));
 }
 uint32_t Model::getIndexBufferSize() const
 {
-	return static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
+	return static_cast<uint32_t>(indices.size() * sizeof(uint32_t));
 }
 
 const ModelBufferObject& Model::getModelBufferObject() const

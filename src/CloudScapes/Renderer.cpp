@@ -41,7 +41,7 @@ Renderer::~Renderer()
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
 	delete rayMarchedComputeTexture;
-	delete cloudBaseShapeTexture;
+	//delete cloudBaseShapeTexture;
 	//delete cloudDetailsTexture;
 	//delete cloudMotionTexture;
 }
@@ -55,7 +55,7 @@ void Renderer::InitializeRenderer()
 	rayMarchedComputeTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
 	rayMarchedComputeTexture->createTextureAsBackGround(logicalDevice, physicalDevice, commandPool);
 
-	createCloudResources();
+	//createCloudResources();
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -90,10 +90,13 @@ void Renderer::Frame()
 	computeSubmitInfo.commandBufferCount = 1;
 	computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
 
-	// submit the command buffer to the compute queue
+	// Submit the command buffer to the compute queue
 	if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to submit compute command buffer");
 	}
+
+	// ERROR HERE
+	// vkQueueSubmit succeeds for the first frame but not for the second 
 
 	//-------------------------------------------
 	//--------- Submit Graphics Queue -----------
@@ -803,7 +806,8 @@ void Renderer::CreateCommandPools()
 	computePoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Compute];
 	computePoolInfo.flags = 0;
 
-	if (vkCreateCommandPool(logicalDevice, &computePoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+	if (vkCreateCommandPool(logicalDevice, &computePoolInfo, nullptr, &commandPool) != VK_SUCCESS) 
+	{
 		throw std::runtime_error("Failed to create compute command pool");
 	}
 }
@@ -832,6 +836,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		throw std::runtime_error("Failed to allocate graphics command buffers");
 	}
 
+	// Start command buffer recording
 	// Record graphics command buffers, one for each frame of the swapchain
 	for (unsigned int i = 0; i < graphicsCommandBuffer.size(); ++i)
 	{
@@ -844,8 +849,13 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//---------- Begin recording ----------
 		//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
 		// It's not possible to append commands to a buffer at a later time.
-		vkBeginCommandBuffer(graphicsCommandBuffer[i], &beginInfo);
+		if (vkBeginCommandBuffer(graphicsCommandBuffer[i], &beginInfo) != VK_SUCCESS) 
+		{
+			throw std::runtime_error("Failed to begin recording command buffer");
+		}
 
+		
+		// Begin the render pass 
 		VkRenderPassBeginInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = renderPass;
@@ -864,6 +874,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//---------------------------------------------------------
 		//--- Graphics and Clouds Pipeline Binding and Dispatch ---
 		//---------------------------------------------------------
+
 		// Define a memory barrier to transition the vertex buffer from a compute storage object to a vertex input
 		// Each element of the pMemoryBarriers, pBufferMemoryBarriers and pImageMemoryBarriers arrays specifies two halves of a memory dependency, as defined above.
 		// Reference: https://vulkan.lunarg.com/doc/view/1.0.30.0/linux/vkspec.chunked/ch06s05.html#synchronization-memory-barriers
@@ -916,7 +927,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		vertexOffset: Used as an offset into the vertex buffer
 		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
 		*/
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], quad->getIndexBufferSize(), 1, 0, 0, 1);
 
 		//------------------------
 		//--- Graphics Pipeline---
@@ -1118,23 +1129,36 @@ void Renderer::CreateAllDescriptorSets()
 	geomSamplerSet = CreateDescriptorSet(descriptorPool, samplerSetLayout);
 
 	// Create Models
-	const std::string model_path = "../../src/CloudScapes/models/teapot.obj";
+	//const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
+	//const std::string model_path = "../../src/CloudScapes/models/cyllinder2.obj";
+	const std::string model_path = "../../src/CloudScapes/models/wahoo.obj";
+	//const std::string model_path = "../../src/CloudScapes/models/dodecahedron.obj";
+
 	const std::string texture_path = "../../src/CloudScapes/textures/chalet.jpg";
-	//house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
 
-	const std::vector<Vertex> vertices = {
-		{ { -0.5f, 0.5f,  0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
-		{ { 0.5f,  0.5f,  0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
-		{ { 0.5f,  -0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
 
-		{ { -0.5f, 0.5f,  -0.5f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
-		{ { 0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
-		{ { 0.5f,  -0.5f, -0.5f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
-		{ { -0.5f, -0.5f, -0.5f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-	};
-	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
-										  4, 5, 6, 6, 7, 4 };
+	house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
+
+
+
+	//const std::vector<Vertex> vertices = {
+	//	{ { -0.5f, 0.5f,  0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
+	//	{ { 0.5f,  0.5f,  0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
+	//	{ { 0.5f,  -0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
+	//	{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
+
+	//	{ { -0.5f, 0.5f,  -0.5f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
+	//	{ { 0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
+	//	{ { 0.5f,  -0.5f, -0.5f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
+	//	{ { -0.5f, -0.5f, -0.5f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
+	//};
+	//std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
+	//									  4, 5, 6, 6, 7, 4 };
+
+	//house = new Model(device, commandPool, g_vma_Allocator, vertices, indices);
+	//house->SetTexture(device, commandPool, texture_path);
+
+
 
 	const std::vector<Vertex> quadVertices = {
 		{ { -1.0f, -1.0f, 0.99999f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
@@ -1145,8 +1169,7 @@ void Renderer::CreateAllDescriptorSets()
 	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
 	quad = new Model(device, commandPool, g_vma_Allocator, quadVertices, quadIndices);
 
-	house = new Model(device, commandPool, g_vma_Allocator, vertices, indices);
-	house->SetTexture(device, commandPool, texture_path);
+
 
 	// Create cloud textures
 
@@ -1274,6 +1297,6 @@ void Renderer::createCloudResources()
 	const std::string folder_path = "../../src/CloudScapes/textures/CloudsBaseShape/";
 	const std::string textureBaseName = "CloudBaseShape";
 	const std::string fileExtension = ".tga";
-	Texture3D* cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
+	//Texture3D* cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
 	//cloudBaseShapeTexture->create3DTextureFromMany2DTextures(commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
 }
