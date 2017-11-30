@@ -11,10 +11,13 @@
 
 struct CameraUBO {
 	glm::mat4 viewMatrix;
+	glm::mat4 invViewMatrix;
 	glm::mat4 projectionMatrix;
 	glm::vec3 lookAt_worldSpace;
-	float tanFovV;
-	float tanFovH;
+	//float tanFovV;
+	//float tanFovH;
+	float tanFovVby2;
+	float tanFovHby2;
 };
 
 class Camera 

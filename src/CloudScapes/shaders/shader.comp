@@ -17,10 +17,16 @@ layout (set = 0, binding = 2) uniform time
 layout (set = 1, binding = 0) uniform camera
 {
 	mat4 viewMatrix;
+	mat4 invViewMatrix;
 	mat4 projectionMatrix;
 	vec3 lookAt_worldSpace;
-	float tanFovV;
-	float tanFovH;
+	float tanFovVby2;
+	float tanFovHby2;
+};
+
+struct Ray {
+    vec3 origin;
+    vec3 direction;
 };
 
 struct Intersection {
@@ -44,6 +50,36 @@ vec2 atmosphereMinMax = vec2(atmosphereRadiusInner, atmosphereRadiusOuter);
 vec2 stratusHeightRange = vec2(0.0, 0.2);
 vec2 cumulusHeightRange = vec2(0.05, 0.55);
 vec2 cumulonimbusHeightRange = vec2(0.1, 1.0);
+
+//Compute Ray for ray marching based on screenspace point
+Ray castRay( vec2 screenPoint, vec3 eye )
+{
+	Ray r;
+
+    // Extract camera information from uniform
+    vec3 camRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+    vec3 camUp =    vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+    vec3 camLook =  vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
+    
+    // vec3 rayPoint = refPoint + screenPoint.x * tanFovH * camRight - screenPoint.y * tanFovV * camUp;;
+    // return normalize(rayPoint - origin);
+
+    float ndc_x = (2.0f*screenPoint.x - 1.0f);
+    float ndc_y = (1.0f - 2.0f*screenPoint.y);
+
+    float cam_x = ndc_x*tanFovHby2;
+    float cam_y = ndc_y*tanFovVby2;
+    vec3 p = vec3(cam_x, cam_y, -1.0); //facing the screen
+
+    r.origin = eye;
+    r.direction = normalize(p-r.origin);
+
+    //convert to world space
+    r.origin = vec3(invViewMatrix * vec4(r.origin, 1.0));
+    r.direction = vec3(invViewMatrix * vec4(r.direction, 0.0));
+
+    return r;
+}
 
 // sphere Intersection
 Intersection raySphereIntersection(in vec3 rO, in vec3 rD, in float sphereRadius)
@@ -136,20 +172,6 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	return baseCloud;
 }
 
-vec3 castRay( vec2 screenPoint, vec3 origin )
-{
-    // Compute local camera vectors
-    vec3 refPoint = origin + vec3(0.0, 0.0, 1.0); //move forward along -z
-
-    // Extract camera information from uniform
-    vec3 camRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
-    vec3 camUp =    vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
-    vec3 camLook =  vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
-    
-    vec3 rayPoint = refPoint + screenPoint.x * tanFovH * camRight - screenPoint.y * tanFovV * camUp;;
-    return normalize(rayPoint - origin);
-}
-
 vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection, vec3 weather_data)
 {
 	float MaxSteps = floor(mix(64, 128, 1.0 - rayDirection.y)); //maybe switch to a 52 - 84 range
@@ -178,28 +200,26 @@ void main()
 {
     ivec2 dim = imageSize(resultImage);
 	vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
-    // Compute screen space point from UVs
-    vec2 screenPoint = uv * 2.0 - 1.0;
 
 	// base_cloud = remap(low_freq_noise, high_freq_noise, 1.0, 0.0, 1.0);
 	// cloud_with_coverage = remap(noise, cloud_coverage, 1.0, 0.0, 1.0);
 	vec3 weather_data = vec3(1,1,1);
 
 	// Cast a ray
+	vec2 screenPoint = uv * 2.0 - 1.0; // Compute screen space point from UVs
 	vec3 eyePos = vec3(viewMatrix[0][3], viewMatrix[1][3], viewMatrix[2][3]);
-	vec3 rayOrigin = eyePos;
-	vec3 rayDirection = castRay(screenPoint, rayOrigin);
+	Ray ray = castRay(screenPoint, eyePos);
 
 	vec3 earthCenter = eyePos;
 	earthCenter.y = -earthRadius; //move earth below camera
-	Intersection atmospherInnerIsect = raySphereIntersection(rayOrigin, rayDirection, atmosphereRadiusInner);
-	Intersection atmospherOuterIsect = raySphereIntersection(rayOrigin, rayDirection, atmosphereRadiusOuter);
+	Intersection atmospherInnerIsect = raySphereIntersection(ray.origin, ray.direction, atmosphereRadiusInner);
+	Intersection atmospherOuterIsect = raySphereIntersection(ray.origin, ray.direction, atmosphereRadiusOuter);
 
 	// Ray March
-	vec4 finalColor = rayMarch(rayOrigin, rayDirection, weather_data);
+	vec4 finalColor = rayMarch(ray.origin, ray.direction, weather_data);
 
 	float t =20;
-	vec3 pos = rayOrigin + t*rayDirection;
+	vec3 pos = ray.origin + t*ray.direction;
 	vec4 density = vec4(sampleCloudDensity(vec3(uv, t), weather_data));
 
 	//Pass the color off to the cloud pipeline's frag shader

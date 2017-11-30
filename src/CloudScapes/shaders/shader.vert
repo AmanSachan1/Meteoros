@@ -11,10 +11,11 @@
 layout(set = 1, binding = 0) uniform CameraUBO
 {
 	mat4 viewMatrix;
+	mat4 invViewMatrix;
 	mat4 projectionMatrix;
 	vec3 lookAt_worldSpace;
-	float half_V_Fov;
-	float half_H_Fov;
+	float tanFovVby2;
+	float tanFovHby2;
 };
 
 layout(set = 0, binding = 0) uniform ModelUBO

@@ -9,13 +9,16 @@ Camera::Camera(VulkanDevice* device, VmaAllocator& g_vma_Allocator,
 	theta = 0.0f;
 	phi = 0.0f;
 	cameraUBO.viewMatrix = glm::lookAt(eyePos, lookAtPos, glm::vec3(0.0f, 1.0f, 0.0f));
+	cameraUBO.invViewMatrix = glm::inverse(cameraUBO.viewMatrix);
 	cameraUBO.projectionMatrix = glm::perspective(static_cast<float>(foV_vertical * M_PI / 180), aspectRatio, nearClip, farClip);
 	//Reason for flipping the y axis: https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
 	cameraUBO.projectionMatrix[1][1] *= -1; // y-coordinate is flipped
 
 	cameraUBO.lookAt_worldSpace = lookAtPos - eyePos;
-	cameraUBO.tanFovV = std::tan(foV_vertical * (PI / 180.0));
-	cameraUBO.tanFovH = aspectRatio * cameraUBO.tanFovV;
+	//cameraUBO.tanFov = std::tan(foV_vertical*0.5 * (PI / 180.0));
+	//cameraUBO.tanFovH = aspectRatio * cameraUBO.tanFovV;
+	cameraUBO.tanFovVby2 = std::tan(foV_vertical*0.5 * (PI / 180.0));
+	cameraUBO.tanFovHby2 = aspectRatio * cameraUBO.tanFovVby2;
 
 	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO), 
 							VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
