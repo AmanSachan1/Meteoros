@@ -1,39 +1,121 @@
+// Ray March Reference: https://www.shadertoy.com/view/4sjfzw
+
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout (local_size_x = 16, local_size_y = 16) in;
+layout (local_size_x = 32, local_size_y = 32) in;
 layout (set = 0, binding = 0, rgba8) uniform writeonly image2D resultImage;
 
 layout (set = 0, binding = 1) uniform sampler3D cloudBaseShapeSampler;
 
+layout (set = 0, binding = 2) uniform time 
+{
+    float deltaTime;
+    float totalTime;
+};
+
+layout (set = 1, binding = 0) uniform camera
+{
+	mat4 viewMatrix;
+	mat4 projectionMatrix;
+	vec3 lookAt_worldSpace;
+	float tanFovV;
+	float tanFovH;
+};
+
+struct Intersection {
+    vec3 normal;
+    vec3 point;
+    bool valid;
+    float t;
+};
+
+//Global Defines
+#define earthRadius 100000.0
+#define atmosphereRadiusInner earthRadius * 1.05
+#define atmosphereRadiusOuter earthRadius * 1.05
+#define PI 3.14159265
+#define InvPI 0.31830988618
+#define e 2.718281828459
+#define EPSILON 0.0001
+
 //CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
+vec2 atmosphereMinMax = vec2(atmosphereRadiusInner, atmosphereRadiusOuter);
 vec2 stratusHeightRange = vec2(0.0, 0.2);
 vec2 cumulusHeightRange = vec2(0.05, 0.55);
 vec2 cumulonimbusHeightRange = vec2(0.1, 1.0);
 
+// sphere Intersection
+Intersection raySphereIntersection(in vec3 rO, in vec3 rD, in float sphereRadius)
+{
+    //Transform the ray
+    Intersection isect;
+    isect.valid = false;
+    isect.point = vec3(0);
+    isect.normal = vec3(0, 1, 0);
+
+    //ray doesn't have to be transformed into local space of the sphere because all calculations are happening in world space
+
+    float A = pow(rD.x, 2.0) + pow(rD.y, 2.0) + pow(rD.z, 2.0);
+    float B = 2.0*(rD.x*rO.x + rD.y*rO.y + rD.z*rO.z);
+    float C = pow(rO.x, 2.0) + pow(rO.y, 2.0) + pow(rO.z, 2.0) - sphereRadius;
+    float discriminant = B*B - 4*A*C;
+
+    //If the discriminant is negative, then there is no real root
+    if(discriminant < 0)
+    {
+        return isect;
+    }
+
+    float t = (-B - sqrt(discriminant))/(2.0*A);
+    
+    if(t < 0) 
+    {
+        t = (-B + sqrt(discriminant))/(2.0*A);
+    }
+
+    if(t >= 0)
+    {
+        vec3 p = vec3(rO + t*rD);
+        isect.valid = true;
+
+        isect.normal = normalize(p);
+        isect.point = p;
+        isect.t = length(p-rO);
+    }
+
+    return isect;
+}
+
 // Maps values from one range to another
-float Remap(float value, float original_min, float original_max, float new_min, float new_max)
+float remap(float value, float original_min, float original_max, float new_min, float new_max)
 {
 	return new_min + ( ((value-original_min) / (original_max - original_min)) * (new_max - new_min) );
 }
 
-float GetHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
+float getHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
 {
 	float height_fraction = (inPos.z - inCloudMinMax.x) / (inCloudMinMax.y - inCloudMinMax.x);
 	return clamp(height_fraction, 0.0, 1.0);
 }
 
-float GetDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
+float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data) //// Big Question mark about this
 {
-	float stratusHeightFraction = GetHeightFractionForPoint(point, stratusHeightRange);
-	float cumulusHeightFraction = GetHeightFractionForPoint(point, cumulusHeightRange);
-	float cumulonimbusHeightFraction = GetHeightFractionForPoint(point, cumulonimbusHeightRange);
+	float stratusHeightFraction = getHeightFractionForPoint(point, atmosphereMinMax);
+	float cumulusHeightFraction = getHeightFractionForPoint(point, atmosphereMinMax);
+	float cumulonimbusHeightFraction = getHeightFractionForPoint(point, atmosphereMinMax);
+	float stratusWeight = 2000000;
+	float cumulusWeight = 3000000;
+	float cumulonimbusWeight = 5000000;
 
-	return stratusHeightFraction*cumulusHeightFraction*cumulonimbusHeightFraction;
-	// return 1.0;
+	float a = remap(stratusHeightFraction, stratusHeightRange.x, stratusHeightRange.y, 0.0, 1.0);
+	float b = remap(cumulusHeightFraction, cumulusHeightRange.x, cumulusHeightRange.y, 0.0, 1.0);
+	float c = remap(cumulonimbusHeightFraction, cumulonimbusHeightRange.x, cumulonimbusHeightRange.y, 0.0, 1.0);
+
+	return  stratusWeight * a + cumulusWeight * b + cumulonimbusWeight * c;
 }
 
-float SampleCloudDensity(vec3 point, vec3 weather_data)
+float sampleCloudDensity(vec3 point, vec3 weather_data)
 {
 	//Read in the low-frequency Perlin-Worley noises and Worley noises
 	vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point);
@@ -44,31 +126,82 @@ float SampleCloudDensity(vec3 point, vec3 weather_data)
 							(lowFrequencyNoises.a * 0.125);
 
 	//Define the base cloud shape by dilating it with the low-frequency FBM
-	float baseCloud = Remap( lowFrequencyNoises.r, -(1.0 - lowFrequencyFBM), 1.0, 0.0, 1.0 );
+	float baseCloud = remap( lowFrequencyNoises.r, -(1.0 - lowFrequencyFBM), 1.0, 0.0, 1.0 );
 
 	//Get the density-height gradient
-	float densityHeightGradient = GetDensityHeightGradientForPoint(point, weather_data);
+	float densityHeightGradient = getDensityHeightGradientForPoint(point, weather_data);
 
 	//Apply Height function to the base cloud shape
-	baseCloud *= densityHeightGradient;
+	//baseCloud *= densityHeightGradient;
 	return baseCloud;
 }
 
+vec3 castRay( vec2 screenPoint, vec3 origin )
+{
+    // Compute local camera vectors
+    vec3 refPoint = origin + vec3(0.0, 0.0, 1.0); //move forward along -z
+
+    // Extract camera information from uniform
+    vec3 camRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+    vec3 camUp =    vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+    vec3 camLook =  vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
+    
+    vec3 rayPoint = refPoint + screenPoint.x * tanFovH * camRight - screenPoint.y * tanFovV * camUp;;
+    return normalize(rayPoint - origin);
+}
+
+vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection, vec3 weather_data)
+{
+	float MaxSteps = floor(mix(64, 128, 1.0 - rayDirection.y)); //maybe switch to a 52 - 84 range
+	float dt = 1;
+    float t = 0;
+    vec3 pos;
+    float transmittance = 1.0;
+    float accumDensity = 0.0;
+    float density;
+
+    for (int i = 0; i < MaxSteps; i++)
+	{
+		pos = rayOrigin + t * rayDirection;
+		density = sampleCloudDensity(pos, weather_data)*0.005;
+		accumDensity += density;
+		t += dt;
+	}
+
+	// pos = rayOrigin + t * rayDirection;
+	// density = sampleCloudDensity(pos, weather_data);
+
+	return vec4(vec3(accumDensity), 1.0);
+}
 
 void main() 
 {
     ivec2 dim = imageSize(resultImage);
 	vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
-
-	vec3 uv3D = vec3(uv, 2.5);
-	vec4 color = texture(cloudBaseShapeSampler, uv3D);
+    // Compute screen space point from UVs
+    vec2 screenPoint = uv * 2.0 - 1.0;
 
 	// base_cloud = remap(low_freq_noise, high_freq_noise, 1.0, 0.0, 1.0);
 	// cloud_with_coverage = remap(noise, cloud_coverage, 1.0, 0.0, 1.0);
 	vec3 weather_data = vec3(1,1,1);
-	vec3 point = vec3(uv3D);
-	float density = SampleCloudDensity(point, weather_data);
-	color = vec4(density);
 
-    imageStore(resultImage, ivec2(gl_GlobalInvocationID.xy), color);
+	// Cast a ray
+	vec3 eyePos = vec3(viewMatrix[0][3], viewMatrix[1][3], viewMatrix[2][3]);
+	vec3 rayOrigin = eyePos;
+	vec3 rayDirection = castRay(screenPoint, rayOrigin);
+
+	vec3 earthCenter = eyePos;
+	earthCenter.y = -earthRadius; //move earth below camera
+	Intersection atmospherInnerIsect = raySphereIntersection(rayOrigin, rayDirection, atmosphereRadiusInner);
+	Intersection atmospherOuterIsect = raySphereIntersection(rayOrigin, rayDirection, atmosphereRadiusOuter);
+
+	// Ray March
+	vec4 finalColor = rayMarch(rayOrigin, rayDirection, weather_data);
+
+	float t =20;
+	vec3 pos = rayOrigin + t*rayDirection;
+	vec4 density = vec4(sampleCloudDensity(vec3(uv, t), weather_data));
+
+	//Pass the color off to the cloud pipeline's frag shader
+    imageStore( resultImage, ivec2(gl_GlobalInvocationID.xy), finalColor );
 }

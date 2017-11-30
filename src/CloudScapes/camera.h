@@ -7,9 +7,14 @@
 #include "VulkanDevice.h"
 #include "BufferUtils.h"
 
+#define PI 3.14159
+
 struct CameraUBO {
 	glm::mat4 viewMatrix;
 	glm::mat4 projectionMatrix;
+	glm::vec3 lookAt_worldSpace;
+	float tanFovV;
+	float tanFovH;
 };
 
 class Camera 

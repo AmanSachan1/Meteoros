@@ -147,6 +147,10 @@ private:
 	
 	VkDescriptorPool descriptorPool;
 
+	//Used in compute and graphics
+	VkDescriptorSetLayout cameraSetLayout;
+	VkDescriptorSet cameraSet;
+
 	//Descriptor Set Layouts for each pipeline
 	VkDescriptorSetLayout computeSetLayout;	// Compute shader binding layout
 	VkDescriptorSetLayout cloudSetLayout;

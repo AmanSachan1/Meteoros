@@ -13,6 +13,10 @@ Camera::Camera(VulkanDevice* device, VmaAllocator& g_vma_Allocator,
 	//Reason for flipping the y axis: https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
 	cameraUBO.projectionMatrix[1][1] *= -1; // y-coordinate is flipped
 
+	cameraUBO.lookAt_worldSpace = lookAtPos - eyePos;
+	cameraUBO.tanFovV = std::tan(foV_vertical * (PI / 180.0));
+	cameraUBO.tanFovH = aspectRatio * cameraUBO.tanFovV;
+
 	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO), 
 							VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
 							buffer, bufferMemory);
@@ -47,6 +51,9 @@ void Camera::UpdateOrbit(float deltaX, float deltaY, float deltaZ)
 
 	cameraUBO.viewMatrix = glm::inverse(finalTransform);
 
+	glm::mat4 inv_view = glm::inverse(cameraUBO.viewMatrix);
+	cameraUBO.lookAt_worldSpace = glm::vec4(0,0,1,0) * inv_view;
+
 	memcpy(mappedData, &cameraUBO, sizeof(CameraUBO));
 }
 
@@ -61,6 +68,9 @@ void Camera::Zoom(float factor)
 	glm::mat4 finalTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f)) * rotation * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, r));
 
 	cameraUBO.viewMatrix = glm::inverse(finalTransform);
+
+	glm::mat4 inv_view = glm::inverse(cameraUBO.viewMatrix);
+	cameraUBO.lookAt_worldSpace = glm::vec4(0, 0, 1, 0) * inv_view;
 
 	memcpy(mappedData, &cameraUBO, sizeof(CameraUBO));
 }

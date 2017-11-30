@@ -8,13 +8,16 @@
 // You can use this feature to put descriptors that vary per-object and descriptors that are shared into separate descriptor sets.
 // In that case you avoid rebinding most of the descriptors across draw calls which is potentially more efficient.
 
-layout(set = 0, binding = 0) uniform CameraUBO
+layout(set = 1, binding = 0) uniform CameraUBO
 {
 	mat4 viewMatrix;
 	mat4 projectionMatrix;
+	vec3 lookAt_worldSpace;
+	float half_V_Fov;
+	float half_H_Fov;
 };
 
-layout(set = 0, binding = 1) uniform ModelUBO
+layout(set = 0, binding = 0) uniform ModelUBO
 {
 	mat4 modelMatrix;
 };

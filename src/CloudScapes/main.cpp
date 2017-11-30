@@ -135,6 +135,7 @@ int main(int argc, char** argv)
     while (!ShouldQuit()) 
 	{
 		glfwPollEvents();
+		scene->UpdateTime();
 		renderer->Frame();
     }// end while loop
 

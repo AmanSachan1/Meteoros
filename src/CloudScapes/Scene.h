@@ -3,8 +3,9 @@
 #include <glm/glm.hpp>
 #include <chrono>
 
-#include "BufferUtils.h"
 #include "VulkanDevice.h"
+#include "BufferUtils.h"
+#include "Model.h"
 
 using namespace std::chrono;
 
@@ -18,9 +19,13 @@ class Scene
 {
 private:
 	VulkanDevice* device;
+
+	Time time;
 	VkBuffer timeBuffer;
 	VkDeviceMemory timeBufferMemory;
-	Time time;
+	void* mappedData;
+
+	std::vector<Model*> models;
 
 	high_resolution_clock::time_point startTime = high_resolution_clock::now();
 
@@ -29,7 +34,9 @@ public:
 	Scene(VulkanDevice* device);
 	~Scene();
 
-	VkBuffer GetTimeBuffer() const;
+	const std::vector<Model*>& GetModels() const;
+	void AddModel(Model* model);
 
+	VkBuffer GetTimeBuffer() const;
 	void UpdateTime();
 };
