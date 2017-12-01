@@ -37,19 +37,75 @@ struct Intersection {
 };
 
 //Global Defines
-#define earthRadius 100000.0
-#define atmosphereRadiusInner earthRadius * 1.05
-#define atmosphereRadiusOuter earthRadius * 1.05
+#define earthRadius 6371000.0 // earth's actual radius in meters
+#define atmosphereRadiusInner earthRadius + 15000 //15000 meters above
+#define atmosphereRadiusOuter earthRadius + 35000 //35000 meters above
 #define PI 3.14159265
 #define InvPI 0.31830988618
 #define e 2.718281828459
 #define EPSILON 0.0001
+
+#define NUM_FBM_OCTAVES 8
 
 //CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
 vec2 atmosphereMinMax = vec2(atmosphereRadiusInner, atmosphereRadiusOuter);
 vec2 stratusHeightRange = vec2(0.0, 0.2);
 vec2 cumulusHeightRange = vec2(0.05, 0.55);
 vec2 cumulonimbusHeightRange = vec2(0.1, 1.0);
+
+// Maps values from one range to another
+float remap(float value, float original_min, float original_max, float new_min, float new_max)
+{
+	return new_min + ( ((value-original_min) / (original_max - original_min)) * (new_max - new_min) );
+}
+
+
+
+
+
+// Procedural noise function for Fractal Brownian Motion taken from here: https://thebookofshaders.com/13/
+float noise(in vec2 p) { 
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453123);
+}
+
+float interpolateNoise(in vec2 p) {
+    vec2 p_floor = floor(p);
+    vec2 p_fract = p - p_floor;
+
+    // Sample the noise function at grid intervals
+    vec2 offset = vec2(0.0, 1.0);
+    float noise00 = noise(p_floor);
+    float noise01 = noise(p_floor + offset);
+    float noise10 = noise(p_floor + offset.yx);
+    float noise11 = noise(p_floor + offset.yy);
+
+    // Bilinearly interpolate
+    float noise_x1 = mix(noise00, noise10, p_fract.x);
+    float noise_x2 = mix(noise01, noise11, p_fract.x);
+
+    return mix(noise_x1, noise_x2, p_fract.y);
+}
+
+float FBM(in vec2 p) {
+    float amplitude = 0.75;
+    float frequency = 1.0;
+    const float persistence = 0.5;
+    float maxVal = 0.0;
+    float accumNoise = 0.0;
+
+    for(int i = 0; i < NUM_FBM_OCTAVES; ++i) {
+        accumNoise += interpolateNoise(p * frequency) * amplitude;
+        maxVal += amplitude;
+        amplitude *= persistence;
+        frequency *= 2.0;
+    }
+
+    float noiseVal = accumNoise / maxVal;
+    noiseVal *= step(0.5, noiseVal);
+    return max(0.0, remap(noiseVal, 0.5, 1.0, 0.0, 0.9));
+}
+
+
 
 //Compute Ray for ray marching based on screenspace point
 Ray castRay( vec2 screenPoint, vec3 eye )
@@ -123,11 +179,7 @@ Intersection raySphereIntersection(in vec3 rO, in vec3 rD, in float sphereRadius
     return isect;
 }
 
-// Maps values from one range to another
-float remap(float value, float original_min, float original_max, float new_min, float new_max)
-{
-	return new_min + ( ((value-original_min) / (original_max - original_min)) * (new_max - new_min) );
-}
+
 
 float getHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
 {
@@ -172,26 +224,25 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	return baseCloud;
 }
 
-vec4 rayMarch(vec3 rayOrigin, vec3 rayDirection, vec3 weather_data)
+vec4 rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos)
 {
-	float MaxSteps = floor(mix(64, 128, 1.0 - rayDirection.y)); //maybe switch to a 52 - 84 range
-	float dt = 1;
+	float maxSteps = floor(mix(64, 128, 1.0 - ray.direction.y)); //maybe switch to a 52 - 84 range
+	float max_t = (endPos - startPos).length();
+	float stepSize = max_t/maxSteps;
     float t = 0;
     vec3 pos;
     float transmittance = 1.0;
     float accumDensity = 0.0;
     float density;
 
-    for (int i = 0; i < MaxSteps; i++)
+    for (int i = 0; i < maxSteps; i++)
 	{
-		pos = rayOrigin + t * rayDirection;
+		pos = startPos + t * ray.direction;
+
 		density = sampleCloudDensity(pos, weather_data)*0.005;
 		accumDensity += density;
-		t += dt;
+		t += stepSize;
 	}
-
-	// pos = rayOrigin + t * rayDirection;
-	// density = sampleCloudDensity(pos, weather_data);
 
 	return vec4(vec3(accumDensity), 1.0);
 }
@@ -208,15 +259,17 @@ void main()
 	// Cast a ray
 	vec2 screenPoint = uv * 2.0 - 1.0; // Compute screen space point from UVs
 	vec3 eyePos = vec3(viewMatrix[0][3], viewMatrix[1][3], viewMatrix[2][3]);
+	eyePos = vec3(viewMatrix*vec4(eyePos,1.0));
 	Ray ray = castRay(screenPoint, eyePos);
 
+	// Find the start and en points of the ray march
 	vec3 earthCenter = eyePos;
 	earthCenter.y = -earthRadius; //move earth below camera
 	Intersection atmospherInnerIsect = raySphereIntersection(ray.origin, ray.direction, atmosphereRadiusInner);
 	Intersection atmospherOuterIsect = raySphereIntersection(ray.origin, ray.direction, atmosphereRadiusOuter);
 
 	// Ray March
-	vec4 finalColor = rayMarch(ray.origin, ray.direction, weather_data);
+	vec4 finalColor = rayMarch(ray, weather_data, atmospherInnerIsect.point, atmospherOuterIsect.point);
 
 	float t =20;
 	vec3 pos = ray.origin + t*ray.direction;
