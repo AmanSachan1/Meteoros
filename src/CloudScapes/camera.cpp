@@ -48,6 +48,7 @@ void Camera::CopyToGPUMemory()
 
 glm::mat4 Camera::GetViewProj() const
 {
+	//static casts
 	return glm::perspective(glm::radians(fovy), width / (float)height, near_clip, far_clip) * glm::lookAt(eyePos, ref, up);
 }
 glm::mat4 Camera::GetView() const

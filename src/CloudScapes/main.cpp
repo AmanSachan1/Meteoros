@@ -44,40 +44,37 @@ namespace
 		}			
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-			camera->TranslateAlongLook(delta);
-		}
-			
-		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
 			camera->TranslateAlongLook(-delta);
+		}			
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+			camera->TranslateAlongLook(delta);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			camera->TranslateAlongRight(-delta);
-		}
-
-		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
 			camera->TranslateAlongRight(delta);
+		}
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+			camera->TranslateAlongRight(-delta);
 		}			
 
 		if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-			camera->TranslateAlongUp(delta);
-		}
-		
-		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
 			camera->TranslateAlongUp(-delta);
+		}		
+		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+			camera->TranslateAlongUp(delta);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-			camera->RotateAboutUp(delta*10);
+			camera->RotateAboutRight(delta);			
 		}
 		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-			camera->RotateAboutUp(-delta*10);
+			camera->RotateAboutRight(-delta);
 		}
 		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-			camera->RotateAboutRight(-delta*10);
+			camera->RotateAboutUp(delta);
 		}
 		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-			camera->RotateAboutRight(delta*10);
+			camera->RotateAboutUp(-delta);
 		}
 
 		camera->UpdateBuffer();
@@ -155,7 +152,7 @@ int main(int argc, char** argv)
     
 	swapChain = device->CreateSwapChain(surface);
 
-	camera = new Camera(device, glm::vec3(0.0f, 1.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), 
+	camera = new Camera(device, glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f), 
 						window_width, window_height, 45.0f, window_width / window_height, 0.1f, 1000.0f);
 
 	Scene* scene = new Scene(device);
