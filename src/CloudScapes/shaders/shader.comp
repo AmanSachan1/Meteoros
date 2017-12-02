@@ -192,9 +192,9 @@ float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data) //// Big Q
 	float stratusHeightFraction = getHeightFractionForPoint(point, atmosphereMinMax);
 	float cumulusHeightFraction = getHeightFractionForPoint(point, atmosphereMinMax);
 	float cumulonimbusHeightFraction = getHeightFractionForPoint(point, atmosphereMinMax);
-	float stratusWeight = 2000000;
-	float cumulusWeight = 3000000;
-	float cumulonimbusWeight = 5000000;
+	float stratusWeight = 2000;
+	float cumulusWeight = 3000;
+	float cumulonimbusWeight = 5000;
 
 	float a = remap(stratusHeightFraction, stratusHeightRange.x, stratusHeightRange.y, 0.0, 1.0);
 	float b = remap(cumulusHeightFraction, cumulusHeightRange.x, cumulusHeightRange.y, 0.0, 1.0);
@@ -224,22 +224,21 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	return baseCloud;
 }
 
-vec4 rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos)
+vec4 rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos, float start_t, float end_t)
 {
 	float maxSteps = floor(mix(64, 128, 1.0 - ray.direction.y)); //maybe switch to a 52 - 84 range
-	float max_t = (endPos - startPos).length();
-	float stepSize = max_t/maxSteps;
-    float t = 0;
+	float stepSize = (end_t - start_t)/maxSteps;
+
     vec3 pos;
     float transmittance = 1.0;
     float accumDensity = 0.0;
     float density;
 
-    for (int i = 0; i < maxSteps; i++)
+    for (float t = start_t; t < end_t; t+= stepSize)
 	{
-		pos = startPos + t * ray.direction;
+		pos = ray.origin + t * ray.direction;
 
-		density = sampleCloudDensity(pos, weather_data)*0.005;
+		density = FBM(pos.xz);//sampleCloudDensity(pos, weather_data)*0.01;
 		accumDensity += density;
 		t += stepSize;
 	}
@@ -255,6 +254,7 @@ void main()
 	// base_cloud = remap(low_freq_noise, high_freq_noise, 1.0, 0.0, 1.0);
 	// cloud_with_coverage = remap(noise, cloud_coverage, 1.0, 0.0, 1.0);
 	vec3 weather_data = vec3(1,1,1);
+	vec3 backgroundCol = vec3(0,0,1);
 
 	// Cast a ray
 	vec2 screenPoint = uv * 2.0 - 1.0; // Compute screen space point from UVs
@@ -269,11 +269,9 @@ void main()
 	Intersection atmospherOuterIsect = raySphereIntersection(ray.origin, ray.direction, atmosphereRadiusOuter);
 
 	// Ray March
-	vec4 finalColor = rayMarch(ray, weather_data, atmospherInnerIsect.point, atmospherOuterIsect.point);
-
-	float t =20;
-	vec3 pos = ray.origin + t*ray.direction;
-	vec4 density = vec4(sampleCloudDensity(vec3(uv, t), weather_data));
+	vec4 finalColor = rayMarch(ray, weather_data, 
+							atmospherInnerIsect.point, atmospherOuterIsect.point, 
+							atmospherInnerIsect.t, atmospherOuterIsect.t);
 
 	//Pass the color off to the cloud pipeline's frag shader
     imageStore( resultImage, ivec2(gl_GlobalInvocationID.xy), finalColor );

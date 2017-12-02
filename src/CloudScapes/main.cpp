@@ -33,10 +33,57 @@ namespace
 	}
 
 	bool leftMouseDown = false;
-	bool rightMouseDown = false;
 	double previousX = 0.0;
 	double previousY = 0.0;
+	float delta = 0.01;
 
+	void keyboardInputs(GLFWwindow* window)
+	{
+		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+			glfwSetWindowShouldClose(window, true);
+		}			
+
+		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+			camera->TranslateAlongLook(delta);
+		}
+			
+		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+			camera->TranslateAlongLook(-delta);
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+			camera->TranslateAlongRight(-delta);
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+			camera->TranslateAlongRight(delta);
+		}			
+
+		if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+			camera->TranslateAlongUp(delta);
+		}
+		
+		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+			camera->TranslateAlongUp(-delta);
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+			camera->RotateAboutUp(delta*10);
+		}
+		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+			camera->RotateAboutUp(-delta*10);
+		}
+		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+			camera->RotateAboutRight(-delta*10);
+		}
+		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+			camera->RotateAboutRight(delta*10);
+		}
+
+		camera->UpdateBuffer();
+		camera->CopyToGPUMemory();
+	}
+	
 	void mouseDownCallback(GLFWwindow* window, int button, int action, int mods) 
 	{
 		if (button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -46,15 +93,6 @@ namespace
 			}
 			else if (action == GLFW_RELEASE) {
 				leftMouseDown = false;
-			}
-		}
-		else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-			if (action == GLFW_PRESS) {
-				rightMouseDown = true;
-				glfwGetCursorPos(window, &previousX, &previousY);
-			}
-			else if (action == GLFW_RELEASE) {
-				rightMouseDown = false;
 			}
 		}
 	}
@@ -69,20 +107,19 @@ namespace
 			previousX = xPosition;
 			previousY = yPosition;
 
-			camera->UpdateOrbit(deltaX, deltaY, 0.0f);
-		}
-		//else if (rightMouseDown) 
-		//{
-		//	double deltaZ = static_cast<float>((previousY - yPosition) * 0.05);
-		//	previousY = yPosition;
+			//camera->RotateAboutUp(deltaY);
+			//camera->RotateAboutRight(deltaX);
 
-		//	camera->UpdateOrbit(0.0f, 0.0f, deltaZ);
-		//}
+			//camera->UpdateBuffer();
+			//camera->CopyToGPUMemory();
+		}
 	}
 
 	void scrollCallback(GLFWwindow*, double, double yoffset)
 	{
-		camera->Zoom(static_cast<float>(yoffset) * 0.05f);
+		camera->TranslateAlongLook(static_cast<float>(yoffset) * 0.5f);
+		camera->UpdateBuffer();
+		camera->CopyToGPUMemory();
 	}
 }
 
@@ -118,9 +155,8 @@ int main(int argc, char** argv)
     
 	swapChain = device->CreateSwapChain(surface);
 
-	camera = new Camera(device, g_vma_Allocator,
-						glm::vec3(0.0f, 1.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), 
-						45.0f, window_width / window_height, 0.1f, 1000.0f);
+	camera = new Camera(device, glm::vec3(0.0f, 1.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), 
+						window_width, window_height, 45.0f, window_width / window_height, 0.1f, 1000.0f);
 
 	Scene* scene = new Scene(device);
 
@@ -136,6 +172,7 @@ int main(int argc, char** argv)
 	{
 		glfwPollEvents();
 		scene->UpdateTime();
+		keyboardInputs(GetGLFWWindow());
 		renderer->Frame();
     }// end while loop
 

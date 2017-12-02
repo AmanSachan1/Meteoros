@@ -10,12 +10,10 @@
 #define PI 3.14159
 
 struct CameraUBO {
-	glm::mat4 viewMatrix;
-	glm::mat4 invViewMatrix;
-	glm::mat4 projectionMatrix;
-	glm::vec3 lookAt_worldSpace;
-	//float tanFovV;
-	//float tanFovH;
+	glm::mat4 view;
+	glm::mat4 invView;
+	glm::mat4 proj;
+	glm::vec3 eyePos;
 	float tanFovVby2;
 	float tanFovHby2;
 };
@@ -24,14 +22,25 @@ class Camera
 {
 public:
 	Camera() = delete;	// https://stackoverflow.com/questions/5513881/meaning-of-delete-after-function-declaration
-	Camera(VulkanDevice* device, VmaAllocator& g_vma_Allocator,
-		   glm::vec3 eyePos, glm::vec3 lookatPoint,
+	Camera(VulkanDevice* device, glm::vec3 eyePos, glm::vec3 ref, int width, int height,
 		   float foV_vertical, float aspectRatio, float nearClip, float farClip);
 	~Camera();
 
-	void UpdateOrbit(float deltaX, float deltaY, float deltaZ);
-	void Zoom(float factor);
 	VkBuffer GetBuffer() const;
+	void UpdateBuffer();
+	void CopyToGPUMemory();
+
+	glm::mat4 GetView() const;
+	glm::mat4 GetProj() const;
+	glm::mat4 GetViewProj() const;
+	void RecomputeAttributes();
+
+	void RotateAboutUp(float deg);
+	void RotateAboutRight(float deg);
+
+	void TranslateAlongLook(float amt);
+	void TranslateAlongRight(float amt);
+	void TranslateAlongUp(float amt);
 
 private:
 	VulkanDevice* device; //member variable because it is needed for the destructor
@@ -43,6 +52,17 @@ private:
 	void* mappedData;
 
 	glm::vec3 eyePos;
-	glm::vec3 lookAtPos;
-	float r, theta, phi;
+	glm::vec3 ref;      //The point in world space towards which the camera is pointing
+
+	glm::vec3 forward;
+	glm::vec3 right;
+	glm::vec3 up;
+	glm::vec3 worldUp;
+
+	int width, height;
+
+	float fovy;
+	float aspect;
+	float near_clip;  // Near clip plane distance
+	float far_clip;  // Far clip plane distance
 };

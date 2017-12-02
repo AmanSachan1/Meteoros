@@ -1,25 +1,13 @@
 #include "camera.h"
 
-Camera::Camera(VulkanDevice* device, VmaAllocator& g_vma_Allocator,
-			   glm::vec3 eyePos, glm::vec3 lookAtPoint,
+Camera::Camera(VulkanDevice* device, glm::vec3 eyePos, glm::vec3 lookAtPoint, int width, int height,
 			   float foV_vertical, float aspectRatio, float nearClip, float farClip)
-	: device(device), eyePos(eyePos), lookAtPos(lookAtPoint)
+	: device(device), eyePos(eyePos), ref(lookAtPoint), width(width), height(height), 
+	fovy(foV_vertical), aspect(aspectRatio), near_clip(nearClip), far_clip(farClip)
 {
-	r = eyePos.z;
-	theta = 0.0f;
-	phi = 0.0f;
-	cameraUBO.viewMatrix = glm::lookAt(eyePos, lookAtPos, glm::vec3(0.0f, 1.0f, 0.0f));
-	cameraUBO.invViewMatrix = glm::inverse(cameraUBO.viewMatrix);
-	cameraUBO.projectionMatrix = glm::perspective(static_cast<float>(foV_vertical * M_PI / 180), aspectRatio, nearClip, farClip);
-	//Reason for flipping the y axis: https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
-	cameraUBO.projectionMatrix[1][1] *= -1; // y-coordinate is flipped
-
-	cameraUBO.lookAt_worldSpace = lookAtPos - eyePos;
-	//cameraUBO.tanFov = std::tan(foV_vertical*0.5 * (PI / 180.0));
-	//cameraUBO.tanFovH = aspectRatio * cameraUBO.tanFovV;
-	cameraUBO.tanFovVby2 = std::tan(foV_vertical*0.5 * (PI / 180.0));
-	cameraUBO.tanFovHby2 = aspectRatio * cameraUBO.tanFovVby2;
-
+	worldUp = glm::vec3(0,1,0);
+	RecomputeAttributes();
+	UpdateBuffer();
 	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO), 
 							VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
 							buffer, bufferMemory);
@@ -40,40 +28,84 @@ VkBuffer Camera::GetBuffer() const
 	return buffer;
 }
 
-void Camera::UpdateOrbit(float deltaX, float deltaY, float deltaZ) 
+void Camera::UpdateBuffer()
 {
-	theta += deltaX;
-	phi += deltaY;
-	r = glm::clamp(r - deltaZ, 1.0f, 500.0f);
+	cameraUBO.view = GetView();
+	cameraUBO.invView = glm::inverse(cameraUBO.view);
+	cameraUBO.proj = GetProj();
+	//Reason for flipping the y axis: https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
+	cameraUBO.proj[1][1] *= -1; // y-coordinate is flipped
 
-	float radTheta = glm::radians(theta);
-	float radPhi = glm::radians(phi);
+	cameraUBO.eyePos = eyePos;
 
-	glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), radTheta, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::rotate(glm::mat4(1.0f), radPhi, glm::vec3(1.0f, 0.0f, 0.0f));
-	glm::mat4 finalTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f)) * rotation * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, r));
-
-	cameraUBO.viewMatrix = glm::inverse(finalTransform);
-
-	glm::mat4 inv_view = glm::inverse(cameraUBO.viewMatrix);
-	cameraUBO.lookAt_worldSpace = glm::vec4(0,0,1,0) * inv_view;
-
+	cameraUBO.tanFovVby2 = std::tan(fovy*0.5 * (PI / 180.0));
+	cameraUBO.tanFovHby2 = aspect * cameraUBO.tanFovVby2;
+}
+void Camera::CopyToGPUMemory()
+{
 	memcpy(mappedData, &cameraUBO, sizeof(CameraUBO));
 }
 
-void Camera::Zoom(float factor)
+glm::mat4 Camera::GetViewProj() const
 {
-	r *= glm::exp(-factor);
+	return glm::perspective(glm::radians(fovy), width / (float)height, near_clip, far_clip) * glm::lookAt(eyePos, ref, up);
+}
+glm::mat4 Camera::GetView() const
+{
+	return glm::lookAt(eyePos, ref, up);
+}
+glm::mat4 Camera::GetProj() const
+{
+	return glm::perspective(glm::radians(fovy), width / (float)height, near_clip, far_clip);
+}
+void Camera::RecomputeAttributes()
+{
+	forward = glm::normalize(ref - eyePos);
+	right = glm::normalize(glm::cross(forward, worldUp));
+	up = glm::cross(right, forward);
 
-	float radTheta = glm::radians(theta);
-	float radPhi = glm::radians(phi);
+	float tan_fovy = tan(glm::radians(fovy / 2));
+	float len = glm::length(ref - eyePos);
+	aspect = width / (float)height;
+}
 
-	glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), radTheta, glm::vec3(0.0f, 1.0f, 0.0f)) * glm::rotate(glm::mat4(1.0f), radPhi, glm::vec3(1.0f, 0.0f, 0.0f));
-	glm::mat4 finalTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f)) * rotation * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, r));
+void Camera::RotateAboutUp(float deg)
+{
+	deg = glm::radians(deg);
+	glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), deg, up);
+	ref = ref - eyePos;
+	ref = glm::vec3(rotation * glm::vec4(ref, 1));
+	ref = ref + eyePos;
+	RecomputeAttributes();
+}
+void Camera::RotateAboutRight(float deg)
+{
+	deg = glm::radians(deg);
+	glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), deg, right);
+	ref = ref - eyePos;
+	ref = glm::vec3(rotation * glm::vec4(ref, 1));
+	ref = ref + eyePos;
+	RecomputeAttributes();
+}
 
-	cameraUBO.viewMatrix = glm::inverse(finalTransform);
-
-	glm::mat4 inv_view = glm::inverse(cameraUBO.viewMatrix);
-	cameraUBO.lookAt_worldSpace = glm::vec4(0, 0, 1, 0) * inv_view;
-
-	memcpy(mappedData, &cameraUBO, sizeof(CameraUBO));
+void Camera::TranslateAlongLook(float amt)
+{
+	glm::vec3 translation = forward * amt;
+	eyePos += translation;
+	ref += translation;
+	RecomputeAttributes();
+}
+void Camera::TranslateAlongRight(float amt)
+{
+	glm::vec3 translation = right * amt;
+	eyePos += translation;
+	ref += translation;
+	RecomputeAttributes();
+}
+void Camera::TranslateAlongUp(float amt)
+{
+	glm::vec3 translation = up * amt;
+	eyePos += translation;
+	ref += translation;
+	RecomputeAttributes();
 }
