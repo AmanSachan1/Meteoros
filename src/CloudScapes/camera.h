@@ -11,7 +11,6 @@
 
 struct CameraUBO {
 	glm::mat4 view;
-	glm::mat4 invView;
 	glm::mat4 proj;
 	glm::vec3 eyePos;
 	float tanFovVby2;
