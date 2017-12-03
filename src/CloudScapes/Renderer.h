@@ -107,7 +107,8 @@ private:
 	// We create a vector of command buffers because we want a command buffer for each frame of the swap chain
 	std::vector<VkCommandBuffer> graphicsCommandBuffer;
 	VkCommandBuffer computeCommandBuffer;
-	VkCommandPool commandPool; // can use the same command pool for both types of command buffers
+	VkCommandPool graphicsCommandPool;
+	VkCommandPool computeCommandPool;
 
 	VkPipelineLayout cloudsPipelineLayout;
 	VkPipelineLayout graphicsPipelineLayout;

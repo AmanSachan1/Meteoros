@@ -36,7 +36,7 @@ namespace
 	double previousX = 0.0;
 	double previousY = 0.0;
 	float deltaForRotation = 0.01;
-	float deltaForMovement = 10.0;
+	float deltaForMovement = 0.001;
 
 	void keyboardInputs(GLFWwindow* window)
 	{
@@ -45,24 +45,24 @@ namespace
 		}			
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-			camera->TranslateAlongLook(-deltaForMovement);
+			camera->TranslateAlongLook(deltaForMovement);
 		}			
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-			camera->TranslateAlongLook(deltaForMovement);
+			camera->TranslateAlongLook(-deltaForMovement);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			camera->TranslateAlongRight(deltaForMovement);
+			camera->TranslateAlongRight(-deltaForMovement);
 		}
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			camera->TranslateAlongRight(-deltaForMovement);
+			camera->TranslateAlongRight(deltaForMovement);
 		}			
 
 		if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-			camera->TranslateAlongUp(-deltaForMovement);
+			camera->TranslateAlongUp(deltaForMovement);
 		}		
 		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-			camera->TranslateAlongUp(deltaForMovement);
+			camera->TranslateAlongUp(-deltaForMovement);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
@@ -99,23 +99,23 @@ namespace
 	{
 		if (leftMouseDown) 
 		{
-			double sensitivity = 0.5;
+			double sensitivity = 0.05;
 			float deltaX = static_cast<float>((previousX - xPosition) * sensitivity);
 			float deltaY = static_cast<float>((previousY - yPosition) * sensitivity);
 			previousX = xPosition;
 			previousY = yPosition;
 
-			//camera->RotateAboutUp(deltaY);
-			//camera->RotateAboutRight(deltaX);
+			camera->RotateAboutUp(deltaX);
+			camera->RotateAboutRight(deltaY);
 
-			//camera->UpdateBuffer();
-			//camera->CopyToGPUMemory();
+			camera->UpdateBuffer();
+			camera->CopyToGPUMemory();
 		}
 	}
 
 	void scrollCallback(GLFWwindow*, double, double yoffset)
 	{
-		camera->TranslateAlongLook(static_cast<float>(yoffset) * 0.5f);
+		camera->TranslateAlongLook(static_cast<float>(yoffset) * 0.05f);
 		camera->UpdateBuffer();
 		camera->CopyToGPUMemory();
 	}
