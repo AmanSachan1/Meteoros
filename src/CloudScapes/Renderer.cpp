@@ -1361,3 +1361,81 @@ void Renderer::createCloudResources()
 	cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 2, VK_FORMAT_R8G8B8A8_UNORM);
 	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
 }
+
+
+//----------------------------------------------
+//--------------------- IMGUI ------------------
+//----------------------------------------------
+
+/*
+	 Put this in for ImGui
+ 
+	 Maybe put this instead?
+	 #define ERR_GUARD_VULKAN(Expr) do { VkResult res__ = (Expr); if (res__ < 0) assert(0); } while(0)
+ 
+ */
+static void check_vk_result(VkResult err)
+{
+	if (err == 0) return;
+	printf("VkResult %d\n", err);
+	if (err < 0)
+		abort();
+}
+
+void Renderer::ImGuiSetup(GLFWwindow* window)
+{
+	/*
+	// Setup ImGui binding
+	ImGui_ImplGlfwVulkan_Init_Data imgui_init_data = {};
+	//imgui_init_data.allocator = g_vma_Allocator;	// We're using VmaAllocator g_vma_Allocator instead?
+	imgui_init_data.gpu = physicalDevice;
+	imgui_init_data.device = logicalDevice;
+	imgui_init_data.render_pass = renderPass;
+	//imgui_init_data.pipeline_cache = 
+	imgui_init_data.descriptor_pool = descriptorPool;
+	imgui_init_data.check_vk_result = check_vk_result;
+	ImGui_ImplGlfwVulkan_Init(window, true, &imgui_init_data);\
+	*/
+
+	// Reference --> Vulkan Example --> ImGui_ImplGlfwVulkan_NewFrame()
+	ImGuiIO& io = ImGui::GetIO();
+	int w, h;
+	int display_w, display_h;
+	glfwGetWindowSize(window, &w, &h);
+	glfwGetFramebufferSize(window, &display_w, &display_h);
+	io.DisplaySize = ImVec2((float)w, (float)h);
+	io.DisplayFramebufferScale = ImVec2(w > 0 ? ((float)display_w / w) : 0,
+										h > 0 ? ((float)display_h / h) : 0);
+
+	io.RenderDrawListsFn = NULL;
+
+	// Build the font atlas texture, then load the texture pixels into graphics memory
+	unsigned char* pixels;
+	int width, height;
+	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+	io.DeltaTime = 1.0f / 60.0f;
+
+	double mouse_x, mouse_y;
+	glfwGetCursorPos(window, &mouse_x, &mouse_y);
+	io.MousePos = ImVec2((float)mouse_x, (float)mouse_y);
+	io.MouseDown[0] = glfwGetMouseButton(window, 0);
+	io.MouseDown[1] = glfwGetMouseButton(window, 1);
+	
+}
+
+void Renderer::ImGuiCreation()
+{
+	// 1. Show a simple window.
+	// Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets appears in a window automatically called "Debug".
+
+	ImGui::NewFrame();
+	ImGui::Text("New ImGui window");
+
+	//ImGui::ShowTestWindow();
+}
+
+void Renderer::ImGuiRender()
+{
+	ImGui::Render();
+}
