@@ -17,7 +17,6 @@ layout (set = 0, binding = 2) uniform time
 layout (set = 1, binding = 0) uniform CameraUBO
 {
 	mat4 view;
-	mat4 invView;
 	mat4 proj;
 	vec3 eye;
 	float tanFovVby2;
@@ -37,21 +36,29 @@ struct Intersection {
 };
 
 //Global Defines
-#define earthRadius 10.0 // earth's actual radius in km = 6731
-#define atmosphereRadiusInner earthRadius + 15.0 //15000 meters above
-#define atmosphereRadiusOuter earthRadius + 35.0 //35000 meters above
+#define earthRadius 63710.0 // earth's actual radius in km = 6371
+#define atmosphereRadiusInner earthRadius + 15000.0 //15000 meters above
+#define atmosphereRadiusOuter earthRadius + 35000.0 //35000 meters above
+
+#define LightVec normalize(vec3(1,1,1));
+
 #define PI 3.14159265
 #define InvPI 0.31830988618
-#define e 2.718281828459
+#define THREE_OVER_SIXTEEN_PI 0.05968310365946075
+#define ONE_OVER_FOUR_PI 0.07957747154594767
+
+#define E 2.718281828459
 #define EPSILON 0.0001
 
 #define NUM_FBM_OCTAVES 2
 
-//CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
-vec2 atmosphereMinMax = vec2(atmosphereRadiusInner, atmosphereRadiusOuter);
-vec2 stratusHeightRange = vec2(0.0, 0.2);
-vec2 cumulusHeightRange = vec2(0.05, 0.55);
-vec2 cumulonimbusHeightRange = vec2(0.1, 1.0);
+//Global Defines for Debug Views
+#define LIGTHING false
+#define BLOBBY_CLOUDS true
+#define DENSITY false
+
+#define HEIGHT_GRADIENT false
+#define TEXTURE false
 
 // Maps values from one range to another
 float remap(float value, float original_min, float original_max, float new_min, float new_max)
@@ -59,11 +66,11 @@ float remap(float value, float original_min, float original_max, float new_min, 
 	return new_min + ( ((value-original_min) / (original_max - original_min)) * (new_max - new_min) );
 }
 
-
-
-
-
-// Procedural noise function for Fractal Brownian Motion taken from here: https://thebookofshaders.com/13/ and Joe Klinger
+//--------------------------------------------------------
+//--------------------------------------------------------
+//--------------------------------------------------------
+// Procedural noise function for Fractal Brownian Motion taken from here: https://thebookofshaders.com/13/ and 
+// Joe Klinger --> https://github.com/klingerj & https://www.shadertoy.com/user/jgkling
 float noise(in vec2 p) { 
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453123);
 }
@@ -104,8 +111,9 @@ float FBM(in vec2 p) {
     noiseVal *= step(0.5, noiseVal);
     return max(0.0, remap(noiseVal, 0.5, 1.0, 0.0, 0.9));
 }
-
-
+//--------------------------------------------------------
+//--------------------------------------------------------
+//--------------------------------------------------------
 
 //Compute Ray for ray marching based on screenspace point
 Ray castRay( vec2 screenPoint, vec3 _eye )
@@ -113,29 +121,25 @@ Ray castRay( vec2 screenPoint, vec3 _eye )
 	Ray r;
 
     // Extract camera information from uniform
-    vec3 camRight = normalize(vec3(camera.view[0][0], 
+    vec3 camRight = -normalize(vec3(camera.view[0][0], 
 				    	camera.view[1][0], 
 				    	camera.view[2][0]));
-    vec3 camUp =    normalize(vec3(camera.view[0][1], 
+    vec3 camUp =    -normalize(vec3(camera.view[0][1], 
 				    	camera.view[1][1], 
 				    	camera.view[2][1]));
-    vec3 camLook =  -normalize(vec3(camera.view[0][2], 
+    vec3 camLook =  normalize(vec3(camera.view[0][2], 
 				    	camera.view[1][2], 
 				    	camera.view[2][2]));
 
-    float ndc_x = screenPoint.x;
-    float ndc_y = screenPoint.y;
+    // ScreenPoint is in NDC space
 
+    //convert to camera space
     vec3 cam_x = screenPoint.x * camera.tanFovHby2 * camRight;
     vec3 cam_y = screenPoint.y * camera.tanFovVby2 * camUp;
     vec3 p = _eye + camLook + cam_x + cam_y; //facing the screen
 
     r.origin = _eye;
     r.direction = normalize(p - _eye);
-
-    //convert to world space
-    //r.origin = vec3(camera.invView * vec4(r.origin, 1.0));
-    //r.direction = vec3(camera.invView * vec4(r.direction, 0.0));
 
     return r;
 }
@@ -190,20 +194,15 @@ float getHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
 	return clamp(height_fraction, 0.0, 1.0);
 }
 
-float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data) //// Big Question mark about this
+float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
 {
-	float stratusHeightFraction = getHeightFractionForPoint(point, atmosphereMinMax);
-	float cumulusHeightFraction = getHeightFractionForPoint(point, atmosphereMinMax);
-	float cumulonimbusHeightFraction = getHeightFractionForPoint(point, atmosphereMinMax);
-	float stratusWeight = 2000;
-	float cumulusWeight = 3000;
-	float cumulonimbusWeight = 5000;
+	//Refer: 2017 pdf of slides 29/108
+	//CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
+	float stratus = remap(point.y, 0, 0.1, 0.0, 1.0) * remap(point.y, 0.2, 0.3, 1.0, 0.0);
+	float cumulus = remap(point.y, 0.01, 0.3, 0.0, 1.0) * remap(point.y, 0.3, 0.45, 1.0, 0.0);
+	float cumulonimbus = remap(point.y, 0.0, 0.25, 0.0, 1.0) * remap(point.y, 0.6, 0.95, 1.0, 0.0);
 
-	float a = remap(stratusHeightFraction, stratusHeightRange.x, stratusHeightRange.y, 0.0, 1.0);
-	float b = remap(cumulusHeightFraction, cumulusHeightRange.x, cumulusHeightRange.y, 0.0, 1.0);
-	float c = remap(cumulonimbusHeightFraction, cumulonimbusHeightRange.x, cumulonimbusHeightRange.y, 0.0, 1.0);
-
-	return  stratusWeight * a + cumulusWeight * b + cumulonimbusWeight * c;
+	return clamp(cumulus, 0.0, 1.0); //TODO: should return a blended and weighted value
 }
 
 float sampleCloudDensity(vec3 point, vec3 weather_data)
@@ -241,6 +240,7 @@ vec4 rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos, float star
     for (float t = start_t; t < end_t; t+= stepSize)
 	{
 		pos = ray.origin + t * ray.direction;
+		//pos /= 100.0;
 
 		density = sampleCloudDensity(pos, weather_data);
 

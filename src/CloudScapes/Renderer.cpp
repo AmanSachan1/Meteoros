@@ -25,10 +25,11 @@ Renderer::~Renderer()
 	vkDeviceWaitIdle(logicalDevice);
 
 	// TODO: Destroy any resources you created
-	vkFreeCommandBuffers(logicalDevice, commandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
-	vkFreeCommandBuffers(logicalDevice, commandPool, 1, &computeCommandBuffer);
+	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
+	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
 
-	vkDestroyCommandPool(logicalDevice, commandPool, nullptr);
+	vkDestroyCommandPool(logicalDevice, graphicsCommandPool, nullptr);
+	vkDestroyCommandPool(logicalDevice, computeCommandPool, nullptr);
 
 	DestroyFrameResources();
 
@@ -40,6 +41,7 @@ Renderer::~Renderer()
 	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
+	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, cloudSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
@@ -62,7 +64,7 @@ void Renderer::InitializeRenderer()
 
 	//To pass texture created in compute to frag shader
 	rayMarchedComputeTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	rayMarchedComputeTexture->createTextureAsBackGround(logicalDevice, physicalDevice, commandPool);
+	rayMarchedComputeTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
 
 	//Create the textures that will be passed to the compute shader to create clouds
 	createCloudResources();
@@ -701,7 +703,7 @@ void Renderer::RecreateFrameResources()
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
 
-	vkFreeCommandBuffers(logicalDevice, commandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
+	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
 
 	DestroyFrameResources();
 	CreateFrameResources();
@@ -763,7 +765,7 @@ void Renderer::createDepthResources()
 	Image::createImageView(device, depthImageView, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 
 	// Transition the image for use as depth-stencil
-	Image::transitionImageLayout(device, commandPool, depthImage, depthFormat,
+	Image::transitionImageLayout(device, graphicsCommandPool, depthImage, depthFormat,
 								VK_IMAGE_LAYOUT_UNDEFINED,
 								VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
@@ -804,7 +806,7 @@ void Renderer::CreateCommandPools()
 	graphicsPoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Graphics];
 	graphicsPoolInfo.flags = 0;
 
-	if (vkCreateCommandPool(logicalDevice, &graphicsPoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+	if (vkCreateCommandPool(logicalDevice, &graphicsPoolInfo, nullptr, &graphicsCommandPool) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create graphics command pool");
 	}
 
@@ -813,7 +815,7 @@ void Renderer::CreateCommandPools()
 	computePoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Compute];
 	computePoolInfo.flags = 0;
 
-	if (vkCreateCommandPool(logicalDevice, &computePoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+	if (vkCreateCommandPool(logicalDevice, &computePoolInfo, nullptr, &computeCommandPool) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create compute command pool");
 	}
 }
@@ -833,7 +835,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 	*/
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.commandPool = commandPool;
+	commandBufferAllocateInfo.commandPool = graphicsCommandPool;
 	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	commandBufferAllocateInfo.commandBufferCount = (uint32_t)(graphicsCommandBuffer.size());
 
@@ -971,7 +973,7 @@ void Renderer::RecordComputeCommandBuffer()
 {
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
 	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.commandPool = commandPool;
+	commandBufferAllocateInfo.commandPool = computeCommandPool;
 	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	commandBufferAllocateInfo.commandBufferCount = 1;
 
@@ -1180,10 +1182,10 @@ void Renderer::CreateAllDescriptorSets()
 		{ { -1.0f, 1.0f, 0.99999f, 1.0f }, { 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
 	};
 	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
-	quad = new Model(device, commandPool, g_vma_Allocator, quadVertices, quadIndices);
+	quad = new Model(device, graphicsCommandPool, g_vma_Allocator, quadVertices, quadIndices);
 
-	house = new Model(device, commandPool, g_vma_Allocator, vertices, indices);
-	house->SetTexture(device, commandPool, texture_path);
+	house = new Model(device, graphicsCommandPool, g_vma_Allocator, vertices, indices);
+	house->SetTexture(device, graphicsCommandPool, texture_path);
 
 	// Create cloud textures
 
@@ -1352,5 +1354,5 @@ void Renderer::createCloudResources()
 	const std::string textureBaseName = "CloudBaseShape";
 	const std::string fileExtension = ".tga";
 	cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 2, VK_FORMAT_R8G8B8A8_UNORM);
-	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, commandPool, folder_path, textureBaseName, fileExtension, 128, 4);
+	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool, folder_path, textureBaseName, fileExtension, 128, 4);
 }

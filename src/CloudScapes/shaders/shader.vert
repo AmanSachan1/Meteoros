@@ -11,7 +11,6 @@
 layout(set = 1, binding = 0) uniform CameraUBO
 {
 	mat4 viewMatrix;
-	mat4 invViewMatrix;
 	mat4 projectionMatrix;
 	vec3 lookAt_worldSpace;
 	float tanFovVby2;
