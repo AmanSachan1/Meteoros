@@ -31,7 +31,7 @@ VkBuffer Camera::GetBuffer() const
 void Camera::UpdateBuffer()
 {
 	cameraUBO.view = GetView();
-	//cameraUBO.invView = glm::inverse(cameraUBO.view);
+	cameraUBO.invView = glm::inverse(cameraUBO.view);
 	cameraUBO.proj = GetProj();
 	//Reason for flipping the y axis: https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
 	cameraUBO.proj[1][1] *= -1; // y-coordinate is flipped

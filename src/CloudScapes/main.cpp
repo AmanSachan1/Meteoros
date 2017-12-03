@@ -35,8 +35,7 @@ namespace
 	bool leftMouseDown = false;
 	double previousX = 0.0;
 	double previousY = 0.0;
-	float deltaForRotation = 0.01;
-	float deltaForMovement = 10.0;
+	float delta = 0.01;
 
 	void keyboardInputs(GLFWwindow* window)
 	{
@@ -45,37 +44,37 @@ namespace
 		}			
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-			camera->TranslateAlongLook(-deltaForMovement);
+			camera->TranslateAlongLook(-delta);
 		}			
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-			camera->TranslateAlongLook(deltaForMovement);
+			camera->TranslateAlongLook(delta);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			camera->TranslateAlongRight(deltaForMovement);
+			camera->TranslateAlongRight(delta);
 		}
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			camera->TranslateAlongRight(-deltaForMovement);
+			camera->TranslateAlongRight(-delta);
 		}			
 
 		if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-			camera->TranslateAlongUp(-deltaForMovement);
+			camera->TranslateAlongUp(-delta);
 		}		
 		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-			camera->TranslateAlongUp(deltaForMovement);
+			camera->TranslateAlongUp(delta);
 		}
 
 		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-			camera->RotateAboutRight(deltaForRotation);
+			camera->RotateAboutRight(delta);			
 		}
 		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-			camera->RotateAboutRight(-deltaForRotation);
+			camera->RotateAboutRight(-delta);
 		}
 		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-			camera->RotateAboutUp(deltaForRotation);
+			camera->RotateAboutUp(delta);
 		}
 		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-			camera->RotateAboutUp(-deltaForRotation);
+			camera->RotateAboutUp(-delta);
 		}
 
 		camera->UpdateBuffer();

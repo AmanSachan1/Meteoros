@@ -40,7 +40,6 @@ Renderer::~Renderer()
 	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
-	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, cloudSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
@@ -802,11 +801,20 @@ void Renderer::CreateCommandPools()
 {
 	VkCommandPoolCreateInfo graphicsPoolInfo = {};
 	graphicsPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	graphicsPoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Graphics | QueueFlags::Compute];
+	graphicsPoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Graphics];
 	graphicsPoolInfo.flags = 0;
 
 	if (vkCreateCommandPool(logicalDevice, &graphicsPoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create graphics command pool");
+	}
+
+	VkCommandPoolCreateInfo computePoolInfo = {};
+	computePoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	computePoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Compute];
+	computePoolInfo.flags = 0;
+
+	if (vkCreateCommandPool(logicalDevice, &computePoolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create compute command pool");
 	}
 }
 
