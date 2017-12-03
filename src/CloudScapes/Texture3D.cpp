@@ -1,7 +1,7 @@
 ﻿#include "Texture3D.h"
 
-Texture3D::Texture3D(VulkanDevice* device, VmaAllocator g_vma_Allocator, uint32_t width, uint32_t height, uint32_t depth, VkFormat format)
-	: device(device), g_vma_Allocator(g_vma_Allocator), width(width), height(height), depth(depth), textureFormat(format)
+Texture3D::Texture3D(VulkanDevice* device, uint32_t width, uint32_t height, uint32_t depth, VkFormat format)
+	: device(device), width(width), height(height), depth(depth), textureFormat(format)
 {}
 
 Texture3D::~Texture3D()
@@ -75,14 +75,18 @@ void Texture3D::create3DTextureImage(VkImageTiling tiling, VkImageUsageFlags usa
 		throw std::runtime_error("failed to create 3D texture!");
 	}
 
+	VkMemoryRequirements memReqs = {};
+	vkGetImageMemoryRequirements(device->GetVkDevice(), textureImage3D, &memReqs);
+
 	// Device local memory to back up image
 	VkMemoryAllocateInfo memAllocInfo{};
 	memAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	VkMemoryRequirements memReqs = {};
-	vkGetImageMemoryRequirements(device->GetVkDevice(), textureImage3D, &memReqs);
 	memAllocInfo.allocationSize = memReqs.size;
 	memAllocInfo.memoryTypeIndex = device->GetInstance()->GetMemoryTypeIndex(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	vkAllocateMemory(device->GetVkDevice(), &memAllocInfo, nullptr, &textureImageMemory3D);
+	
+	if (vkAllocateMemory(device->GetVkDevice(), &memAllocInfo, nullptr, &textureImageMemory3D) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to allocate device memory for the buffer");
+	}
 	vkBindImageMemory(device->GetVkDevice(), textureImage3D, textureImageMemory3D, 0);
 }
 void Texture3D::create3DTextureSampler(VkSamplerAddressMode addressMode, float maxAnisotropy)
@@ -150,41 +154,12 @@ void Texture3D::create3DTextureImageView()
 	}
 }
 
-// load multiple 2D Textures From a folder and create a 3D image from them
 void Texture3D::create3DTextureFromMany2DTextures(VkDevice logicalDevice, VkCommandPool commandPool,
-	const std::string folder_path, const std::string textureBaseName,
-	const std::string fileExtension, int num2DImages, int numChannels)
+	const std::string folder_path, const std::string textureBaseName, const std::string fileExtension,
+	int num2DImages, int numChannels)
 {
-	int texWidth, texHeight, texChannels;
-	VkDeviceSize Image3DSize = width * height * depth * numChannels;
-	unsigned char* texture2DPixels = new uint8_t[Image3DSize];
-	ImageLoadingUtility::loadmultiple2DTextures(texture2DPixels, folder_path, textureBaseName, fileExtension,
-												num2DImages, texWidth, texHeight, texChannels);
-	
-	//IMPORTANT: Did not free memory stored in the vector because if we want to modify the individual textures we should just change that one texture
-	
-	VmaAllocation stagingBufferAlloc = VK_NULL_HANDLE;
-	VkBuffer stagingBuffer = VMA_Utility::createStagingBuffer(device, commandPool, g_vma_Allocator, texture2DPixels, stagingBufferAlloc, Image3DSize);
-	
-	create3DTextureImage(VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-	//----------------------------------------------------
-	//--- Copy the Staging Buffer to the Texture Image ---
-	//----------------------------------------------------
-	//The image was created with the VK_IMAGE_LAYOUT_UNDEFINED layout, so that one should be specified as old layout when transitioning textureImage. 
-	//Remember that we can do this because we don't care about its contents before performing the copy operation.
-
-	//Transition: Undefined → transfer destination: transfer writes that don't need to wait on anything
-	//This transition is to make image optimal as a destination
-	Image::transitionImageLayout(device, commandPool, textureImage3D, textureFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	Image::copyBufferToImage(device, commandPool, stagingBuffer, textureImage3D, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-
-	//Transfer destination → shader reading
-	Image::transitionImageLayout(device, commandPool, textureImage3D, textureFormat,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	VMA_Utility::destroyStagingBuffer(g_vma_Allocator, stagingBuffer, stagingBufferAlloc);
-
+	ImageLoadingUtility::create3DTextureFromMany2DTextures(device, logicalDevice, commandPool, folder_path, textureBaseName, fileExtension,
+		textureImage3D, textureImageMemory3D, textureFormat, width, height, depth, num2DImages, numChannels);
 
 	create3DTextureSampler(VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
 	create3DTextureImageView();
@@ -210,19 +185,19 @@ VkImageLayout Texture3D::GetTextureLayout() const
 {
 	return textureLayout;
 }
-VkImage Texture3D::GetTextureImage() const
+VkImage Texture3D::GetTextureImage()
 {
 	return textureImage3D;
 }
-VkDeviceMemory Texture3D::GetTextureImageMemory() const
+VkDeviceMemory Texture3D::GetTextureImageMemory()
 {
 	return textureImageMemory3D;
 }
-VkImageView Texture3D::GetTextureImageView() const
+VkImageView Texture3D::GetTextureImageView()
 {
 	return textureImageView3D;
 }
-VkSampler Texture3D::GetTextureSampler() const
+VkSampler Texture3D::GetTextureSampler()
 {
 	return textureSampler3D;
 }

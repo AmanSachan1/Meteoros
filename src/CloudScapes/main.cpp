@@ -35,7 +35,7 @@ namespace
 	bool leftMouseDown = false;
 	double previousX = 0.0;
 	double previousY = 0.0;
-	float deltaForRotation = 0.01;
+	float deltaForRotation = 0.005;
 	float deltaForMovement = 0.001;
 
 	void keyboardInputs(GLFWwindow* window)

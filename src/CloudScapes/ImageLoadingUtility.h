@@ -4,6 +4,7 @@
 #include <vector>
 #include "VulkanDevice.h"
 #include "Image.h"
+#include "Texture3D.h"
 #include <cstring>
 #include "../../external/stb_image.h"
 
@@ -14,8 +15,18 @@ namespace ImageLoadingUtility
 						VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkFormat format,
 						VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
 
-	void loadmultiple2DTextures(unsigned char*& texture2DPixels,
+	void loadmultiple2DTextures(uint8_t*& texture2DPixels,
 								const std::string folder_path, const std::string textureBaseName,
 								const std::string fileExtension, int num2DImages,
 								int& texWidth, int& texHeight, int& texChannels);
+
+	// load multiple 2D Textures From a folder and create a 3D image from them
+	void create3DTextureFromMany2DTextures(VulkanDevice* device, VkDevice logicalDevice, VkCommandPool commandPool,
+		const std::string folder_path, const std::string textureBaseName, const std::string fileExtension,
+		VkImage& texture3DImage, VkDeviceMemory& texture3DMemory, VkFormat textureFormat,
+		int width, int height, int depth, int num2DImages, int numChannels);
+
+	void create3DTextureImage(VulkanDevice* device, VkDevice logicalDevice, VkImage& image, VkDeviceMemory& imageMemory,
+							VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
+							int width, int height, int depth, VkFormat format);
 }

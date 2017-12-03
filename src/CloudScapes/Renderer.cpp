@@ -49,7 +49,7 @@ Renderer::~Renderer()
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
 	delete quad;
-	delete house;
+	//delete house;
 
 	delete rayMarchedComputeTexture;
 	delete cloudBaseShapeTexture;
@@ -102,10 +102,10 @@ void Renderer::Frame()
 	computeSubmitInfo.commandBufferCount = 1;
 	computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
 
-	// submit the command buffer to the compute queue
-	if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to submit compute command buffer");
-	}
+	//// submit the command buffer to the compute queue
+	//if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+	//	throw std::runtime_error("Failed to submit compute command buffer");
+	//}
 
 	//-------------------------------------------
 	//--------- Submit Graphics Queue -----------
@@ -928,37 +928,37 @@ void Renderer::RecordGraphicsCommandBuffer()
 		vertexOffset: Used as an offset into the vertex buffer
 		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
 		*/
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], quad->getIndexBufferSize(), 1, 0, 0, 1);
 
 		//------------------------
 		//--- Graphics Pipeline---
 		//------------------------
 
-		// Bind the graphics pipeline
-		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		//// Bind the graphics pipeline
+		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-		// Bind graphics descriptor set
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
+		//// Bind graphics descriptor set
+		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
+		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
 
-		// Bind the vertex and index buffers
-		VkDeviceSize geomOffsets[] = { 0 };
-		const VkBuffer geomVertices = house->getVertexBuffer();
-		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
+		//// Bind the vertex and index buffers
+		//VkDeviceSize geomOffsets[] = { 0 };
+		//const VkBuffer geomVertices = house->getVertexBuffer();
+		//vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
 
-		// Bind triangle index buffer
-		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+		//// Bind triangle index buffer
+		//vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-		// Draw indexed triangle
-		/*
-		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
-		indexCount;
-		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-		firstIndex:  Used as an offset into the index buffer
-		vertexOffset: Used as an offset into the vertex buffer
-		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		*/
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
+		//// Draw indexed triangle
+		///*
+		//vkCmdDrawIndexed has the following parameters, aside from the command buffer:
+		//indexCount;
+		//instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+		//firstIndex:  Used as an offset into the index buffer
+		//vertexOffset: Used as an offset into the vertex buffer
+		//firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+		//*/
+		//vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
 
 		vkCmdEndRenderPass(graphicsCommandBuffer[i]);
 
@@ -1192,8 +1192,8 @@ void Renderer::CreateAllDescriptorSets()
 	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
 	quad = new Model(device, graphicsCommandPool, g_vma_Allocator, quadVertices, quadIndices);
 
-	house = new Model(device, graphicsCommandPool, g_vma_Allocator, vertices, indices);
-	house->SetTexture(device, graphicsCommandPool, texture_path);
+	//house = new Model(device, graphicsCommandPool, g_vma_Allocator, vertices, indices);
+	//house->SetTexture(device, graphicsCommandPool, texture_path);
 
 	// Create cloud textures
 
@@ -1320,35 +1320,35 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	//-------------------------------
 
 	// Model
-	VkDescriptorBufferInfo modelBufferInfo = {};
-	modelBufferInfo.buffer = house->GetModelBuffer();
-	modelBufferInfo.offset = 0;
-	modelBufferInfo.range = sizeof(ModelBufferObject);
+	//VkDescriptorBufferInfo modelBufferInfo = {};
+	//modelBufferInfo.buffer = house->GetModelBuffer();
+	//modelBufferInfo.offset = 0;
+	//modelBufferInfo.range = sizeof(ModelBufferObject);
 
 	// Texture
-	VkDescriptorImageInfo imageInfo = {};
-	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView = house->GetTextureView();
-	imageInfo.sampler = house->GetTextureSampler();
+	//VkDescriptorImageInfo imageInfo = {};
+	//imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	//imageInfo.imageView = house->GetTextureView();
+	//imageInfo.sampler = house->GetTextureSampler();
 
-	std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
+	//std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
 
-	writeGraphicsSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeGraphicsSetInfo[0].dstSet = graphicsSet;
-	writeGraphicsSetInfo[0].dstBinding = 0;
-	writeGraphicsSetInfo[0].descriptorCount = 1;
-	writeGraphicsSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeGraphicsSetInfo[0].pBufferInfo = &modelBufferInfo;
+	//writeGraphicsSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	//writeGraphicsSetInfo[0].dstSet = graphicsSet;
+	//writeGraphicsSetInfo[0].dstBinding = 0;
+	//writeGraphicsSetInfo[0].descriptorCount = 1;
+	//writeGraphicsSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	//writeGraphicsSetInfo[0].pBufferInfo = &modelBufferInfo;
 
-	writeGraphicsSetInfo[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeGraphicsSetInfo[1].pNext = NULL;
-	writeGraphicsSetInfo[1].dstSet = graphicsSet;
-	writeGraphicsSetInfo[1].dstBinding = 1;
-	writeGraphicsSetInfo[1].descriptorCount = 1;
-	writeGraphicsSetInfo[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeGraphicsSetInfo[1].pImageInfo = &imageInfo;
+	//writeGraphicsSetInfo[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	//writeGraphicsSetInfo[1].pNext = NULL;
+	//writeGraphicsSetInfo[1].dstSet = graphicsSet;
+	//writeGraphicsSetInfo[1].dstBinding = 1;
+	//writeGraphicsSetInfo[1].descriptorCount = 1;
+	//writeGraphicsSetInfo[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	//writeGraphicsSetInfo[1].pImageInfo = &imageInfo;
 
-	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
+	//vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
 }
 
 //----------------------------------------------
@@ -1390,19 +1390,19 @@ void Renderer::createCloudResources()
 	const std::string LowFreq_folder_path = "../../src/CloudScapes/textures/CloudTexturesUsed/LowFrequency/";
 	const std::string LowFreq_textureBaseName = "LowFrequency";
 	const std::string LowFreq_fileExtension = ".tga";
-	cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
-	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool, 
-															LowFreq_folder_path, LowFreq_textureBaseName, 
-															LowFreq_fileExtension, 128, 4);
+	cloudBaseShapeTexture = new Texture3D(device, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
+	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool,
+											LowFreq_folder_path, LowFreq_textureBaseName, LowFreq_fileExtension, 
+											128, 4);
 
 	// High Frequency Cloud 3D Texture //TODO Get actual High Frequncy Textures
 	const std::string HighFreq_folder_path = "../../src/CloudScapes/textures/CloudTexturesUsed/HighFrequency/";
 	const std::string HighFreq_textureBaseName = "HighFrequency";
 	const std::string HighFreq_fileExtension = ".tga";
-	cloudDetailsTexture = new Texture3D(device, g_vma_Allocator, 32, 32, 32, VK_FORMAT_R8G8B8A8_UNORM);
-	cloudDetailsTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool, 
-															HighFreq_folder_path, HighFreq_textureBaseName, 
-															HighFreq_fileExtension, 32, 4);
+	cloudDetailsTexture = new Texture3D(device, 32, 32, 32, VK_FORMAT_R8G8B8A8_UNORM);
+	cloudDetailsTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool,
+										HighFreq_folder_path, HighFreq_textureBaseName, HighFreq_fileExtension,
+										32, 4);
 
 	// Curl Noise 2D Texture
 	const std::string curlNoiseTexture_path = "../../src/CloudScapes/textures/CloudTexturesUsed/curlNoise.png";
