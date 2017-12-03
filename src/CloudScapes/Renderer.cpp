@@ -829,8 +829,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	commandBufferAllocateInfo.commandBufferCount = (uint32_t)(graphicsCommandBuffer.size());
 
-	if (vkAllocateCommandBuffers(logicalDevice, &commandBufferAllocateInfo, graphicsCommandBuffer.data()) != VK_SUCCESS)
-	{
+	if (vkAllocateCommandBuffers(logicalDevice, &commandBufferAllocateInfo, graphicsCommandBuffer.data()) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to allocate graphics command buffers");
 	}
 
@@ -846,8 +845,11 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//---------- Begin recording ----------
 		//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
 		// It's not possible to append commands to a buffer at a later time.
-		vkBeginCommandBuffer(graphicsCommandBuffer[i], &beginInfo);
+		if (vkBeginCommandBuffer(graphicsCommandBuffer[i], &beginInfo) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to begin recording graphics command buffer");
+		}
 
+		// Begin the render pass
 		VkRenderPassBeginInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		renderPassInfo.renderPass = renderPass;
@@ -898,6 +900,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 
 		// Bind the clouds pipeline
 		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipeline);
+		
 		// Bind sampler descriptor set
 		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 0, 1, &cloudSet, 0, nullptr);
 
@@ -918,7 +921,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		vertexOffset: Used as an offset into the vertex buffer
 		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
 		*/
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], quad->getIndexBufferSize(), 1, 0, 0, 1);
 
 		//------------------------
 		//--- Graphics Pipeline---
@@ -1146,11 +1149,22 @@ void Renderer::CreateAllDescriptorSets()
 	graphicsSet = CreateDescriptorSet(descriptorPool, graphicsSetLayout);
 	cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
 
-	// Create Models
+	// Model and texture file paths
 	const std::string model_path = "../../src/CloudScapes/models/teapot.obj";
+	//const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
+	//const std::string model_path = "../../src/CloudScapes/models/cyllinder2.obj";
+	//const std::string model_path = "../../src/CloudScapes/models/wahoo.obj";
+	//const std::string model_path = "../../src/CloudScapes/models/dodecahedron.obj";
+
 	const std::string texture_path = "../../src/CloudScapes/textures/statue.jpg";
+	
+
+	// Using .obj-based Model constructor ----------------------------------------------------
 	//house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
 
+
+	// Using manual-based Model constructor --------------------------------------------------
+	// Arbitrary test model
 	const std::vector<Vertex> vertices = {
 		{ { -0.5f, 0.5f,  0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
 		{ { 0.5f,  0.5f,  0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
@@ -1164,7 +1178,10 @@ void Renderer::CreateAllDescriptorSets()
 	};
 	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
 										  4, 5, 6, 6, 7, 4 };
+	house = new Model(device, commandPool, g_vma_Allocator, vertices, indices);
+	house->SetTexture(device, commandPool, texture_path);
 
+	// Quad model
 	const std::vector<Vertex> quadVertices = {
 		{ { -1.0f, -1.0f, 0.99999f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
 		{ { 1.0f,  -1.0f, 0.99999f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
@@ -1174,8 +1191,6 @@ void Renderer::CreateAllDescriptorSets()
 	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
 	quad = new Model(device, commandPool, g_vma_Allocator, quadVertices, quadIndices);
 
-	house = new Model(device, commandPool, g_vma_Allocator, vertices, indices);
-	house->SetTexture(device, commandPool, texture_path);
 
 	// Create cloud textures
 

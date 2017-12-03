@@ -2,7 +2,7 @@
 
 #include "BufferUtils.h"
 
-void BufferUtils::CreateBuffer(VulkanDevice* device, VkBufferUsageFlags allowedUsage, uint32_t size,
+void BufferUtils::CreateBuffer(VulkanDevice* device, VkBufferUsageFlags allowedUsage, VkDeviceSize size,
 								VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
 	// Create buffer
@@ -44,7 +44,7 @@ void BufferUtils::CreateBufferFromData(VulkanDevice* device, VkCommandPool comma
 
 	VkBufferUsageFlags stagingUsage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	VkMemoryPropertyFlags stagingProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-	BufferUtils::CreateBuffer(device, bufferSize, stagingUsage, stagingProperties, stagingBuffer, stagingBufferMemory);
+	BufferUtils::CreateBuffer(device, stagingUsage, bufferSize, stagingProperties, stagingBuffer, stagingBufferMemory);
 
 	// Fill the staging buffer
 	void *data;
@@ -55,7 +55,7 @@ void BufferUtils::CreateBufferFromData(VulkanDevice* device, VkCommandPool comma
 	// Create the buffer
 	VkBufferUsageFlags usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | bufferUsage;
 	VkMemoryPropertyFlags flags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-	BufferUtils::CreateBuffer(device, bufferSize, usage, flags, buffer, bufferMemory);
+	BufferUtils::CreateBuffer(device, usage, bufferSize, flags, buffer, bufferMemory);
 
 	// Copy data from staging buffer to the actual buffer
 	BufferUtils::CopyBuffer(device, commandPool, stagingBuffer, buffer, bufferSize);
@@ -80,7 +80,7 @@ void BufferUtils::CopyBuffer(VulkanDevice* device, VkCommandPool commandPool, Vk
 }
 
 // Allocates device memory of a certain size
-VkDeviceMemory BufferUtils::CreateDeviceMemory(VulkanDevice* device, uint32_t size, uint32_t types, VkMemoryPropertyFlags propertyFlags)
+VkDeviceMemory BufferUtils::CreateDeviceMemory(VulkanDevice* device, VkDeviceSize size, uint32_t types, VkMemoryPropertyFlags propertyFlags)
 {
 	VkMemoryAllocateInfo memoryAllocateInfo = {};
 	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
