@@ -33,8 +33,8 @@ void Scene::UpdateTime()
 	duration<float> nextDeltaTime = duration_cast<duration<float>>(currentTime - startTime);
 	startTime = currentTime;
 
-	time.deltaTime = nextDeltaTime.count();
-	time.totalTime += time.deltaTime;
+	time._time.x = nextDeltaTime.count();
+	time._time.y += time._time.x;
 
 	memcpy(mappedData, &time, sizeof(Time));
 }

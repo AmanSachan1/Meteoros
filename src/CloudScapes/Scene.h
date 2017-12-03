@@ -11,8 +11,7 @@ using namespace std::chrono;
 
 struct Time 
 {
-	float deltaTime = 0.0f;
-	float totalTime = 0.0f;
+	glm::vec2 _time = glm::vec2(0.0f, 0.0f); //stores delta time and total time packed as a vec2 so vulkan offsetting doesnt become an issue later
 };
 
 class Scene 

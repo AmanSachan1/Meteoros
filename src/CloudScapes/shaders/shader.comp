@@ -11,10 +11,9 @@ layout (set = 0, binding = 1) uniform sampler3D cloudBaseShapeSampler;
 layout (set = 0, binding = 2) uniform sampler3D cloudDetailsHighFreqSampler; // Dont use alpha channel
 layout (set = 0, binding = 3) uniform sampler2D curlNoiseSampler; // Don't use alpha channel
 
-layout (set = 0, binding = 4) uniform time 
+layout (set = 0, binding = 4) uniform TimeUBO
 {
-    float deltaTime;
-    float totalTime;
+    vec2 time; //stores delat time and total time
 };
 
 layout (set = 1, binding = 0) uniform CameraUBO
@@ -62,7 +61,7 @@ struct Intersection {
 #define HEIGHT_GRADIENT false
 #define TEXTURE_CURL_NOISE true
 #define TEXTURE_HIGH_FREQ false
-#define TEXTURE_LOW_FREQ false
+#define TEXTURE_LOW_FREQ true
 
 // Maps values from one range to another
 float remap(float value, float original_min, float original_max, float new_min, float new_max)
@@ -323,13 +322,13 @@ void main()
 	}
 	else if(TEXTURE_LOW_FREQ)
 	{
-		vec3 p = vec3(uv, 12.0);
+		vec3 p = vec3(uv, 32.0);
 		vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, p);
 		finalColor = vec4(lowFrequencyNoises);
 	}
 	else if(TEXTURE_HIGH_FREQ)
 	{
-		vec3 p = vec3(uv, 12.0);
+		vec3 p = vec3(uv, 32.0);
 		vec4 highFrequencyNoises = texture(cloudDetailsHighFreqSampler, p);
 		finalColor = vec4(highFrequencyNoises);
 	}
@@ -342,7 +341,7 @@ void main()
 	{
 		vec3 p = vec3(uv, 12.0);
 		float density = sampleCloudDensity(p, weather_data);
-		finalColor = normalize(vec4(vec3(density * 1000000.0), 1.0));
+		finalColor = normalize(vec4(vec3(density), 1.0));
 	}
 	else if(BLOBBY_CLOUDS)
 	{
