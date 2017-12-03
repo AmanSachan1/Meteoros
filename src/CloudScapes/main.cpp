@@ -177,8 +177,8 @@ int main(int argc, char** argv)
 		keyboardInputs(GetGLFWWindow());
 
 
-		renderer->ImGuiSetup(GetGLFWWindow());
-		renderer->ImGuiRender();
+		//renderer->ImGuiSetup(GetGLFWWindow());
+		//renderer->ImGuiRender();
 
 
 
@@ -190,7 +190,7 @@ int main(int argc, char** argv)
 
 
 
-	ImGui::Shutdown();
+	//ImGui::Shutdown();
 
 
 

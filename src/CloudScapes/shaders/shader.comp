@@ -241,6 +241,10 @@ vec4 rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos, float star
 		pos = ray.origin + t * ray.direction;
 		//pos /= 100.0;
 
+		// Adjust the position to represent spherical-ness of world
+		// vec3 correctedPos = normalize(pos - vec3(0, 0, -earthRadius)) * atmosphereRadiusInner;
+
+
 		density = sampleCloudDensity(pos, weather_data);
 
 		if(density > 0.0) // Useful to prevent lighting calculations for zero density points
