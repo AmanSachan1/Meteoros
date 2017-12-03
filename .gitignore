@@ -1,2 +1,5 @@
 build
 *.spv
+*.exe
+*.ilk
+*.pdb
