@@ -224,7 +224,13 @@ void VulkanSwapChain::Acquire()
         vkQueueWaitIdle(device->GetQueue(QueueFlags::Present));
     }
     VkResult result = vkAcquireNextImageKHR(device->GetVkDevice(), vkSwapChain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);   
-    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
+    
+	// must recreate swapchain -or- swap chain isn't working //CHECK IF BUGS
+	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+		Recreate();
+		return;
+	}
+	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
 	{
         throw std::runtime_error("Failed to acquire swap chain image");
     }
