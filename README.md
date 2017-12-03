@@ -22,7 +22,7 @@ Replace the path to glslangValidator.exe with the path to where you installed th
 
 
 ##Resources
-
+- Curl Noise Textures: http://bitsquid.blogspot.com/2016/07/volumetric-clouds.html
 - Image Loading Library: https://github.com/nothings/stb
 - Obj Loading Library: https://github.com/syoyo/tinyobjloader
 

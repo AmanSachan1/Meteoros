@@ -53,8 +53,8 @@ Renderer::~Renderer()
 
 	delete rayMarchedComputeTexture;
 	delete cloudBaseShapeTexture;
-	//delete cloudDetailsTexture;
-	//delete cloudMotionTexture;
+	delete cloudDetailsTexture;
+	delete cloudMotionTexture;
 }
 
 void Renderer::InitializeRenderer()
@@ -1032,7 +1032,9 @@ void Renderer::CreateDescriptorPool()
 		// Format for elements: { type, descriptorCount }
 		// Compute Texture Write 
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
-		// Sampler for the low frequency cloud shapes
+		// Samplers for all the cloud Textures
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
 		// Time
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
@@ -1097,11 +1099,17 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	// pImmutableSamplers --> for image sampling related descriptors
 
 	//Compute
-	VkDescriptorSetLayoutBinding cloudPreComputeSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
-	VkDescriptorSetLayoutBinding cloudLowFrequencyNoiseSetLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
-	VkDescriptorSetLayoutBinding timeSetLayoutBinding = { 2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding cloudPreComputeSetLayoutBinding =		   { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding cloudLowFrequencyNoiseSetLayoutBinding =  { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding cloudHighFrequencyNoiseSetLayoutBinding = { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding cloudCurlNoiseSetLayoutBinding =          { 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding timeSetLayoutBinding =                    { 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 
-	std::array<VkDescriptorSetLayoutBinding, 3> computeBindings = { cloudPreComputeSetLayoutBinding, cloudLowFrequencyNoiseSetLayoutBinding, timeSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 5> computeBindings = { cloudPreComputeSetLayoutBinding, 
+																	cloudLowFrequencyNoiseSetLayoutBinding, 
+																	cloudHighFrequencyNoiseSetLayoutBinding,
+																	cloudCurlNoiseSetLayoutBinding,
+																	timeSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo computeLayoutInfo = {};
 	computeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	computeLayoutInfo.bindingCount = static_cast<uint32_t>(computeBindings.size());
@@ -1204,11 +1212,23 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	computeTextureInfo.imageView = rayMarchedComputeTexture->GetTextureImageView();
 	computeTextureInfo.sampler = rayMarchedComputeTexture->GetTextureSampler();
 
-	// Cloud Base Shape
+	// Cloud Low Frequency Noise
 	VkDescriptorImageInfo cloudLowFrequencyNoiseImageInfo = {};
 	cloudLowFrequencyNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	cloudLowFrequencyNoiseImageInfo.imageView = cloudBaseShapeTexture->GetTextureImageView();
 	cloudLowFrequencyNoiseImageInfo.sampler = cloudBaseShapeTexture->GetTextureSampler();
+
+	// Cloud High Frequency Noise
+	VkDescriptorImageInfo cloudHighFrequencyNoiseImageInfo = {};
+	cloudHighFrequencyNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	cloudHighFrequencyNoiseImageInfo.imageView = cloudDetailsTexture->GetTextureImageView();
+	cloudHighFrequencyNoiseImageInfo.sampler = cloudDetailsTexture->GetTextureSampler();
+	
+	// Cloud Curl Noise
+	VkDescriptorImageInfo cloudCurlNoiseImageInfo = {};
+	cloudCurlNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	cloudCurlNoiseImageInfo.imageView = cloudMotionTexture->GetTextureImageView();
+	cloudCurlNoiseImageInfo.sampler = cloudMotionTexture->GetTextureSampler();
 
 	// Time Descriptor
 	VkDescriptorBufferInfo timeBufferInfo = {};
@@ -1216,7 +1236,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	timeBufferInfo.offset = 0;
 	timeBufferInfo.range = sizeof(Time);
 
-	std::array<VkWriteDescriptorSet, 3> writeComputeTextureInfo = {};
+	std::array<VkWriteDescriptorSet, 5> writeComputeTextureInfo = {};
 	writeComputeTextureInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[0].pNext = NULL;
 	writeComputeTextureInfo[0].dstSet = computeSet;
@@ -1238,8 +1258,24 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeComputeTextureInfo[2].dstSet = computeSet;
 	writeComputeTextureInfo[2].dstBinding = 2;
 	writeComputeTextureInfo[2].descriptorCount = 1;
-	writeComputeTextureInfo[2].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeComputeTextureInfo[2].pBufferInfo = &timeBufferInfo;
+	writeComputeTextureInfo[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeComputeTextureInfo[2].pImageInfo = &cloudHighFrequencyNoiseImageInfo;
+
+	writeComputeTextureInfo[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeComputeTextureInfo[3].pNext = NULL;
+	writeComputeTextureInfo[3].dstSet = computeSet;
+	writeComputeTextureInfo[3].dstBinding = 3;
+	writeComputeTextureInfo[3].descriptorCount = 1;
+	writeComputeTextureInfo[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeComputeTextureInfo[3].pImageInfo = &cloudCurlNoiseImageInfo;
+
+	writeComputeTextureInfo[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeComputeTextureInfo[4].pNext = NULL;
+	writeComputeTextureInfo[4].dstSet = computeSet;
+	writeComputeTextureInfo[4].dstBinding = 4;
+	writeComputeTextureInfo[4].descriptorCount = 1;
+	writeComputeTextureInfo[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeComputeTextureInfo[4].pBufferInfo = &timeBufferInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeComputeTextureInfo.size()), writeComputeTextureInfo.data(), 0, nullptr);
 
@@ -1350,9 +1386,28 @@ VkFormat Renderer::findDepthFormat()
 //----------------------------------------------
 void Renderer::createCloudResources()
 {
-	const std::string folder_path = "../../src/CloudScapes/textures/CloudsBaseShape/";
-	const std::string textureBaseName = "CloudBaseShape";
-	const std::string fileExtension = ".tga";
-	cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 2, VK_FORMAT_R8G8B8A8_UNORM);
-	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool, folder_path, textureBaseName, fileExtension, 128, 4);
+	// Low Frequency Cloud 3D Texture
+	const std::string LowFreq_folder_path = "../../src/CloudScapes/textures/CloudTexturesUsed/LowFrequency/";
+	const std::string LowFreq_textureBaseName = "LowFrequency";
+	const std::string LowFreq_fileExtension = ".tga";
+	cloudBaseShapeTexture = new Texture3D(device, g_vma_Allocator, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
+	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool, 
+															LowFreq_folder_path, LowFreq_textureBaseName, 
+															LowFreq_fileExtension, 128, 4);
+
+	// High Frequency Cloud 3D Texture //TODO Get actual High Frequncy Textures
+	const std::string HighFreq_folder_path = "../../src/CloudScapes/textures/CloudTexturesUsed/HighFrequency/";
+	const std::string HighFreq_textureBaseName = "HighFrequency";
+	const std::string HighFreq_fileExtension = ".tga";
+	cloudDetailsTexture = new Texture3D(device, g_vma_Allocator, 32, 32, 32, VK_FORMAT_R8G8B8A8_UNORM);
+	cloudDetailsTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool, 
+															HighFreq_folder_path, HighFreq_textureBaseName, 
+															HighFreq_fileExtension, 32, 4);
+
+	// Curl Noise 2D Texture
+	const std::string curlNoiseTexture_path = "../../src/CloudScapes/textures/CloudTexturesUsed/curlNoise.png";
+	cloudMotionTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM); //Need to pad an extra channel because R8G8B8 is not supported
+	cloudMotionTexture->createTextureFromFile(logicalDevice, computeCommandPool, curlNoiseTexture_path, 4, 
+											VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+											VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
 }

@@ -8,8 +8,10 @@ layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
 layout (set = 0, binding = 0, rgba8) uniform writeonly image2D resultImage;
 
 layout (set = 0, binding = 1) uniform sampler3D cloudBaseShapeSampler;
+layout (set = 0, binding = 2) uniform sampler3D cloudDetailsHighFreqSampler; // Dont use alpha channel
+layout (set = 0, binding = 3) uniform sampler2D curlNoiseSampler; // Don't use alpha channel
 
-layout (set = 0, binding = 2) uniform time 
+layout (set = 0, binding = 4) uniform time 
 {
     float deltaTime;
     float totalTime;
@@ -19,9 +21,8 @@ layout (set = 1, binding = 0) uniform CameraUBO
 {
 	mat4 view;
 	mat4 proj;
-	vec3 eye;
-	float tanFovVby2;
-	float tanFovHby2;
+	vec4 eye;
+	vec2 tanFovBy2;
 } camera;
 
 struct Ray {
@@ -59,7 +60,9 @@ struct Intersection {
 #define DENSITY false
 
 #define HEIGHT_GRADIENT false
-#define TEXTURE false
+#define TEXTURE_CURL_NOISE true
+#define TEXTURE_HIGH_FREQ false
+#define TEXTURE_LOW_FREQ false
 
 // Maps values from one range to another
 float remap(float value, float original_min, float original_max, float new_min, float new_max)
@@ -136,8 +139,8 @@ Ray castRay( vec2 screenPoint, vec3 eye )
     // ScreenPoint is in NDC space
 
     //convert to camera space
-    vec3 cam_x = screenPoint.x * camera.tanFovHby2 * camRight;
-    vec3 cam_y = screenPoint.y * camera.tanFovVby2 * camUp;
+    vec3 cam_x = screenPoint.x * camera.tanFovBy2.x * camRight;
+    vec3 cam_y = screenPoint.y * camera.tanFovBy2.y * camUp;
     //convert to world space
     vec3 ref = eye+camLook;
     vec3 p = ref + cam_x + cam_y; //facing the screen
@@ -283,7 +286,7 @@ void main()
 	// Cast a ray
 	uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
 	vec2 screenPoint = uv * 2.0 - 1.0; // Compute screen space point from UVs //x and y move from -1 to 1
-	vec3 eyePos = -camera.eye;
+	vec3 eyePos = -camera.eye.xyz;
 
 	Ray ray = castRay(screenPoint, eyePos);
 
@@ -318,11 +321,22 @@ void main()
 		float densityHeightGradient = getDensityHeightGradientForPoint(vec3(uv, 1.0), weather_data);
 		finalColor = vec4(densityHeightGradient);
 	}
-	else if(TEXTURE)
+	else if(TEXTURE_LOW_FREQ)
 	{
 		vec3 p = vec3(uv, 12.0);
 		vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, p);
 		finalColor = vec4(lowFrequencyNoises);
+	}
+	else if(TEXTURE_HIGH_FREQ)
+	{
+		vec3 p = vec3(uv, 12.0);
+		vec4 highFrequencyNoises = texture(cloudDetailsHighFreqSampler, p);
+		finalColor = vec4(highFrequencyNoises);
+	}
+	else if(TEXTURE_CURL_NOISE)
+	{
+		vec4 curlNoise = texture(curlNoiseSampler, uv);
+		finalColor = vec4(curlNoise);
 	}
 	else if(DENSITY)
 	{

@@ -76,6 +76,17 @@ void Texture2D::createTextureAsBackGround(VkDevice logicalDevice, VkPhysicalDevi
 	Image::createImageView(device, textureImageView, textureImage, textureFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
+void Texture2D::createTextureFromFile(VkDevice logicalDevice, VkCommandPool commandPool, const std::string texture_path, int numChannels, 
+									VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
+									VkSamplerAddressMode addressMode, float maxAnisotropy)
+{
+	ImageLoadingUtility::loadImageFromFile(device, commandPool, texture_path.c_str(), textureImage, textureImageMemory, textureFormat, tiling, usage, properties);
+
+	Image::createImageView(device, textureImageView, textureImage, textureFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	Image::createSampler(device, textureSampler, addressMode, maxAnisotropy);
+}
+
 void Texture2D::create2DTexture(VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
 	VkSamplerAddressMode addressMode, float maxAnisotropy)
 {

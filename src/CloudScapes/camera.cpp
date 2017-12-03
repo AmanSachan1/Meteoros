@@ -35,10 +35,10 @@ void Camera::UpdateBuffer()
 	//Reason for flipping the y axis: https://matthewwellings.com/blog/the-new-vulkan-coordinate-system/
 	cameraUBO.proj[1][1] *= -1; // y-coordinate is flipped
 
-	cameraUBO.eyePos = eyePos;
+	cameraUBO.eyePos = glm::vec4(eyePos, 1.0);
 
-	cameraUBO.tanFovVby2 = std::tan(fovy*0.5 * (PI / 180.0));
-	cameraUBO.tanFovHby2 = aspect * cameraUBO.tanFovVby2;
+	cameraUBO.tanFovBy2.y = std::tan(fovy*0.5 * (PI / 180.0));
+	cameraUBO.tanFovBy2.x = aspect * cameraUBO.tanFovBy2.y;
 }
 void Camera::CopyToGPUMemory()
 {

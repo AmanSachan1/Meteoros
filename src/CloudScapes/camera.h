@@ -12,9 +12,9 @@
 struct CameraUBO {
 	glm::mat4 view;
 	glm::mat4 proj;
-	glm::vec3 eyePos;
-	float tanFovVby2;
-	float tanFovHby2;
+	glm::vec4 eyePos; //pad vec3s with extra float to make them vec4s so vulkan can do offsets correctly
+	glm::vec2 tanFovBy2; //vec2 and vec4 are acceptable for offseting; 
+	//stored as .x = horizontalFovBy2 and .y = verticalFovBy2
 };
 
 class Camera 

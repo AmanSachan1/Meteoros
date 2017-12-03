@@ -87,7 +87,7 @@ void ImageLoadingUtility::loadmultiple2DTextures(unsigned char*& texture2DPixels
 #pragma omp parallel for
 	for (int z = 0; z<num2DImages; z++)
 	{
-		std::string imageIdentifier = folder_path + textureBaseName + " (" + std::to_string(z + 1) + ")" + fileExtension;
+		std::string imageIdentifier = folder_path + textureBaseName + "(" + std::to_string(z + 1) + ")" + fileExtension;
 		const char* imagePath = imageIdentifier.c_str();
 		stbi_uc* pixels = stbi_load(imagePath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 		if (!pixels) {
@@ -95,14 +95,6 @@ void ImageLoadingUtility::loadmultiple2DTextures(unsigned char*& texture2DPixels
 		}
 
 		memcpy(&texturePixels[z * texWidth * texHeight * 4], pixels, static_cast<size_t>(texWidth * texHeight * 4));
-		//texture2DPixels[z * texWidth * texHeight] = static_cast<uint8_t>(floor(n * 255));
-		//for (int j = 0; j < texHeight; j++)
-		//{
-		//	for (int k = 0; k < texWidth; k++)
-		//	{
-		//		texture2DPixels.push_back(static_cast<unsigned char*>(pixels));
-		//	}
-		//}
 
 		stbi_image_free(pixels);
 	}
