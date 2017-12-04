@@ -122,6 +122,18 @@ void ImageLoadingUtility::create3DTextureFromMany2DTextures(VulkanDevice* device
 			throw std::runtime_error("failed to load texture image!");
 		}
 
+		//for (int y = 0; y < height; y++)
+		//{
+		//	for (int x = 0; x < width; x++)
+		//	{
+		//		//for (int comp = 0; comp < 4; comp++)
+		//		//{
+		//			texture3DPixels[x + y * width + z * width * height] = pixels[x + y * width];
+		//			memcpy(&texture3DPixels[x + y * width + z * width * height], &pixels[x + y * width], static_cast<size_t>(4));
+		//		//}
+		//	}
+		//}
+
 		memcpy(&texture3DPixels[z * texWidth * texHeight * 4], pixels, static_cast<size_t>(texWidth * texHeight * 4));
 
 		stbi_image_free(pixels);
@@ -158,7 +170,9 @@ void ImageLoadingUtility::create3DTextureFromMany2DTextures(VulkanDevice* device
 	//Transition: Undefined → transfer destination: transfer writes that don't need to wait on anything
 	//This transition is to make image optimal as a destination
 	Image::transitionImageLayout(device, commandPool, texture3DImage, textureFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	Image::copyBufferToImage(device, commandPool, stagingBuffer, texture3DImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+	Image::copyBufferToImage3D(device, commandPool, stagingBuffer, texture3DImage,
+		static_cast<uint32_t>(width), static_cast<uint32_t>(height), static_cast<uint32_t>(depth));
+	//Image::copyBufferToImage(device, commandPool, stagingBuffer, texture3DImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 
 	//Transfer destination → shader reading
 	Image::transitionImageLayout(device, commandPool, texture3DImage, textureFormat,

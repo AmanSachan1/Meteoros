@@ -145,7 +145,40 @@ void Image::transitionImageLayout(VulkanDevice* device, VkCommandPool commandPoo
 	endSingleTimeCommands(device, commandPool, commandBuffer);
 }
 
-void Image::copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, VkBuffer buffer, VkImage& image, uint32_t width, uint32_t height)
+void Image::copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, VkBuffer buffer, VkImage& image, uint32_t width, uint32_t height )
+{
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
+
+	//VkBufferImageCopy struct specifies which part of the buffer is going to be copied to which part of the image
+	VkBufferImageCopy region = {};
+	region.bufferOffset = 0; //byte offset in the buffer at which the pixel values start
+							 //The bufferRowLength and bufferImageHeight fields specify how the pixels are laid out in memory. 
+							 //For example, you could have some padding bytes between rows of the image. Specifying 0 for both indicates 
+							 //that the pixels are simply tightly packed like they are in our case.
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+
+	//imageSubresource is a VkImageSubresourceLayers used to specify the specific image subresources of the image used
+	//for the source or destination image data.
+	//Subresource --> sub-section of the image that is used 
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+
+	//The imageSubresource, imageOffset and imageExtent fields indicate to which part of the image we want to copy the pixels
+	region.imageOffset = { 0,0,0 };
+	region.imageExtent = { width, height, 1 };
+
+	//layout: assuming that the image has already been transitioned to the layout that is optimal for copying pixels to
+	//RegionCount: Right now we're only copying one chunk of pixels to the whole image, but it's possible to specify an 
+	//			   array of VkBufferImageCopy to perform many different copies from this buffer to the image in one operation.
+	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+	endSingleTimeCommands(device, commandPool, commandBuffer);
+}
+
+void Image::copyBufferToImage3D(VulkanDevice* device, VkCommandPool commandPool, VkBuffer buffer, VkImage& image, uint32_t width, uint32_t height, uint32_t depth)
 {
 	VkCommandBuffer commandBuffer = beginSingleTimeCommands(device, commandPool);
 
@@ -168,7 +201,7 @@ void Image::copyBufferToImage(VulkanDevice* device, VkCommandPool commandPool, V
 
 	//The imageSubresource, imageOffset and imageExtent fields indicate to which part of the image we want to copy the pixels
 	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = { width, height, 1 };
+	region.imageExtent = { width, height, depth };
 
 	//layout: assuming that the image has already been transitioned to the layout that is optimal for copying pixels to
 	//RegionCount: Right now we're only copying one chunk of pixels to the whole image, but it's possible to specify an 
