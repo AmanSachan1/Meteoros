@@ -165,17 +165,35 @@ int main(int argc, char** argv)
 	glfwSetScrollCallback(GetGLFWWindow(), scrollCallback);
 	glfwSetCursorPosCallback(GetGLFWWindow(), mouseMoveCallback);
 
+
+
+
+
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
     while (!ShouldQuit()) 
 	{
 		glfwPollEvents();
 		scene->UpdateTime();
 		keyboardInputs(GetGLFWWindow());
+
+
+		//renderer->ImGuiSetup(GetGLFWWindow());
+		//renderer->ImGuiRender();
+
+
+
 		renderer->Frame();
     }// end while loop
 
     // Wait for the device to finish executing before cleanup
     vkDeviceWaitIdle(device->GetVkDevice());
+
+
+
+	//ImGui::Shutdown();
+
+
+
 
 	//---------------------
 	//------ CleanUp ------

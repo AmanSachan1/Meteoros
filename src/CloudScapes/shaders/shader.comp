@@ -57,7 +57,6 @@ struct Intersection {
 #define LIGTHING false
 #define BLOBBY_CLOUDS false
 #define DENSITY false
-
 #define HEIGHT_GRADIENT false
 #define TEXTURE_CURL_NOISE false
 #define TEXTURE_HIGH_FREQ false
@@ -248,6 +247,8 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 	{
 		pos = ray.origin + t * ray.direction;
 
+		// Adjust the position to represent spherical-ness of world
+		// vec3 correctedPos = normalize(pos - vec3(0, 0, -earthRadius)) * atmosphereRadiusInner;
 		vec3 samplePoint = pos;//(pos-startPos);///endPos;
 		samplePoint /= 1000.0;
 		//pos /= 5000.0;

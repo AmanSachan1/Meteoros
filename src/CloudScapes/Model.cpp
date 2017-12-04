@@ -3,73 +3,84 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../../external/tiny_obj_loader.h"
 
-Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator,
-			const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
+Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
 	: device(device), vertices(vertices), indices(indices)
 {
-	if ((vertices.size() > 0) && 
-		(indices.size() > 0) ) 
+	if (this->vertices.size() > 0)
 	{
-		VMA_Utility::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
-			vertexBuffer, indexBuffer, g_vma_VertexBufferAlloc, g_vma_IndexBufferAlloc);
+		// Create Vertex Buffer 
+		VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertices.size();
+		BufferUtils::CreateBufferFromData(device, commandPool, this->vertices.data(), vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBuffer, vertexBufferMemory);
+	}
+
+	if (this->indices.size() > 0)
+	{
+		// Create Index Buffer
+		VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
+		BufferUtils::CreateBufferFromData(device, commandPool, this->indices.data(), indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBuffer, indexBufferMemory);
 	}
 
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	VMA_Utility::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
-									VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, g_vma_ModelBufferAlloc);
+	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, sizeof(ModelBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
+	
 }
 
-Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator, 
-			const std::string model_path, const std::string texture_path)
+Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator, const std::string model_path, const std::string texture_path)
 {
 	LoadModel(model_path);
 
-	if ((vertices.size() > 0) &&
-		(indices.size() > 0))
+	if (vertices.size() > 0)
 	{
-		VMA_Utility::createVertexandIndexBuffersVMA(device, commandPool, g_vma_Allocator, vertices, indices,
-			vertexBuffer, indexBuffer, g_vma_VertexBufferAlloc, g_vma_IndexBufferAlloc);
+		// Create Vertex Buffer 
+		VkDeviceSize vertexBufferSize = sizeof(Vertex) * vertices.size();
+		BufferUtils::CreateBufferFromData(device, commandPool, this->vertices.data(), vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBuffer, vertexBufferMemory);
 	}
 
+	if (indices.size() > 0)
+	{
+		// Create Index Buffer
+		VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
+		BufferUtils::CreateBufferFromData(device, commandPool, this->indices.data(), indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBuffer, indexBufferMemory);
+	}
+
+	// Create Index Buffer
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	VMA_Utility::createBufferFromDataVMA(device, commandPool, g_vma_Allocator, &modelBufferObject, sizeof(ModelBufferObject),
-										VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, g_vma_ModelBufferAlloc);
+	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, sizeof(ModelBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
 
 	SetTexture(device, commandPool, texture_path);
+
 }
 
 Model::~Model()
 {
 	if (indices.size() > 0) 
 	{
-		//vkDestroyBuffer(device->GetVkDevice(), indexBuffer, nullptr);
-		//vkFreeMemory(device->GetVkDevice(), indexBufferMemory, nullptr);
-
-		//vmaDestroyBuffer(g_vma_Allocator, indexBuffer, g_vma_IndexBufferAlloc);
+		vkDestroyBuffer(device->GetVkDevice(), indexBuffer, nullptr);
+		vkFreeMemory(device->GetVkDevice(), indexBufferMemory, nullptr);
 	}
 
 	if (vertices.size() > 0) 
 	{
-		//vkDestroyBuffer(device->GetVkDevice(), vertexBuffer, nullptr);
-		//vkFreeMemory(device->GetVkDevice(), vertexBufferMemory, nullptr);
-
-		//(g_vma_Allocator, vertexBuffer, g_vma_VertexBufferAlloc);
+		vkDestroyBuffer(device->GetVkDevice(), vertexBuffer, nullptr);
+		vkFreeMemory(device->GetVkDevice(), vertexBufferMemory, nullptr);
 	}
 
-	//vkDestroyBuffer(device->GetVkDevice(), modelBuffer, nullptr);
-	//vkFreeMemory(device->GetVkDevice(), modelBufferMemory, nullptr);
+	vkDestroyBuffer(device->GetVkDevice(), modelBuffer, nullptr);
+	vkFreeMemory(device->GetVkDevice(), modelBufferMemory, nullptr);
 
-	//(g_vma_Allocator, modelBuffer, g_vma_ModelBufferAlloc);
 
 	if (texture != VK_NULL_HANDLE) {
 		vkDestroyImage(device->GetVkDevice(), texture, nullptr);
 	}
+
 	if (textureMemory != VK_NULL_HANDLE) {
 		vkFreeMemory(device->GetVkDevice(), textureMemory, nullptr);
 	}
+
 	if (textureView != VK_NULL_HANDLE) {
 		vkDestroyImageView(device->GetVkDevice(), textureView, nullptr);
 	}
+
 	if (textureSampler != VK_NULL_HANDLE) {
 		vkDestroySampler(device->GetVkDevice(), textureSampler, nullptr);
 	}
@@ -78,24 +89,27 @@ Model::~Model()
 void Model::SetTexture(VulkanDevice* device, VkCommandPool commandPool, const std::string texture_path)
 {
 	ImageLoadingUtility::loadImageFromFile(device, commandPool, texture_path.c_str(), texture, textureMemory,
-					VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
-					VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-					VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+											VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+											VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+											VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-	Image::createImageView(device, textureView, texture,
-						VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+	Image::createImageView(device, textureView, texture, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 
 	Image::createSampler(device, textureSampler, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
 }
+
 void Model::LoadModel(const std::string model_path)
 {
 	// The attrib container holds all of the positions, normals and texture coordinates 
 	// in its attrib.vertices, attrib.normals and attrib.texcoords vectors.
 	tinyobj::attrib_t attrib;
+	
 	// The shapes container contains all of the separate objects and their faces.
 	std::vector<tinyobj::shape_t> shapes;
+	
 	// OBJ models can define a material and texture per face --> ignored for now
 	std::vector<tinyobj::material_t> materials;
+	
 	std::string err;
 
 	//Faces in OBJ files can actually contain an arbitrary number of vertices, whereas our application can only render triangles. 
@@ -125,7 +139,8 @@ void Model::LoadModel(const std::string model_path)
 										1.0f - attrib.texcoords[2 * index.texcoord_index + 1]);
 
 			//prevents vertex duplication
-			if (uniqueVertices.count(vertex) == 0) {
+			if (uniqueVertices.count(vertex) == 0) 
+			{
 				uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
 				vertices.push_back(vertex);
 			}
@@ -155,11 +170,11 @@ VkBuffer Model::getIndexBuffer() const
 
 uint32_t Model::getVertexBufferSize() const
 {
-	return static_cast<uint32_t>(vertices.size() * sizeof(vertices[0]));
+	return static_cast<uint32_t>(vertices.size() * sizeof(Vertex));
 }
 uint32_t Model::getIndexBufferSize() const
 {
-	return static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
+	return static_cast<uint32_t>(indices.size() * sizeof(uint32_t));
 }
 
 const ModelBufferObject& Model::getModelBufferObject() const
@@ -171,6 +186,7 @@ VkBuffer Model::GetModelBuffer() const
 {
 	return modelBuffer;
 }
+
 VkImage Model::GetTexture() const
 {
 	return texture;

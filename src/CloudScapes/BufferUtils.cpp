@@ -2,7 +2,7 @@
 
 #include "BufferUtils.h"
 
-void BufferUtils::CreateBuffer(VulkanDevice* device, VkBufferUsageFlags allowedUsage, uint32_t size,
+void BufferUtils::CreateBuffer(VulkanDevice* device, VkBufferUsageFlags allowedUsage, VkDeviceSize size,
 								VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
 	// Create buffer
@@ -80,7 +80,7 @@ void BufferUtils::CopyBuffer(VulkanDevice* device, VkCommandPool commandPool, Vk
 }
 
 // Allocates device memory of a certain size
-VkDeviceMemory BufferUtils::CreateDeviceMemory(VulkanDevice* device, uint32_t size, uint32_t types, VkMemoryPropertyFlags propertyFlags)
+VkDeviceMemory BufferUtils::CreateDeviceMemory(VulkanDevice* device, VkDeviceSize size, uint32_t types, VkMemoryPropertyFlags propertyFlags)
 {
 	VkMemoryAllocateInfo memoryAllocateInfo = {};
 	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
