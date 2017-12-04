@@ -69,37 +69,6 @@ void ImageLoadingUtility::loadImageFromFile(VulkanDevice* device, VkCommandPool&
 	vkFreeMemory(device->GetVkDevice(), stagingBufferMemory, nullptr);
 }
 
-void ImageLoadingUtility::loadmultiple2DTextures(uint8_t*& texture2DPixels,
-												const std::string folder_path, const std::string textureBaseName,
-												const std::string fileExtension, int num2DImages,
-												int& texWidth, int& texHeight, int& texChannels)
-{
-	//---------------------
-	//--- Load Images -----
-	//---------------------
-	// The STBI_rgb_alpha value forces the image to be loaded with an alpha channel, even if it doesn't have one, which 
-	// is nice for consistency with other textures in the future.
-	// The pointer that is returned is the first element in an array of pixel values.
-	const uint32_t texMemSize = texWidth * texHeight * num2DImages * 4;
-	//unsigned char* texturePixels = new uint8_t[texMemSize];
-	memset(texture2DPixels, 0, texMemSize);
-	
-#pragma omp parallel for
-	for (int z = 0; z<num2DImages; z++)
-	{
-		std::string imageIdentifier = folder_path + textureBaseName + "(" + std::to_string(z + 1) + ")" + fileExtension;
-		const char* imagePath = imageIdentifier.c_str();
-		stbi_uc* pixels = stbi_load(imagePath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-		if (!pixels) {
-			throw std::runtime_error("failed to load texture image!");
-		}
-
-		memcpy(&texture2DPixels[z * texWidth * texHeight * 4], pixels, static_cast<size_t>(texWidth * texHeight * 4));
-
-		stbi_image_free(pixels);
-	}
-}
-
 // load multiple 2D Textures From a folder and create a 3D image from them
 void ImageLoadingUtility::create3DTextureFromMany2DTextures(VulkanDevice* device,VkDevice logicalDevice, VkCommandPool commandPool,
 								const std::string folder_path, const std::string textureBaseName, const std::string fileExtension,
@@ -108,8 +77,8 @@ void ImageLoadingUtility::create3DTextureFromMany2DTextures(VulkanDevice* device
 {
 	int texWidth, texHeight, texChannels;
 	VkDeviceSize Image3DSize = width * height * depth * numChannels;
-	uint8_t* texture3DPixels = new uint8_t[Image3DSize];
 
+	uint8_t* texture3DPixels = new uint8_t[Image3DSize];
 	memset(texture3DPixels, 0, Image3DSize);
 
 #pragma omp parallel for
@@ -122,20 +91,7 @@ void ImageLoadingUtility::create3DTextureFromMany2DTextures(VulkanDevice* device
 			throw std::runtime_error("failed to load texture image!");
 		}
 
-		//for (int y = 0; y < height; y++)
-		//{
-		//	for (int x = 0; x < width; x++)
-		//	{
-		//		//for (int comp = 0; comp < 4; comp++)
-		//		//{
-		//			texture3DPixels[x + y * width + z * width * height] = pixels[x + y * width];
-		//			memcpy(&texture3DPixels[x + y * width + z * width * height], &pixels[x + y * width], static_cast<size_t>(4));
-		//		//}
-		//	}
-		//}
-
 		memcpy(&texture3DPixels[z * texWidth * texHeight * 4], pixels, static_cast<size_t>(texWidth * texHeight * 4));
-
 		stbi_image_free(pixels);
 	}
 
@@ -148,19 +104,18 @@ void ImageLoadingUtility::create3DTextureFromMany2DTextures(VulkanDevice* device
 	VkMemoryPropertyFlags stagingProperties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 	BufferUtils::CreateBuffer(device, stagingUsage, Image3DSize, stagingProperties, stagingBuffer, stagingBufferMemory);
 	
-	// Fill the staging buffer
+	// Copy data over to the staging buffer
 	void *data;
 	vkMapMemory(device->GetVkDevice(), stagingBufferMemory, 0, Image3DSize, 0, &data);
 	memcpy(data, texture3DPixels, static_cast<size_t>(Image3DSize));
 	vkUnmapMemory(device->GetVkDevice(), stagingBufferMemory);
-	//copy data over to staging buffer
-	//memcpy(stagingBuffer, texture3DPixels, Image3DSize);
-
+	
 	delete texture3DPixels;
 
 	create3DTextureImage(device, logicalDevice, texture3DImage, texture3DMemory, VK_IMAGE_TILING_OPTIMAL, 
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		width, height, depth, textureFormat);
+
 	//----------------------------------------------------
 	//--- Copy the Staging Buffer to the Texture Image ---
 	//----------------------------------------------------
@@ -172,7 +127,6 @@ void ImageLoadingUtility::create3DTextureFromMany2DTextures(VulkanDevice* device
 	Image::transitionImageLayout(device, commandPool, texture3DImage, textureFormat, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	Image::copyBufferToImage3D(device, commandPool, stagingBuffer, texture3DImage,
 		static_cast<uint32_t>(width), static_cast<uint32_t>(height), static_cast<uint32_t>(depth));
-	//Image::copyBufferToImage(device, commandPool, stagingBuffer, texture3DImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
 
 	//Transfer destination → shader reading
 	Image::transitionImageLayout(device, commandPool, texture3DImage, textureFormat,

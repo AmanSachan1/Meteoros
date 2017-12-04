@@ -14,12 +14,7 @@ namespace ImageLoadingUtility
 	void loadImageFromFile(VulkanDevice* device, VkCommandPool& commandPool, const char* imagePath,
 						VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkFormat format,
 						VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties);
-
-	void loadmultiple2DTextures(uint8_t*& texture2DPixels,
-								const std::string folder_path, const std::string textureBaseName,
-								const std::string fileExtension, int num2DImages,
-								int& texWidth, int& texHeight, int& texChannels);
-
+	
 	// load multiple 2D Textures From a folder and create a 3D image from them
 	void create3DTextureFromMany2DTextures(VulkanDevice* device, VkDevice logicalDevice, VkCommandPool commandPool,
 		const std::string folder_path, const std::string textureBaseName, const std::string fileExtension,
