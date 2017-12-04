@@ -42,15 +42,16 @@ struct Intersection {
 #define atmosphereRadiusOuter earthRadius + 20000.0 //35000 meters above
 
 #define EARTH_CENTER vec3(0, 0, -earthRadius)
+
+// #define LightVec normalize(vec3(1.0,1.0,1.0));
 // #define SUN_LOCATION vec3(0, atmosphereRadiusOuter + earthRadius / 2.0, -earthRadius * 5.0)
 #define SUN_LOCATION vec3(0, atmosphereRadiusOuter + earthRadius / 2.0, -earthRadius * 1.5)
 #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, earthRadius, -earthRadius * 10.0)
+#define SUN_COLOR vec3(1.0, 1.0, 1.0)
 
 #define inStratusMinMax vec2(0.0, 0.3)
 #define inCumulusMinMax vec2(0.01, 0.45)
 #define inCumulonimbusMinMax vec2(0.0, 0.95)
-
-#define LightVec normalize(vec3(1.0,1.0,1.0));
 
 #define PI 3.14159265
 #define InvPI 0.31830988618
@@ -63,14 +64,14 @@ struct Intersection {
 #define NUM_FBM_OCTAVES 7
 
 //Global Defines for Debug Views
-#define LIGTHING false
+#define LIGHTING false
 #define CLOUDS_ALL_NOISES false
 #define DENSITY_SLICES false
 #define HEIGHT_GRADIENT false
 #define TEXTURE_CURL_NOISE false
 #define TEXTURE_HIGH_FREQ false
 #define TEXTURE_LOW_FREQ false
-#define BACKGROUND_SKY true
+#define BACKGROUND_SKY false
 
 float bias(float b, float t)
 {
@@ -494,14 +495,6 @@ float getHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
 // float getDensityHeightGradientForPoint(float height_fraction, vec3 weather_data) 
 float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
 {
-	//Refer: 2017 pdf of slides 29/108
-	//CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
-	// float stratus = remap(point.y, 0, 0.1, 0.0, 1.0) * remap(point.y, 0.2, 0.3, 1.0, 0.0);
-	// float cumulus = remap(point.y, 0.01, 0.3, 0.0, 1.0) * remap(point.y, 0.3, 0.45, 1.0, 0.0);
-	// float cumulonimbus = remap(point.y, 0.0, 0.25, 0.0, 1.0) * remap(point.y, 0.6, 0.95, 1.0, 0.0);
-
-	// return clamp(cumulus, 0.0, 1.0); //TODO: should return a blended and weighted value
-
 	// Meghana's hack using height fraction --------------------------------
 	// vec2 minRange = vec2(0.0, 0.1);
 	// vec2 maxRange = vec2(0.3, 1.0);
@@ -514,6 +507,12 @@ float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
 
 	// return a * b;
 	// ---------------------------------------------------------------------
+
+	//Refer: 2017 pdf of slides 29/108
+	//CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
+	float stratus = remap(point.y, 0, 0.1, 0.0, 1.0) * remap(point.y, 0.2, 0.3, 1.0, 0.0);
+	float cumulus = remap(point.y, 0.01, 0.3, 0.0, 1.0) * remap(point.y, 0.3, 0.45, 1.0, 0.0);
+	float cumulonimbus = remap(point.y, 0.0, 0.25, 0.0, 1.0) * remap(point.y, 0.6, 0.95, 1.0, 0.0);
 
 	float a = clamp(stratus, 0.0, 1.0);
 	float b = clamp(cumulus, 0.0, 1.0);
@@ -541,13 +540,11 @@ float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
 	}
 	
 	 //Return a blended and weighted value
-	return weight_a*a + weight_b*b + weight_c*c;
+	return weight_a * a + weight_b * b + weight_c * c;
 }
 
 float sampleCloudDensity(vec3 point, vec3 weather_data)
 {
-	vec3 p = vec3(point.x, point.y, point.z);
-
 	// Get height fraction
 	// float height_fraction = (length(p - EARTH_CENTER) - atmosphereRadiusInner) / (atmosphereRadiusOuter - atmosphereRadiusInner);
 	// float height_fraction = getHeightFractionForPoint(p, vec2(0.0, 1.0));
@@ -659,6 +656,7 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
     vec3 pos;
     float density;
 
+    /*
     // Henyey-Greenstein
  	float cos_angle = dot(normalize(ray.direction), normalize(SUN_LOCATION - ray.origin));
     float eccentricity = 0.6;
@@ -680,14 +678,14 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 		sunRotMatrix * vec3(0.0, 1.0, 0.0),
 		sunRotMatrix * vec3(0.0, 1.0, 0.0),
 	};
+    */
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
 		pos = ray.origin + t * ray.direction;
-		pos /= 20000.0;
 		
-		float perlinTestVal = FBM(vec2(pos[0], pos[1]));
-		weather_data = vec3(perlinTestVal, perlinTestVal, perlinTestVal);
+		// float perlinTestVal = FBM(vec2(pos[0], pos[1]));
+		// weather_data = vec3(perlinTestVal, perlinTestVal, perlinTestVal);
 
 		// TEST: Adjust the position to represent spherical-ness of world
 		//vec3 correctedPos = normalize(pos - EARTH_CENTER) * atmosphereRadiusInner;
@@ -700,13 +698,12 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 
 		if(density > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
-			accumDensity += density*(1/8.0);
+			accumDensity += density * (1 / 8.0);
 
 			// Do Lighting calculations with cone sampling
 			float densityAlongLight = 0.0;
-			
-			accumDensity += density;
 
+			/*
 			int lightSamples = 6;
 			for(int i = 0; i < lightSamples; i++)
 			{
@@ -727,8 +724,8 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 
 			// Eventually use GetLightEnergy(height_fraction, densityAlongLight, ...) for second param
 			transmittance = mix(transmittance, HG_light * beersLaw, (1.0 - accumDensity));
+			*/
 
-			break;
 		} //end if
 		
 		if(accumDensity >= 1.0) 
@@ -746,22 +743,28 @@ void main()
 	vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
 
 	vec3 weather_data = vec3(1, 1, 1); //Use Actual Texture
-	vec3 backgroundCol = vec3(0, 0, 1); //Change to be based on the atmosphere background color because of the preetham model
 
 	// Cast a ray
 	uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
 	vec2 screenPoint = uv * 2.0 - 1.0; // Compute screen space point from UVs //x and y move from -1 to 1
 	vec3 eyePos = -camera.eye.xyz;
-
 	Ray ray = castRay(screenPoint, eyePos);
 
-	if (dot( vec3(0,1,0), ray.direction ) < 0.0 )
+
+    // Preetham Sun/Sky Model
+    // The first produces a better day time result than the second one (but you see the sun)
+    // The second one (albeit correct) gives more of a sunset
+    vec3 backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin);
+    // vec3 backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin);
+
+
+	if (dot( vec3(0, 1, 0), ray.direction ) < 0.0 )
 	{
 		//kill threads because we shouldnt see stuff below the horizon
 
 		// Change the Color From blue to something based on the atmosphere color
 
-		imageStore( resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol,1.0) );
+		imageStore( resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol, 1.0) );
 		return;
 	}
 
@@ -779,60 +782,60 @@ void main()
 
 
 	// Henyey-Greenstein for debug view
- 	float cos_angle = dot(normalize(ray.direction), normalize(SUN_LOCATION - ray.origin));
+    vec3 currRayDir = ray.direction;
+ 	float cos_angle = dot(normalize(currRayDir), normalize(SUN_LOCATION - ray.origin));
     float eccentricity = 0.6;
     float silver_intensity = 0.7;
     float silver_spread = 0.1;
     float hg_light = HGCombined(cos_angle, eccentricity, silver_intensity, silver_spread);
-    accumDensity *= hg_light;
-
-    // Preetham Sun/Sky Model
-    // This produces a better day time result than the second one (but you see the sun)
-    // The second one (albeit correct) gives more of a sunset
-    vec3 backgroundSky = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin);
-    // vec3 backgroundSky = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin);
+    // accumDensity *= hg_light;
 
 
 	// opacity fades to prevent hard cutoff at horizon blend in with 
     accumDensity *= smoothstep(0, 1, min(1, remap(ray.direction.y, 0, 0.05, 0, 1)));
+
+    // vec3 totalAtmosColor = mix(SUN_COLOR, backgroundCol, 0.0);
+    // vec3 totalCloudColor = totalAtmosColor * (accumDensity * vec3(max(0.0, transmittance)) + 0.08 * backgroundCol * exp(-transmittance));
+    // vec4 finalColor = vec4(mix(backgroundCol, totalCloudColor, accumDensity), 1.0);
+
     vec4 finalColor = vec4(mix(backgroundCol, vec3(clamp(transmittance, 0.0, 1.0)), accumDensity), 1.0);
 
 // Begin debug renders
-#ifdef HEIGHT_GRADIENT
+#if HEIGHT_GRADIENT
 	float densityHeightGradient = getDensityHeightGradientForPoint( vec3(uv, 1.0), weather_data );
 	finalColor = vec4(densityHeightGradient);
 #endif
 
-#ifdef TEXTURE_LOW_FREQ
+#if TEXTURE_LOW_FREQ
 	vec4 lowFrequencyNoises = texture( cloudBaseShapeSampler, vec3(uv, sin(time.y)) );
 	finalColor = vec4(lowFrequencyNoises);
 #endif
 
-#ifdef TEXTURE_HIGH_FREQ
+#if TEXTURE_HIGH_FREQ
 	vec4 highFrequencyNoises = texture( cloudDetailsHighFreqSampler, vec3(uv, sin(time.y)) );
 	finalColor = vec4(highFrequencyNoises);
 #endif
 
-#ifdef TEXTURE_CURL_NOISE
+#if TEXTURE_CURL_NOISE
 	vec4 curlNoise = texture( curlNoiseSampler, uv );
 	finalColor = vec4(curlNoise);
 #endif
 
-#ifdef DENSITY_SLICES
+#if DENSITY_SLICES
 	float density = sampleCloudDensity( vec3(uv, sin(time.y)), weather_data );
 	finalColor = normalize( vec4(vec3(density), 1.0) );
 #endif
 
-#ifdef CLOUDS_ALL_NOISES
+#if CLOUDS_ALL_NOISES
 	finalColor = vec4( vec3(accumDensity), 1.0 );
 #endif
 
-#ifdef LIGTHING
+#if LIGHTING
 	finalColor = vec4(vec3(hg_light), 1.0);
 #endif
 
-#ifdef BACKGROUND_SKY
-	finalColor = vec4(backgroundSky, 1.0);
+#if BACKGROUND_SKY
+	finalColor = vec4(backgroundCol, 1.0);
 #endif
 	
 	//Pass the color off to the cloud pipeline's frag shader
