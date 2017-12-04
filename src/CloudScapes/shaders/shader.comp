@@ -40,6 +40,13 @@ struct Intersection {
 #define earthRadius 100000.0 // earth's actual radius in km = 6371
 #define atmosphereRadiusInner earthRadius + 1500.0 //15000 meters above
 #define atmosphereRadiusOuter earthRadius + 3500.0 //35000 meters above
+#define EARTH_CENTER vec3(0, 0, -earthRadius)
+
+// #define SUN_LOCATION vec3(0, atmosphereRadiusOuter + earthRadius / 2.0, -earthRadius * 5.0)
+#define SUN_LOCATION vec3(0, atmosphereRadiusOuter + earthRadius / 2.0, -earthRadius * 1.5)
+#define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, earthRadius, -earthRadius * 10.0)
+
+
 
 #define LightVec normalize(vec3(1.0,1.0,1.0));
 
@@ -54,30 +61,34 @@ struct Intersection {
 #define NUM_FBM_OCTAVES 7
 
 //Global Defines for Debug Views
-#define LIGTHING false
+#define LIGHTING false
 #define BLOBBY_CLOUDS false
 #define DENSITY false
 #define HEIGHT_GRADIENT false
 #define TEXTURE_CURL_NOISE false
 #define TEXTURE_HIGH_FREQ false
 #define TEXTURE_LOW_FREQ false
+#define BACKGROUND_SKY true
 
 // Maps values from one range to another
 float remap(float value, float original_min, float original_max, float new_min, float new_max)
 {
-	return new_min + ( ((value-original_min) / (original_max - original_min)) * (new_max - new_min) );
+	return new_min + ( ((value - original_min) / (original_max - original_min)) * (new_max - new_min) );
 }
 
 //--------------------------------------------------------
+//					NOISE FUNCTIONS
 //--------------------------------------------------------
-//--------------------------------------------------------
+
 // Procedural noise function for Fractal Brownian Motion taken from here: https://thebookofshaders.com/13/ and 
 // Joe Klinger --> https://github.com/klingerj & https://www.shadertoy.com/user/jgkling
-float noise(in vec2 p) { 
+float noise(in vec2 p) 
+{ 
     return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453123);
 }
 
-float interpolateNoise(in vec2 p) {
+float interpolateNoise(in vec2 p) 
+{
     vec2 p_floor = floor(p);
     vec2 p_fract = p - p_floor;
 
@@ -95,7 +106,8 @@ float interpolateNoise(in vec2 p) {
     return mix(noise_x1, noise_x2, p_fract.y);
 }
 
-float FBM(in vec2 p) {
+float FBM(in vec2 p) 
+{
     float amplitude = 0.75;
     float frequency = 1.0;
     const float persistence = 0.5;
@@ -113,9 +125,266 @@ float FBM(in vec2 p) {
     noiseVal *= step(0.5, noiseVal);
     return max(0.0, remap(noiseVal, 0.5, 1.0, 0.0, 0.9));
 }
+
 //--------------------------------------------------------
+//						LIGHTING
 //--------------------------------------------------------
+
+/*
+    Note:
+        - Apply this result whenever you calculate radiance of your sample 
+
+    Functionality:
+        - Combine 2 HG functions with max() to retain baseline forward scattering and achieve silver lining highlights
+    
+        eccentricity = 0.6
+    
+        silver_intensity = user controlled param [0, 1]
+                            Controls intensity of the effect of using 2 HG functions and the spread away from the sun
+                            Increase this to add intensity on clouds near the sun 
+
+        silver_spread = user contorlled param [0, 1]
+                            Decrease this to increase brightness that's spread throughout clouds away from the sun
+*/
+float HenyeyGreenstein(float cos_angle, float eccentricity)
+{
+	float numerator =  1.0 - eccentricity * eccentricity;
+	float denominator = pow((1.0 + eccentricity * eccentricity - 2.0 * eccentricity * cos_angle), 1.5);
+    return (numerator / denominator) * ONE_OVER_FOUR_PI;
+}
+
+float HGCombined(float cos_angle, float eccentricity, float silver_intensity, float silver_spread)
+{
+    return max( HenyeyGreenstein(cos_angle, eccentricity),  
+                silver_intensity * HenyeyGreenstein(cos_angle, 0.99 - silver_spread) );
+}
+
+/*
+    Note: 
+        - Only do this when you look away from sun
+        - Ramp down this affect as angle b/w viewRay and lightRay decrease
+        - attenuation_reduction_factor = 0.25;
+    	- influence_reduction_factor = 0.7;
+
+    Functionality: 
+        - Attenuation value for the second function was reduced to push light further into the cloud
+        - Reduce its influence so to not overpower the result. 
+        - density_along_light_ray comes from cone sampling 
+*/
+float BeersLaw(float density_along_light_ray)
+{
+	return exp(-density_along_light_ray);
+}
+
+float BeerLambertCombined(float density_along_light_ray, float attenuation_reduction_factor, float influence_reduction_factor)
+{
+    return max( BeersLaw(density_along_light_ray) , 
+    			BeersLaw(density_along_light_ray * attenuation_reduction_factor) * influence_reduction_factor );
+}
+
+/*
+	Notes:
+		- dl is the density sampled along the light ray for the given sample position.
+		- ds_loded is the low lod sample of density at the given sample position.
+
+*/
+
+float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phase_probability, float cos_angle, float step_size, float brightness)
+{
+    // Attenuation – difference from slides – reduce the secondary component when we look toward the sun.
+    float primary_attenuation = BeersLaw(dl);
+    float secondary_attenuation = BeersLaw(dl * 0.25) * 0.7;
+
+    // float attenuation_probability = max( remap( cos_angle, 0.7, 1.0, secondary_intensity_curve, secondary_intensity_curve * 0.25) , primary_intensity_curve);
+    float attenuation_probability = max( remap( cos_angle, 0.7, 1.0, secondary_attenuation, secondary_attenuation * 0.25) , primary_attenuation);
+    
+    // In-scattering – one difference from presentation slides – we also reduce this effect once light has attenuated to make it directional.
+    // float depth_probability = lerp( 0.05 + pow( ds_loded, remap( height_fraction, 0.3, 0.85, 0.5, 2.0 )), 1.0, saturate( dl / step_size));
+    // float vertical_probability = pow( remap( height_fraction, 0.07, 0.14, 0.1, 1.0 ), 0.8 );
+    // float in_scatter_probability = depth_probability * vertical_probability;
+
+    // float light_energy = attenuation_probability * in_scatter_probability * phase_probability * brightness;
+    float light_energy = attenuation_probability * phase_probability * brightness;
+
+    return light_energy;
+}
+
+
+
+/*
+	Preetham Sky from: 
+	https://github.com/markstock/GenUtahSky/blob/master/utah.cal
+
+	A1			- Turbidity
+    A2,A3,A4	- sun direction
+*/
+
+/*
+
+float perez(float t, float g, float a, float b, float c, float d, float e)
+{
+	(1.0 + a * exp(b / (0.004 + abs(cos(t))))) * (1 + c * exp(d * g) + e * cos(g) * cos(g));
+}
+
+
+vec3 preethamSky(float turbidity, vec3 sunDirection)
+{
+	float cosgamma = Dx * sunDirection[0] + Dy * sunDirection[1] + Dz * sunDirection[2];
+	gamma = Acos(cosgamma);				// { angle from sun to this point in sky }
+	theta = Acos(Dz);					// { angle from zenith to this point in sky }
+	thetas = Acos(sunDirection[2]);		// { angle from zenith to sun }
+	turb = bound(1.2, A1, 6.0);			// { clamp the bounds of turbidity }
+
+	//{ zenith brightness, chromaticity }
+	yyzTest = (4.0453*turb - 4.971)*tan((0.4444-turb/120.)*(3.1415927-2*thetas)) - 0.2155*turb + 2.4192;
+	yyz = if (yyzTest, yyzTest, 0.0);
+	xz = 0.25886 + 0.00394*turb + thetas*(0.06052 - 0.03202*turb*(1.-0.065272*turb) + thetas*(-0.21196 + 0.06377*turb*(1.-0.058805*turb) + thetas*(0.11693 - 0.02903*turb*(1.-0.057182*turb))));
+	yz = 0.26688 + 0.00516*turb + thetas*(0.0667 - 0.04153*turb*(1.-0.07633*turb) + thetas*(-0.26756 + 0.0897*turb*(1.-0.068004*turb) + thetas*(0.15346 - 0.04214*turb*(1.-0.065259*turb))));
+
+	//{ distribution coefficients for luminance, chromaticity; functions of turbidity }
+	ayy = 0.1787*turb - 1.463;
+	byy = -0.3554*turb + 0.4275;
+	cyy = -0.0227*turb + 5.3251;
+	dyy = 0.1206*turb - 2.5771;
+	eyy = -0.067*turb + 0.3703;
+
+	ax = -0.0193*turb - 0.2593;
+	bx = -0.0665*turb + 0.0008;
+	cx = -0.0004*turb + 0.2125;
+	dx = -0.0641*turb - 0.8989;
+	ex = -0.0033*turb + 0.0452;
+
+	ay = -0.0167*turb - 0.2608;
+	by = -0.095*turb + 0.0092;
+	cy = -0.0079*turb + 0.2102;
+	dy = -0.0441*turb - 1.6537;
+	ey = -0.0109*turb + 0.0529;
+
+	//{ point values for luminance, chromaticity }
+	yyptemp = yyz * perez(theta, gamma, ayy, byy, cyy, dyy, eyy) / perez(0., thetas, ayy, byy, cyy, dyy, eyy);
+	xp = xz * perez(theta, gamma, ax, bx, cx, dx, ex) / perez(0., thetas, ax, bx, cx, dx, ex);
+	yp = yz * perez(theta, gamma, ay, by, cy, dy, ey) / perez(0., thetas, ay, by, cy, dy, ey);
+
+	//{ hack to allow stars to shine through haze at dusk and dawn }
+	//{yyp = yyptemp;}
+	yyp = yyptemp * if(A4-0.05, 1.0, exp(20.*(A4-0.05)));
+
+	//{ output brightness }
+	skybr = yyp;
+
+	//{ output radiance }
+
+	//{ first, tristimulus values (are these CIE XYZ?)}
+	x = yyp*xp/yp;
+	y = yyp;
+	z = yyp*if(1.-xp-yp, 1-xp-yp, 0.)/yp;
+	//{z = yyp*(1.-xp-yp)/yp;}
+
+	//{ convert CIE XYZ to RGB with D65 from http://www.poynton.com/PDFs/Guided_tour.pdf ?}
+	//{ do not apply gamma, as we are in linear units }
+	//{skyr = 3.240479*x - 1.537150*y - 0.498535*z;
+	//skyg = -0.969256*x + 1.875992*y + 0.041556*z;
+	//skyb = 0.055648*x - 0.204043*y + 1.057311*z;}
+
+	//{ convert using CIE M^-1 matrix from http://www.brucelindbloom.com/Eqn_RGB_XYZ_Matrix.html }
+	skyr = 2.3706743*x - 0.9000405*y - 0.4706338*z;
+	skyg = -0.513885*x + 1.4253036*y + 0.0885814*z;
+	skyb = 0.0052982*x - 0.0146949*y + 1.0093968*z;
+}
+
+*/
+
+
+/*
+	Preetham Sky From Project Marshmallow - Dan McCann and Joe Klinger
+	Adapted from open source of zz85 on Github, math from Preetham Model, initially implemented by Simon Wallner and Martin Upitis
+*/
+
+
+float rayleighPhase(float cosTheta) 
+{
+    return THREE_OVER_SIXTEEN_PI * (1.0 + cosTheta * cosTheta);
+}
+
+#define MIE_CONST vec3( 1.839991851443397, 2.779802391966052, 4.079047954386109)
+#define RAYLEIGH_TOTAL vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5)
+
+vec3 calcSkyBetaR() 
+{
+	float rayleigh = 2.0;
+  	float sunFade = 1.0 - clamp(1.0 - exp(BACKGROUND_SKY_SUN_LOCATION.y / 450000.0), 0.0, 1.0);
+	return vec3(RAYLEIGH_TOTAL * (rayleigh - 1.0 + sunFade)); 
+}
+
+vec3 calcSkyBetaV() 
+{
+	float turbidity = 10.0;
+	float mie = 0.005;
+    float c = (0.2 * turbidity) * 10E-18;
+    return vec3(0.434 * c * MIE_CONST * mie);
+}
+
+#define SHADOW_CUTOFF 1.6110731557
+#define SHADOW_STEEPNESS 1.5
+#define EE 1000.0
+#define E 2.718281828459
+
+float calcSunIntensity() 
+{
+	float zenithAngleCos = clamp(normalize(BACKGROUND_SKY_SUN_LOCATION).y, -1.0, 1.0);
+	return EE * max(0.0, 1.0 - pow(E, -((SHADOW_CUTOFF - acos(zenithAngleCos)) / SHADOW_STEEPNESS)));
+}
+
+#define SUN_ANGULAR_COS 0.999956676946448443553574619906976478926848692873900859324
+
+vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir) {
+    vec3 color = vec3(0);
+
+    sunDir = normalize(sunDir); 
+    float sunE = calcSunIntensity(); 
+    vec3 BetaR = calcSkyBetaR();   
+    vec3 BetaM = calcSkyBetaV(); 
+
+    // optical length
+    float zenith = acos(max(0.0, dir.y)); // acos?
+    float inverse = 1.0 / (cos(zenith) + 0.15 * pow(93.885 - ((zenith * 180.0) / PI), -1.253));
+    float sR = 8.4E3 * inverse;
+    float sM = 1.25E3 * inverse;
+
+    vec3 fex = exp( -BetaR * sR + BetaM * sM);
+
+    float cosTheta = dot(sunDir, dir);
+
+    float rPhase = rayleighPhase(cosTheta * 0.5 + 0.5);
+    vec3 betaRTheta = BetaR * rPhase;
+    float mie_directional = 0.8;
+    float mPhase = HenyeyGreenstein(cosTheta, mie_directional);
+    vec3 betaMTheta = BetaM * mPhase;
+
+    float yDot = 1.0 - sunDir.y;
+    yDot *= yDot * yDot * yDot * yDot;
+    vec3 betas = (betaRTheta + betaMTheta) / (BetaR + BetaM);
+    vec3 Lin = pow(sunE * (betas) * (1.0 - fex), vec3(1.5));
+    Lin *= mix(vec3(1), pow(sunE * (betas) * fex, vec3(0.5)), clamp(yDot, 0.0, 1.0));
+
+    vec3 L0 = 0.1 * fex;
+
+    float sunDisk = smoothstep(SUN_ANGULAR_COS, SUN_ANGULAR_COS + 0.00002, cosTheta);
+    L0 += (sunE * 15000.0 * fex) * sunDisk;
+
+    color = (Lin + L0) * 0.04 + vec3(0.0, 0.0003, 0.00075);
+
+    // return color in HDR space
+    return color;
+}
+
+// End credit to Preetham Sun Sky model
+
+
 //--------------------------------------------------------
+//					CLOUD SAMPLING
+//--------------------------------------------------------
+
 
 //Compute Ray for ray marching based on screenspace point
 Ray castRay( vec2 screenPoint, vec3 eye )
@@ -148,7 +417,7 @@ Ray castRay( vec2 screenPoint, vec3 eye )
     return r;
 }
 
-// sphere Intersection
+//Sphere Intersection
 Intersection raySphereIntersection(in vec3 rO, in vec3 rD, in vec3 sphereCenter, in float sphereRadius)
 {
     Intersection isect;
@@ -201,20 +470,37 @@ float getHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
 	return clamp(height_fraction, 0.0, 1.0);
 }
 
-float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data) //// Big Question mark about this
+// float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data) //// Big Question mark about this
+float getDensityHeightGradientForPoint(float height_fraction, vec3 weather_data) 
 {
 	//Refer: 2017 pdf of slides 29/108
 	//CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
-	float stratus = remap(point.y, 0, 0.1, 0.0, 1.0) * remap(point.y, 0.2, 0.3, 1.0, 0.0);
-	float cumulus = remap(point.y, 0.01, 0.3, 0.0, 1.0) * remap(point.y, 0.3, 0.45, 1.0, 0.0);
-	float cumulonimbus = remap(point.y, 0.0, 0.25, 0.0, 1.0) * remap(point.y, 0.6, 0.95, 1.0, 0.0);
+	// float stratus = remap(point.y, 0, 0.1, 0.0, 1.0) * remap(point.y, 0.2, 0.3, 1.0, 0.0);
+	// float cumulus = remap(point.y, 0.01, 0.3, 0.0, 1.0) * remap(point.y, 0.3, 0.45, 1.0, 0.0);
+	// float cumulonimbus = remap(point.y, 0.0, 0.25, 0.0, 1.0) * remap(point.y, 0.6, 0.95, 1.0, 0.0);
 
-	return clamp(cumulus, 0.0, 1.0); //TODO: should return a blended and weighted value
+	// return clamp(cumulus, 0.0, 1.0); //TODO: should return a blended and weighted value
+
+	vec2 minRange = vec2(0.0, 0.1);
+	vec2 maxRange = vec2(0.3, 1.0);
+
+	float a = remap(height_fraction, minRange[0], minRange[1], 0.0, 1.0);
+	a = clamp(a, 0.0, 1.0);
+
+	float b = remap(height_fraction, maxRange[0], maxRange[1], 1.0, 0.0);
+	b = clamp(b, 0.0, 1.0);
+
+	return a * b;
 }
 
 float sampleCloudDensity(vec3 point, vec3 weather_data)
 {
 	vec3 p = vec3(point.x, point.y, point.z);
+
+
+	float height_fraction = (length(p - EARTH_CENTER) - atmosphereRadiusInner) / (atmosphereRadiusOuter - atmosphereRadiusInner);
+	// float height_fraction = getHeightFractionForPoint(p, vec2(0.0, 1.0));
+
 	//Read in the low-frequency Perlin-Worley noises and Worley noises
 	vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, p);
 
@@ -223,55 +509,119 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 							(lowFrequencyNoises.b * 0.25) + 
 							(lowFrequencyNoises.a * 0.125);
 
-	//Define the base cloud shape by dilating it with the low-frequency FBM
+	// Define the base cloud shape by dilating it with the low-frequency FBM
 	float baseCloud = remap( lowFrequencyNoises.r, -(1.0 - lowFrequencyFBM), 1.0, 0.0, 1.0 );
 
-	//Get the density-height gradient
-	float densityHeightGradient = getDensityHeightGradientForPoint(p, weather_data);
+	// Get the density-height gradient
+	// This determines the type of cloud we're drawing
+	// float densityHeightGradient = getDensityHeightGradientForPoint(p, weather_data);
+	float densityHeightGradient = getDensityHeightGradientForPoint(height_fraction, weather_data);
 
-	//Apply Height function to the base cloud shape
-	//baseCloud *= densityHeightGradient; //I dont know why ASK DAN!!!!
+	// Apply Height function to the base cloud shape
+	// This creates the correct type of cloud according to weather_data
+	baseCloud *= densityHeightGradient;
 	return baseCloud;
+
+
+
+	// // COVERAGE 
+	// float coverage = weather_data[0];
+	// float base_cloud_with_coverage = remap(baseCloud, coverage, 1.0, 0.0, 1.0);
+	// base_cloud_with_coverage = clamp(base_cloud_with_coverage, 0.0, 1.0);
+
+	// // Fake lighting?
+
+	// float brightness_factor = 5.5;
+	// base_cloud_with_coverage *= coverage * brightness_factor;
+	// return base_cloud_with_coverage;
+
+
 }
 
 void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos, 
 			float start_t, float end_t, inout float accumDensity, inout float transmittance)
 {
 	float maxSteps = 64.0; //floor(mix(64, 128, 1.0 - ray.direction.y)); //maybe switch to a 52 - 84 range
-	float stepSize = (end_t - start_t)/maxSteps;
+	float stepSize = (end_t - start_t) / maxSteps;
 
     vec3 pos;
     float density;
 
+    // Henyey-Greenstein
+ 	float cos_angle = dot(normalize(ray.direction), normalize(SUN_LOCATION - ray.origin));
+    float eccentricity = 0.6;
+    float silver_intensity = 0.7;
+    float silver_spread = 0.1;
+    float HG_light = HGCombined(cos_angle, eccentricity, silver_intensity, silver_spread);
+
+    // Random unit vectors for your cone sample.
+	// These are positioned to be facing the sun 
+	// Create random samples within a cone that at first face upwards
+	// Then rotate them towards the sun using similar to TBN matrix
+	mat3 sunRotMatrix = mat3(1.0);
+	vec3 noise_kernel[] = 
+	{
+	    sunRotMatrix * vec3(0.0, 1.0, 0.0),
+		sunRotMatrix * vec3(0.0, 1.0, 0.0),
+		sunRotMatrix * vec3(0.0, 1.0, 0.0),
+		sunRotMatrix * vec3(0.0, 1.0, 0.0),
+		sunRotMatrix * vec3(0.0, 1.0, 0.0),
+		sunRotMatrix * vec3(0.0, 1.0, 0.0),
+	};
+
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
 		pos = ray.origin + t * ray.direction;
+		pos /= 20000.0;
+		
+		float perlinTestVal = FBM(vec2(pos[0], pos[1]));
+		weather_data = vec3(perlinTestVal, perlinTestVal, perlinTestVal);
 
-		// Adjust the position to represent spherical-ness of world
-		// vec3 correctedPos = normalize(pos - vec3(0, 0, -earthRadius)) * atmosphereRadiusInner;
-		vec3 samplePoint = pos;//(pos-startPos);///endPos;
-		samplePoint /= 20000.0;//fixed value found by tweaking don't change or else you will see the tiled texture and notice the repition
+		density = sampleCloudDensity(pos, weather_data) * 0.5;
 
-		density = sampleCloudDensity(samplePoint, weather_data)*0.5;
+		// TEST: Adjust the position to represent spherical-ness of world
+		//vec3 correctedPos = normalize(pos - EARTH_CENTER) * atmosphereRadiusInner;
+		//density = sampleCloudDensity(correctedPos / 20000.0, weather_data)*0.5;
 
 		if(density > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
 			// Do Lighting calculations with cone sampling
 			float densityAlongLight = 0.0;
+			
 			accumDensity += density;
+
+			int lightSamples = 6;
+			for(int i = 0; i < lightSamples; i++)
+			{
+				// DO LIGHTING CALCULATIONS HERE --- NOT COMPLETE 
+
+				// Add the current step offset to the sample position
+        		vec3 lightPos = pos + (stepSize * noise_kernel[i] * float(i));
+
+        		// Should I correct spherical-ness of this pos too?
+
+        		densityAlongLight += sampleCloudDensity(lightPos, weather_data);
+
+			}
+    		
+    		float attenuation_factor = 0.25;
+    		float influence_factor = 0.7;
+			float beersLaw = BeerLambertCombined(densityAlongLight, attenuation_factor, influence_factor);
+
+			// Eventually use GetLightEnergy(height_fraction, densityAlongLight, ...) for second param
+			transmittance = mix(transmittance, HG_light * beersLaw, (1.0 - accumDensity));
+
 			break;
-
-
-			//transmittance = mix(transmittance, max(exp(-densityAlongLight), 0.7 * exp(-0.25 * densityAlongLight)), (1.0 - accumDensity));
-		}
+		} //end if
 		
-		
-		if(accumDensity >=1.0) {
+		if(accumDensity >= 1.0) 
+		{
 			accumDensity = 1.0;
 			break;
-		}
-	}
-}
+		} //end if
+
+	} //end raymarcher for loop
+}// end raymarch function
 
 void main() 
 {
@@ -329,14 +679,30 @@ void main()
 	// opacity fades to prevent hard cutoff at horizon
     //accumDensity *= smoothstep(0, 1, min(1, remap(ray.direction.y, 0, 0.1, 0, 1)));
 
+
+	// Henyey-Greenstein - TESTING
+ 	float cos_angle = dot(normalize(ray.direction), normalize(SUN_LOCATION - ray.origin));
+    float eccentricity = 0.6;
+    float silver_intensity = 0.7;
+    float silver_spread = 0.1;
+    float hg_light = HGCombined(cos_angle, eccentricity, silver_intensity, silver_spread);
+    accumDensity *= hg_light;
+
+
+    // This produces a better day time result than the second one (but you see the sun)
+    // The second one (albeit correct) gives more of a sunset
+    vec3 backgroundSky = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin);
+    // vec3 backgroundSky = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin);
+
+
     vec4 finalColor = vec4(vec3(accumDensity), 1.0); //vec4(mix(backgroundCol, vec3(clamp(transmittance, 0.0, 1.0)), accumDensity), 1.0);
 
     //vec4 finalColor = vec4(abs(atmospherInnerIsect.normal) * float(atmospherInnerIsect.valid), 1.0);
 
 	if(HEIGHT_GRADIENT)
 	{
-		float densityHeightGradient = getDensityHeightGradientForPoint(vec3(uv, 1.0), weather_data);
-		finalColor = vec4(densityHeightGradient);
+		// float densityHeightGradient = getDensityHeightGradientForPoint(vec3(uv, 1.0), weather_data);
+		// finalColor = vec4(densityHeightGradient);
 	}
 	else if(TEXTURE_LOW_FREQ)
 	{
@@ -365,9 +731,13 @@ void main()
 	{
 		finalColor = vec4(vec3(accumDensity), 1.0);
 	}
-	else if(LIGTHING)
+	else if(LIGHTING)
 	{
-
+		finalColor = vec4(vec3(hg_light), 1.0);
+	}
+	else if(BACKGROUND_SKY)
+	{
+		finalColor = vec4(backgroundSky, 1.0);
 	}
 	
 	//Pass the color off to the cloud pipeline's frag shader
