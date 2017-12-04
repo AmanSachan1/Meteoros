@@ -152,22 +152,16 @@ int main(int argc, char** argv)
     device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::ComputeBit | QueueFlagBit::PresentBit);
     
 	swapChain = device->CreateSwapChain(surface);
-
 	camera = new Camera(device, glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f), 
 						window_width, window_height, 45.0f, window_width / window_height, 0.1f, 1000.0f);
 
 	Scene* scene = new Scene(device);
-
 	renderer = new Renderer(device, instance->GetPhysicalDevice(), swapChain, scene, camera, static_cast<uint32_t>(window_width), static_cast<uint32_t>(window_height));
 
 	glfwSetWindowSizeCallback(GetGLFWWindow(), resizeCallback);
 	glfwSetMouseButtonCallback(GetGLFWWindow(), mouseDownCallback);
 	glfwSetScrollCallback(GetGLFWWindow(), scrollCallback);
 	glfwSetCursorPosCallback(GetGLFWWindow(), mouseMoveCallback);
-
-
-
-
 
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
     while (!ShouldQuit()) 
@@ -176,11 +170,8 @@ int main(int argc, char** argv)
 		scene->UpdateTime();
 		keyboardInputs(GetGLFWWindow());
 
-
 		//renderer->ImGuiSetup(GetGLFWWindow());
 		//renderer->ImGuiRender();
-
-
 
 		renderer->Frame();
     }// end while loop
@@ -188,12 +179,7 @@ int main(int argc, char** argv)
     // Wait for the device to finish executing before cleanup
     vkDeviceWaitIdle(device->GetVkDevice());
 
-
-
 	//ImGui::Shutdown();
-
-
-
 
 	//---------------------
 	//------ CleanUp ------

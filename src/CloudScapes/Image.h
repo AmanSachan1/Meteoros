@@ -6,7 +6,6 @@
 #include "BufferUtils.h"
 #include "Commands.h"
 #include "Forward.h"
-#include "VMA_Utility.h"
 
 namespace Image
 {

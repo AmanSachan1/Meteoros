@@ -10,13 +10,6 @@ Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, Vulkan
 	window_width(width),
 	window_height(height)
 {
-	// Create memory allocator
-	VmaAllocatorCreateInfo allocatorInfo = {};
-	allocatorInfo.physicalDevice = physicalDevice;
-	allocatorInfo.device = logicalDevice;
-	ERR_GUARD_VULKAN(vmaCreateAllocator(&allocatorInfo, &g_vma_Allocator));
-	assert(g_vma_Allocator);
-
 	InitializeRenderer();
 }
 
@@ -49,7 +42,7 @@ Renderer::~Renderer()
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
 	delete quad;
-	//delete house;
+	delete house;
 
 	delete rayMarchedComputeTexture;
 	delete cloudBaseShapeTexture;
@@ -102,10 +95,10 @@ void Renderer::Frame()
 	computeSubmitInfo.commandBufferCount = 1;
 	computeSubmitInfo.pCommandBuffers = &computeCommandBuffer;
 
-	//// submit the command buffer to the compute queue
-	//if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
-	//	throw std::runtime_error("Failed to submit compute command buffer");
-	//}
+	// submit the command buffer to the compute queue
+	if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to submit compute command buffer");
+	}
 
 	//-------------------------------------------
 	//--------- Submit Graphics Queue -----------
@@ -545,7 +538,7 @@ void Renderer::CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpas
 	rasterizer.lineWidth = 1.0f;
 	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
 	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-	//TODO:: could be useful to ensure that the clouds are behind everything
+
 	rasterizer.depthBiasEnable = VK_FALSE; // The rasterizer can alter the depth values by adding a constant value or biasing 
 										   // them based on a fragment's slope. This is sometimes used for shadow mapping, but 
 										   // we won't be using it.Just set depthBiasEnable to VK_FALSE.
@@ -937,31 +930,31 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//--- Graphics Pipeline---
 		//------------------------
 
-		//// Bind the graphics pipeline
-		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		// Bind the graphics pipeline
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-		//// Bind graphics descriptor set
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
+		// Bind graphics descriptor set
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
 
-		//// Bind the vertex and index buffers
-		//VkDeviceSize geomOffsets[] = { 0 };
-		//const VkBuffer geomVertices = house->getVertexBuffer();
-		//vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
+		// Bind the vertex and index buffers
+		VkDeviceSize geomOffsets[] = { 0 };
+		const VkBuffer geomVertices = house->getVertexBuffer();
+		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
 
-		//// Bind triangle index buffer
-		//vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+		// Bind triangle index buffer
+		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-		//// Draw indexed triangle
-		///*
-		//vkCmdDrawIndexed has the following parameters, aside from the command buffer:
-		//indexCount;
-		//instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-		//firstIndex:  Used as an offset into the index buffer
-		//vertexOffset: Used as an offset into the vertex buffer
-		//firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		//*/
-		//vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
+		// Draw indexed triangle
+		/*
+		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
+		indexCount;
+		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+		firstIndex:  Used as an offset into the index buffer
+		vertexOffset: Used as an offset into the vertex buffer
+		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+		*/
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
 
 		vkCmdEndRenderPass(graphicsCommandBuffer[i]);
 
@@ -1196,7 +1189,7 @@ void Renderer::CreateAllDescriptorSets()
 	};
 	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
 										  4, 5, 6, 6, 7, 4 };
-	house = new Model(device, graphicsCommandPool, g_vma_Allocator, vertices, indices);
+	house = new Model(device, graphicsCommandPool, vertices, indices);
 	house->SetTexture(device, graphicsCommandPool, texture_path);
 
 	// Quad model
@@ -1207,7 +1200,7 @@ void Renderer::CreateAllDescriptorSets()
 		{ { -1.0f, 1.0f, 0.99999f, 1.0f }, { 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
 	};
 	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
-	quad = new Model(device, graphicsCommandPool, g_vma_Allocator, quadVertices, quadIndices);
+	quad = new Model(device, graphicsCommandPool, quadVertices, quadIndices);
 
 	//Write to and Update DescriptorSets
 	WriteToAndUpdateDescriptorSets();
@@ -1332,35 +1325,35 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	//-------------------------------
 
 	// Model
-	//VkDescriptorBufferInfo modelBufferInfo = {};
-	//modelBufferInfo.buffer = house->GetModelBuffer();
-	//modelBufferInfo.offset = 0;
-	//modelBufferInfo.range = sizeof(ModelBufferObject);
+	VkDescriptorBufferInfo modelBufferInfo = {};
+	modelBufferInfo.buffer = house->GetModelBuffer();
+	modelBufferInfo.offset = 0;
+	modelBufferInfo.range = sizeof(ModelBufferObject);
 
 	// Texture
-	//VkDescriptorImageInfo imageInfo = {};
-	//imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	//imageInfo.imageView = house->GetTextureView();
-	//imageInfo.sampler = house->GetTextureSampler();
+	VkDescriptorImageInfo imageInfo = {};
+	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageInfo.imageView = house->GetTextureView();
+	imageInfo.sampler = house->GetTextureSampler();
 
-	//std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
+	std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
 
-	//writeGraphicsSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	//writeGraphicsSetInfo[0].dstSet = graphicsSet;
-	//writeGraphicsSetInfo[0].dstBinding = 0;
-	//writeGraphicsSetInfo[0].descriptorCount = 1;
-	//writeGraphicsSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	//writeGraphicsSetInfo[0].pBufferInfo = &modelBufferInfo;
+	writeGraphicsSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeGraphicsSetInfo[0].dstSet = graphicsSet;
+	writeGraphicsSetInfo[0].dstBinding = 0;
+	writeGraphicsSetInfo[0].descriptorCount = 1;
+	writeGraphicsSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeGraphicsSetInfo[0].pBufferInfo = &modelBufferInfo;
 
-	//writeGraphicsSetInfo[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	//writeGraphicsSetInfo[1].pNext = NULL;
-	//writeGraphicsSetInfo[1].dstSet = graphicsSet;
-	//writeGraphicsSetInfo[1].dstBinding = 1;
-	//writeGraphicsSetInfo[1].descriptorCount = 1;
-	//writeGraphicsSetInfo[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	//writeGraphicsSetInfo[1].pImageInfo = &imageInfo;
+	writeGraphicsSetInfo[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeGraphicsSetInfo[1].pNext = NULL;
+	writeGraphicsSetInfo[1].dstSet = graphicsSet;
+	writeGraphicsSetInfo[1].dstBinding = 1;
+	writeGraphicsSetInfo[1].descriptorCount = 1;
+	writeGraphicsSetInfo[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeGraphicsSetInfo[1].pImageInfo = &imageInfo;
 
-	//vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
 }
 
 //----------------------------------------------

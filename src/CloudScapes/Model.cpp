@@ -3,7 +3,7 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../../external/tiny_obj_loader.h"
 
-Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
+Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
 	: device(device), vertices(vertices), indices(indices)
 {
 	if (this->vertices.size() > 0)
@@ -25,7 +25,7 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vm
 	
 }
 
-Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vma_Allocator, const std::string model_path, const std::string texture_path)
+Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::string model_path, const std::string texture_path)
 {
 	LoadModel(model_path);
 
@@ -48,7 +48,6 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, VmaAllocator& g_vm
 	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, sizeof(ModelBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
 
 	SetTexture(device, commandPool, texture_path);
-
 }
 
 Model::~Model()
@@ -67,7 +66,6 @@ Model::~Model()
 
 	vkDestroyBuffer(device->GetVkDevice(), modelBuffer, nullptr);
 	vkFreeMemory(device->GetVkDevice(), modelBufferMemory, nullptr);
-
 
 	if (texture != VK_NULL_HANDLE) {
 		vkDestroyImage(device->GetVkDevice(), texture, nullptr);

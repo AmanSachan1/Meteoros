@@ -5,7 +5,6 @@
 #include "VulkanDevice.h"
 #include "Commands.h"
 #include "Vertex.h"
-#include "../../external/vk_mem_alloc.h"
 
 #define ERR_GUARD_VULKAN(Expr) do { VkResult res__ = (Expr); if (res__ < 0) assert(0); } while(0)
 

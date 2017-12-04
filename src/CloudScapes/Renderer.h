@@ -8,8 +8,6 @@
 #include <stdexcept>
 #include <iostream>
 
-#include "../../external/vk_mem_alloc.h"
-
 #include "VulkanDevice.h"
 #include "SwapChain.h"
 #include "ShaderModule.h"
@@ -26,9 +24,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw_vulkan.h"
 
-
 static constexpr unsigned int WORKGROUP_SIZE = 32;
-static VmaAllocator g_vma_Allocator; // needed as a global object by the VMA library
 
 class Renderer 
 {
@@ -88,8 +84,6 @@ public:
 	void ImGuiSetup(GLFWwindow* window); 
 	void ImGuiCreation();
 	void ImGuiRender();
-
-
 
 private:
 	VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
