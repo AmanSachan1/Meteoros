@@ -37,16 +37,18 @@ struct Intersection {
 };
 
 //Global Defines
-#define earthRadius 100000.0 // earth's actual radius in km = 6371
-#define atmosphereRadiusInner earthRadius + 1500.0 //15000 meters above
-#define atmosphereRadiusOuter earthRadius + 3500.0 //35000 meters above
-#define EARTH_CENTER vec3(0, 0, -earthRadius)
+#define earthRadius 6371000.0 // earth's actual radius in km = 6371
+#define atmosphereRadiusInner earthRadius + 7500.0 //15000 meters above
+#define atmosphereRadiusOuter earthRadius + 20000.0 //35000 meters above
 
+#define EARTH_CENTER vec3(0, 0, -earthRadius)
 // #define SUN_LOCATION vec3(0, atmosphereRadiusOuter + earthRadius / 2.0, -earthRadius * 5.0)
 #define SUN_LOCATION vec3(0, atmosphereRadiusOuter + earthRadius / 2.0, -earthRadius * 1.5)
 #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, earthRadius, -earthRadius * 10.0)
 
-
+#define inStratusMinMax vec2(0.0, 0.3)
+#define inCumulusMinMax vec2(0.01, 0.45)
+#define inCumulonimbusMinMax vec2(0.0, 0.95)
 
 #define LightVec normalize(vec3(1.0,1.0,1.0));
 
@@ -61,14 +63,32 @@ struct Intersection {
 #define NUM_FBM_OCTAVES 7
 
 //Global Defines for Debug Views
-#define LIGHTING false
-#define BLOBBY_CLOUDS false
-#define DENSITY false
+#define LIGTHING false
+#define CLOUDS_ALL_NOISES false
+#define DENSITY_SLICES false
 #define HEIGHT_GRADIENT false
 #define TEXTURE_CURL_NOISE false
 #define TEXTURE_HIGH_FREQ false
 #define TEXTURE_LOW_FREQ false
 #define BACKGROUND_SKY true
+
+float bias(float b, float t)
+{
+	return pow(t, log(b) / log(0.5f));
+}
+
+float gain(float g, float t)
+{
+	if(t < 0.5) 
+	{
+		return bias(1.0 - g, 2.0 * t) / 2.0;
+	}
+	
+	else 
+	{
+		return 1.0 - bias(1.0 - g, 2.0 - 2.0 * t) / 2.0;
+	}
+}
 
 // Maps values from one range to another
 float remap(float value, float original_min, float original_max, float new_min, float new_max)
@@ -425,7 +445,7 @@ Intersection raySphereIntersection(in vec3 rO, in vec3 rD, in vec3 sphereCenter,
     isect.point = vec3(0.0);
     isect.normal = vec3(0.0, 1.0, 0.0);
 
-    //Transform Ray such that the spheres move down, such that the camera is close to the sky dome
+    // Transform Ray such that the spheres move down, such that the camera is close to the sky dome
     // Only change sphere origin because you can't translate a direction
     rO -= sphereCenter;
     rO /= sphereRadius;
@@ -470,8 +490,9 @@ float getHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
 	return clamp(height_fraction, 0.0, 1.0);
 }
 
-// float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data) //// Big Question mark about this
-float getDensityHeightGradientForPoint(float height_fraction, vec3 weather_data) 
+
+// float getDensityHeightGradientForPoint(float height_fraction, vec3 weather_data) 
+float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
 {
 	//Refer: 2017 pdf of slides 29/108
 	//CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
@@ -481,37 +502,71 @@ float getDensityHeightGradientForPoint(float height_fraction, vec3 weather_data)
 
 	// return clamp(cumulus, 0.0, 1.0); //TODO: should return a blended and weighted value
 
-	vec2 minRange = vec2(0.0, 0.1);
-	vec2 maxRange = vec2(0.3, 1.0);
+	// Meghana's hack using height fraction --------------------------------
+	// vec2 minRange = vec2(0.0, 0.1);
+	// vec2 maxRange = vec2(0.3, 1.0);
 
-	float a = remap(height_fraction, minRange[0], minRange[1], 0.0, 1.0);
-	a = clamp(a, 0.0, 1.0);
+	// float a = remap(height_fraction, minRange[0], minRange[1], 0.0, 1.0);
+	// a = clamp(a, 0.0, 1.0);
 
-	float b = remap(height_fraction, maxRange[0], maxRange[1], 1.0, 0.0);
-	b = clamp(b, 0.0, 1.0);
+	// float b = remap(height_fraction, maxRange[0], maxRange[1], 1.0, 0.0);
+	// b = clamp(b, 0.0, 1.0);
 
-	return a * b;
+	// return a * b;
+	// ---------------------------------------------------------------------
+
+	float a = clamp(stratus, 0.0, 1.0);
+	float b = clamp(cumulus, 0.0, 1.0);
+	float c = clamp(cumulonimbus, 0.0, 1.0);
+
+	//Make weighting based on the cloud type in the weather map
+	float weight_a;
+	float weight_b;
+	float weight_c;
+
+	if(weather_data.b == 0) {
+		weight_a = 0.6;
+		weight_b = 0.2;
+		weight_c = 0.2;
+	}
+	else if(weather_data.b == 1) {
+		weight_a = 0.2;
+		weight_b = 0.6;
+		weight_c = 0.2;
+	}
+	else if(weather_data.b == 0.5) {
+		weight_a = 0.2;
+		weight_b = 0.2;
+		weight_c = 0.6;
+	}
+	
+	 //Return a blended and weighted value
+	return weight_a*a + weight_b*b + weight_c*c;
 }
 
 float sampleCloudDensity(vec3 point, vec3 weather_data)
 {
 	vec3 p = vec3(point.x, point.y, point.z);
 
-
-	float height_fraction = (length(p - EARTH_CENTER) - atmosphereRadiusInner) / (atmosphereRadiusOuter - atmosphereRadiusInner);
+	// Get height fraction
+	// float height_fraction = (length(p - EARTH_CENTER) - atmosphereRadiusInner) / (atmosphereRadiusOuter - atmosphereRadiusInner);
 	// float height_fraction = getHeightFractionForPoint(p, vec2(0.0, 1.0));
 
 	//Read in the low-frequency Perlin-Worley noises and Worley noises
-	vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, p);
+	vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point);
 
 	//Build an FBM out of the low-frequency Worley Noises that are used to add detail to the Low-frequency Perlin Worley noise
 	float lowFrequencyFBM = (lowFrequencyNoises.g * 0.625) + 
-							(lowFrequencyNoises.b * 0.25) + 
+							(lowFrequencyNoises.b * 0.25)  + 
 							(lowFrequencyNoises.a * 0.125);
 
 	// Define the base cloud shape by dilating it with the low-frequency FBM
 	float baseCloud = remap( lowFrequencyNoises.r, -(1.0 - lowFrequencyFBM), 1.0, 0.0, 1.0 );
 
+
+
+
+	/*	// Meghana's edits
 	// Get the density-height gradient
 	// This determines the type of cloud we're drawing
 	// float densityHeightGradient = getDensityHeightGradientForPoint(p, weather_data);
@@ -534,14 +589,71 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	// float brightness_factor = 5.5;
 	// base_cloud_with_coverage *= coverage * brightness_factor;
 	// return base_cloud_with_coverage;
+	*/
 
 
+
+
+	//Get the density-height gradient
+	float densityHeightGradient = getDensityHeightGradientForPoint(point, weather_data);
+
+	//Apply Height function to the base cloud shape
+	baseCloud *= densityHeightGradient;
+
+	// Cloud coverage is stored in weather data’s red channel .
+	float cloud_coverage = 0.5;//TODO: Change to weather_data.r;
+
+	// Use remap to apply the cloud coverage attribute.
+	float base_cloud_with_coverage = remap ( baseCloud, cloud_coverage , 1.0 , 0.0 , 1.0);
+
+	// To ensure that the density increases with coverage in an aesthetically pleasing manner
+	// Multiply the result by the cloud coverage attribute so that smaller clouds are lighter 
+	// and more aesthetically pleasing
+	base_cloud_with_coverage *= cloud_coverage ;
+
+	// Find inCloudMinMax
+	vec2 inCloudMinMax;
+	if(weather_data.b == 0) 
+	{
+		inCloudMinMax = inStratusMinMax;
+	}
+	
+	else if(weather_data.b == 1) 
+	{
+		inCloudMinMax = inCumulusMinMax;
+	}
+	
+	else if(weather_data.b == 0.5) 
+	{
+		inCloudMinMax = inCumulonimbusMinMax;
+	}
+
+	float height_fraction = getHeightFractionForPoint(point, inCloudMinMax);
+
+	// Add turbulence to the bottome of the clouds
+	vec4 curlNoise = texture(curlNoiseSampler, point.xy);
+	point.xy += curlNoise.xy * (1.0-height_fraction);
+
+	// Sample High Frequency Noises
+	vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);
+
+	// Build High Frequency FBM
+	float high_freq_FBM = (highFrequencyNoise.r * 0.625) + 
+						  (highFrequencyNoise.g * 0.25)  +
+						  (highFrequencyNoise.b * 0.125); 
+
+	float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 10.0, 0.0, 1.0));
+
+	//Erode the base shape of the cloud with the distorted high frequency worley noises
+	float final_cloud = remap(base_cloud_with_coverage, high_freq_modifier * 0.2, 1.0, 0.0, 1.0);
+
+	return final_cloud;
 }
 
 void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos, 
 			float start_t, float end_t, inout float accumDensity, inout float transmittance)
 {
-	float maxSteps = 64.0; //floor(mix(64, 128, 1.0 - ray.direction.y)); //maybe switch to a 52 - 84 range
+	float maxSteps = floor(mix(52, 84, 1.0 - ray.direction.y));
 	float stepSize = (end_t - start_t) / maxSteps;
 
     vec3 pos;
@@ -577,14 +689,19 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 		float perlinTestVal = FBM(vec2(pos[0], pos[1]));
 		weather_data = vec3(perlinTestVal, perlinTestVal, perlinTestVal);
 
-		density = sampleCloudDensity(pos, weather_data) * 0.5;
-
 		// TEST: Adjust the position to represent spherical-ness of world
 		//vec3 correctedPos = normalize(pos - EARTH_CENTER) * atmosphereRadiusInner;
 		//density = sampleCloudDensity(correctedPos / 20000.0, weather_data)*0.5;
 
+		vec3 samplePoint = vec3(pos.x, pos.y, abs(pos.z));			//normalize(pos - vec3(0, 0, -earthRadius)) * atmosphereRadiusInner;//pos;//(pos-startPos);///endPos;
+		samplePoint /= 30000.0;										//fixed value found by tweaking don't change or else you will see the tiled texture and notice the repition
+		density = sampleCloudDensity(samplePoint, weather_data);
+
+
 		if(density > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
+			accumDensity += density*(1/8.0);
+
 			// Do Lighting calculations with cone sampling
 			float densityAlongLight = 0.0;
 			
@@ -628,10 +745,8 @@ void main()
     ivec2 dim = imageSize(resultImage);
 	vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
 
-	// base_cloud = remap(low_freq_noise, high_freq_noise, 1.0, 0.0, 1.0);
-	// cloud_with_coverage = remap(noise, cloud_coverage, 1.0, 0.0, 1.0);
-	vec3 weather_data = vec3(1,1,1);
-	vec3 backgroundCol = vec3(0,0,1);
+	vec3 weather_data = vec3(1, 1, 1); //Use Actual Texture
+	vec3 backgroundCol = vec3(0, 0, 1); //Change to be based on the atmosphere background color because of the preetham model
 
 	// Cast a ray
 	uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
@@ -640,21 +755,21 @@ void main()
 
 	Ray ray = castRay(screenPoint, eyePos);
 
-	// if (dot( vec3(0,1,0), ray.direction ) < 0.0 )
-	// {
-	// 	//kill threads because we shouldnt see stuff below the horizon
-	// 	imageStore( resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol,1.0) );
-	// 	return;
-	// }
+	if (dot( vec3(0,1,0), ray.direction ) < 0.0 )
+	{
+		//kill threads because we shouldnt see stuff below the horizon
+
+		// Change the Color From blue to something based on the atmosphere color
+
+		imageStore( resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol,1.0) );
+		return;
+	}
 
 	// Find the start and en points of the ray march
 	vec3 earthCenter = eyePos;
 	earthCenter.y = -earthRadius * 0.5; //move earth below camera
 	Intersection atmospherInnerIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, atmosphereRadiusInner);
 	Intersection atmospherOuterIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, atmosphereRadiusOuter);
-	// Intersection sphere = raySphereIntersection(ray.origin, ray.direction, vec3(0.0,0,0), 2.0); // To test ray marching with
-	// ray.origin += sphere.point+0.01*ray.direction;
-	// Intersection sphereotherend = raySphereIntersection(ray.origin, ray.direction, vec3(0.0, 0.0, 0.0), 2.0); // To test ray marching with
 
 	// Ray March
 	float transmittance = 1.0;
@@ -663,24 +778,7 @@ void main()
 			atmospherInnerIsect.t, atmospherOuterIsect.t, accumDensity, transmittance);
 
 
-	// float maxSteps = 128.0; //floor(mix(64, 128, 1.0 - ray.direction.y)); //maybe switch to a 52 - 84 range
-	// float stepSize = (sphereotherend.t - sphere.t)/maxSteps;
-
- //    vec3 pos;
- //    float density;
-
-
- //    for (float t = sphere.t; t < sphereotherend.t; t += stepSize)
-	// {
-	// 	vec3 point = abs(ray.origin + t*ray.direction);
-	// 	density += sampleCloudDensity(point, weather_data) * 0.01;
-	// }
-
-	// opacity fades to prevent hard cutoff at horizon
-    //accumDensity *= smoothstep(0, 1, min(1, remap(ray.direction.y, 0, 0.1, 0, 1)));
-
-
-	// Henyey-Greenstein - TESTING
+	// Henyey-Greenstein for debug view
  	float cos_angle = dot(normalize(ray.direction), normalize(SUN_LOCATION - ray.origin));
     float eccentricity = 0.6;
     float silver_intensity = 0.7;
@@ -688,57 +786,54 @@ void main()
     float hg_light = HGCombined(cos_angle, eccentricity, silver_intensity, silver_spread);
     accumDensity *= hg_light;
 
-
+    // Preetham Sun/Sky Model
     // This produces a better day time result than the second one (but you see the sun)
     // The second one (albeit correct) gives more of a sunset
     vec3 backgroundSky = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin);
     // vec3 backgroundSky = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin);
 
 
-    vec4 finalColor = vec4(vec3(accumDensity), 1.0); //vec4(mix(backgroundCol, vec3(clamp(transmittance, 0.0, 1.0)), accumDensity), 1.0);
+	// opacity fades to prevent hard cutoff at horizon blend in with 
+    accumDensity *= smoothstep(0, 1, min(1, remap(ray.direction.y, 0, 0.05, 0, 1)));
+    vec4 finalColor = vec4(mix(backgroundCol, vec3(clamp(transmittance, 0.0, 1.0)), accumDensity), 1.0);
 
-    //vec4 finalColor = vec4(abs(atmospherInnerIsect.normal) * float(atmospherInnerIsect.valid), 1.0);
+// Begin debug renders
+#ifdef HEIGHT_GRADIENT
+	float densityHeightGradient = getDensityHeightGradientForPoint( vec3(uv, 1.0), weather_data );
+	finalColor = vec4(densityHeightGradient);
+#endif
 
-	if(HEIGHT_GRADIENT)
-	{
-		// float densityHeightGradient = getDensityHeightGradientForPoint(vec3(uv, 1.0), weather_data);
-		// finalColor = vec4(densityHeightGradient);
-	}
-	else if(TEXTURE_LOW_FREQ)
-	{
-		vec3 p = vec3(uv, sin(time.y));
-		vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, p);
-		finalColor = vec4(lowFrequencyNoises);
-	}
-	else if(TEXTURE_HIGH_FREQ)
-	{
-		vec3 p = vec3(uv, sin(time.y));
-		vec4 highFrequencyNoises = texture(cloudDetailsHighFreqSampler, p);
-		finalColor = vec4(highFrequencyNoises);
-	}
-	else if(TEXTURE_CURL_NOISE)
-	{
-		vec4 curlNoise = texture(curlNoiseSampler, uv);
-		finalColor = vec4(curlNoise);
-	}
-	else if(DENSITY)
-	{
-		vec3 p = vec3(uv, sin(1.0+time.y));
-		float density = sampleCloudDensity(p, weather_data);
-		finalColor = normalize(vec4(vec3(density), 1.0));
-	}
-	else if(BLOBBY_CLOUDS)
-	{
-		finalColor = vec4(vec3(accumDensity), 1.0);
-	}
-	else if(LIGHTING)
-	{
-		finalColor = vec4(vec3(hg_light), 1.0);
-	}
-	else if(BACKGROUND_SKY)
-	{
-		finalColor = vec4(backgroundSky, 1.0);
-	}
+#ifdef TEXTURE_LOW_FREQ
+	vec4 lowFrequencyNoises = texture( cloudBaseShapeSampler, vec3(uv, sin(time.y)) );
+	finalColor = vec4(lowFrequencyNoises);
+#endif
+
+#ifdef TEXTURE_HIGH_FREQ
+	vec4 highFrequencyNoises = texture( cloudDetailsHighFreqSampler, vec3(uv, sin(time.y)) );
+	finalColor = vec4(highFrequencyNoises);
+#endif
+
+#ifdef TEXTURE_CURL_NOISE
+	vec4 curlNoise = texture( curlNoiseSampler, uv );
+	finalColor = vec4(curlNoise);
+#endif
+
+#ifdef DENSITY_SLICES
+	float density = sampleCloudDensity( vec3(uv, sin(time.y)), weather_data );
+	finalColor = normalize( vec4(vec3(density), 1.0) );
+#endif
+
+#ifdef CLOUDS_ALL_NOISES
+	finalColor = vec4( vec3(accumDensity), 1.0 );
+#endif
+
+#ifdef LIGTHING
+	finalColor = vec4(vec3(hg_light), 1.0);
+#endif
+
+#ifdef BACKGROUND_SKY
+	finalColor = vec4(backgroundSky, 1.0);
+#endif
 	
 	//Pass the color off to the cloud pipeline's frag shader
     imageStore( resultImage, ivec2(gl_GlobalInvocationID.xy), finalColor );
