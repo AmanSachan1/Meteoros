@@ -34,6 +34,7 @@ public:
 	~Renderer();
 
 	void InitializeRenderer();
+	void RecreateOnResize(uint32_t width, uint32_t height);
 
 	void Frame();
 
@@ -73,12 +74,13 @@ public:
 	void RecordComputeCommandBuffer();
 
 	// Format Helper Functions
-	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
+	VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates,
 								VkImageTiling tiling, VkFormatFeatureFlags features);
-	VkFormat findDepthFormat();
+	VkFormat FindDepthFormat();
 
+	void CreateComputeResources();
 	//Cloud Resource Functions
-	void createCloudResources();
+	void CreateCloudResources();
 
 	// IMGUI
 	void ImGuiSetup(GLFWwindow* window); 
@@ -124,8 +126,10 @@ private:
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
 
-	Texture2D* rayMarchedComputeTexture;
+	Texture2D* currentFrameComputeResultTexture;
+	Texture2D* previousFrameComputeResultTexture;
 	
+	Texture2D* weatherMapTexture;
 	Texture3D* cloudBaseShapeTexture;
 	/*
 	3D cloudBaseShapeTexture
@@ -163,12 +167,8 @@ private:
 	VkDescriptorSetLayout cloudSetLayout;
 	VkDescriptorSetLayout graphicsSetLayout;
 
-	// Cloud Pipeline Descriptor Sets + compute pipeline descriptor Set Layout
-	VkDescriptorSet computeSet;	// Compute shader bindings
-
-	// Descriptor Set for cloud Data
-	VkDescriptorSet cloudSet;
-
-	// Geometry specific descriptor sets
-	VkDescriptorSet graphicsSet;
+	// Descriptor Sets for each pipeline
+	VkDescriptorSet computeSet;	// Compute shader descriptor Set	
+	VkDescriptorSet cloudSet; // Descriptor Set for cloud pipeline Data
+	VkDescriptorSet graphicsSet; // Graphics ( Regular Geometric Meshes ) specific descriptor sets
 };

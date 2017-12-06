@@ -44,10 +44,12 @@ Renderer::~Renderer()
 	delete quad;
 	delete house;
 
-	delete rayMarchedComputeTexture;
+	delete currentFrameComputeResultTexture;
+	delete previousFrameComputeResultTexture;
 	delete cloudBaseShapeTexture;
 	delete cloudDetailsTexture;
 	delete cloudMotionTexture;
+	delete weatherMapTexture;
 }
 
 void Renderer::InitializeRenderer()
@@ -55,12 +57,7 @@ void Renderer::InitializeRenderer()
 	CreateCommandPools();
 	CreateRenderPass();
 
-	//To pass texture created in compute to frag shader
-	rayMarchedComputeTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	rayMarchedComputeTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
-
-	//Create the textures that will be passed to the compute shader to create clouds
-	createCloudResources();
+	CreateComputeResources();
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -79,6 +76,24 @@ void Renderer::InitializeRenderer()
 
 	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
+}
+
+void Renderer::RecreateOnResize(uint32_t width, uint32_t height)
+{
+	window_width = width;
+	window_height = height;
+
+	delete currentFrameComputeResultTexture;
+	delete previousFrameComputeResultTexture;
+
+	//To store the results of the compute shader that will be passed on to the frag shader
+	currentFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+	//Stores the results of the previous Frame
+	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	previousFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+
+	RecreateFrameResources();
 }
 
 //This Function submits command buffers for execution --> so that the application can 
@@ -168,7 +183,7 @@ void Renderer::CreateRenderPass()
 
 	// Depth buffer attachment represented by one of the images from the swap chain
 	VkAttachmentDescription depthAttachment = {};
-	depthAttachment.format = findDepthFormat(); //The format should be the same as the depth image itself.
+	depthAttachment.format = FindDepthFormat(); //The format should be the same as the depth image itself.
 	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //This time we don't care about storing the depth data, 
@@ -696,15 +711,47 @@ void Renderer::RecreateFrameResources()
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
 
+	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
+
+	vkDestroyPipeline(logicalDevice, cloudsPipeline, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, cloudsPipelineLayout, nullptr);
+
+	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
 	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
+
+	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
+
+	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, cloudSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
+
+	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
+
+	delete quad;
+	delete house;
+
+	CreateRenderPass();
+
+	CreateDescriptorPool();
+	CreateAllDescriptorSetLayouts();
+	CreateAllDescriptorSets();
 
 	DestroyFrameResources();
 	CreateFrameResources();
 
-	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout });
+	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
 	CreateGraphicsPipeline(renderPass, 0);
 
+	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout });
+	CreateComputePipeline();
+
+	cloudsPipelineLayout = CreatePipelineLayout({ cloudSetLayout });
+	CreateCloudsPipeline(renderPass, 0);
+
 	RecordGraphicsCommandBuffer();
+	RecordComputeCommandBuffer();
 }
 
 // Helper Functions for Frame Resources
@@ -749,7 +796,7 @@ void Renderer::CreateImageViewsforFrame()
 
 void Renderer::createDepthResources()
 {
-	VkFormat depthFormat = findDepthFormat();
+	VkFormat depthFormat = FindDepthFormat();
 	// Create Depth Image and ImageViews
 	Image::createImage(device, swapChain->GetVkExtent().width, swapChain->GetVkExtent().height, depthFormat,
 					   VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -878,7 +925,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-		imageMemoryBarrier.image = rayMarchedComputeTexture->GetTextureImage();
+		imageMemoryBarrier.image = currentFrameComputeResultTexture->GetTextureImage();
 		imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 		imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 		imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;		
@@ -1004,8 +1051,8 @@ void Renderer::RecordComputeCommandBuffer()
 	
 	// Dispatch the compute kernel
 	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
-	uint32_t numBlocksX = (rayMarchedComputeTexture->GetWidth() + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-	uint32_t numBlocksY = (rayMarchedComputeTexture->GetHeight() + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	uint32_t numBlocksX = (window_width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	uint32_t numBlocksY = (window_height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
 	uint32_t numBlocksZ = 1;
 	vkCmdDispatch(computeCommandBuffer, numBlocksX, numBlocksY, numBlocksZ);
 
@@ -1028,9 +1075,13 @@ void Renderer::CreateDescriptorPool()
 		// Format for elements: { type, descriptorCount }
 		// Compute Texture Write 
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
+		// Previous Frame Data as Texture for Reprojection
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 		// Samplers for all the cloud Textures
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // low frequency texture
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // high frequency texture
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // curl noise texture
+		// Weather Map
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
 		// Time
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
@@ -1095,16 +1146,20 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	// pImmutableSamplers --> for image sampling related descriptors
 
 	//Compute
-	VkDescriptorSetLayoutBinding cloudPreComputeSetLayoutBinding =		   { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
-	VkDescriptorSetLayoutBinding cloudLowFrequencyNoiseSetLayoutBinding =  { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
-	VkDescriptorSetLayoutBinding cloudHighFrequencyNoiseSetLayoutBinding = { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
-	VkDescriptorSetLayoutBinding cloudCurlNoiseSetLayoutBinding =          { 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
-	VkDescriptorSetLayoutBinding timeSetLayoutBinding =                    { 4, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding currentFrameComputeResultLayoutBinding =  { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding previousFrameComputeResultLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding cloudLowFrequencyNoiseSetLayoutBinding =  { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding cloudHighFrequencyNoiseSetLayoutBinding = { 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding cloudCurlNoiseSetLayoutBinding =          { 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding weatherMapSetLayoutBinding =              { 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding timeSetLayoutBinding =                    { 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 
-	std::array<VkDescriptorSetLayoutBinding, 5> computeBindings = { cloudPreComputeSetLayoutBinding, 
+	std::array<VkDescriptorSetLayoutBinding, 7> computeBindings = { currentFrameComputeResultLayoutBinding,
+																	previousFrameComputeResultLayoutBinding,
 																	cloudLowFrequencyNoiseSetLayoutBinding, 
 																	cloudHighFrequencyNoiseSetLayoutBinding,
 																	cloudCurlNoiseSetLayoutBinding,
+																	weatherMapSetLayoutBinding,
 																	timeSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo computeLayoutInfo = {};
 	computeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1212,10 +1267,16 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	//-------Compute Pipeline DescriptorSets----
 	//------------------------------------------
 	// Texture Compute Shader Writes To
-	VkDescriptorImageInfo computeTextureInfo = {};
-	computeTextureInfo.imageLayout = rayMarchedComputeTexture->GetTextureLayout();
-	computeTextureInfo.imageView = rayMarchedComputeTexture->GetTextureImageView();
-	computeTextureInfo.sampler = rayMarchedComputeTexture->GetTextureSampler();
+	VkDescriptorImageInfo currentFrameTextureInfo = {};
+	currentFrameTextureInfo.imageLayout = currentFrameComputeResultTexture->GetTextureLayout();
+	currentFrameTextureInfo.imageView = currentFrameComputeResultTexture->GetTextureImageView();
+	currentFrameTextureInfo.sampler = currentFrameComputeResultTexture->GetTextureSampler();
+
+	// previous Frame Data for Reprojection
+	VkDescriptorImageInfo previousFrameTextureInfo = {};
+	previousFrameTextureInfo.imageLayout = previousFrameComputeResultTexture->GetTextureLayout();
+	previousFrameTextureInfo.imageView = previousFrameComputeResultTexture->GetTextureImageView();
+	previousFrameTextureInfo.sampler = previousFrameComputeResultTexture->GetTextureSampler();
 
 	// Cloud Low Frequency Noise
 	VkDescriptorImageInfo cloudLowFrequencyNoiseImageInfo = {};
@@ -1235,28 +1296,34 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	cloudCurlNoiseImageInfo.imageView = cloudMotionTexture->GetTextureImageView();
 	cloudCurlNoiseImageInfo.sampler = cloudMotionTexture->GetTextureSampler();
 
+	// Cloud Curl Noise
+	VkDescriptorImageInfo weatherMapInfo = {};
+	weatherMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	weatherMapInfo.imageView = weatherMapTexture->GetTextureImageView();
+	weatherMapInfo.sampler = weatherMapTexture->GetTextureSampler();
+
 	// Time Descriptor
 	VkDescriptorBufferInfo timeBufferInfo = {};
 	timeBufferInfo.buffer = scene->GetTimeBuffer();
 	timeBufferInfo.offset = 0;
 	timeBufferInfo.range = sizeof(Time);
 
-	std::array<VkWriteDescriptorSet, 5> writeComputeTextureInfo = {};
+	std::array<VkWriteDescriptorSet, 7> writeComputeTextureInfo = {};
 	writeComputeTextureInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[0].pNext = NULL;
 	writeComputeTextureInfo[0].dstSet = computeSet;
 	writeComputeTextureInfo[0].dstBinding = 0;
-	writeComputeTextureInfo[0].descriptorCount = 1;									// How many 
+	writeComputeTextureInfo[0].descriptorCount = 1;
 	writeComputeTextureInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-	writeComputeTextureInfo[0].pImageInfo = &computeTextureInfo;
+	writeComputeTextureInfo[0].pImageInfo = &currentFrameTextureInfo;
 
 	writeComputeTextureInfo[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[1].pNext = NULL;
 	writeComputeTextureInfo[1].dstSet = computeSet;
 	writeComputeTextureInfo[1].dstBinding = 1;
 	writeComputeTextureInfo[1].descriptorCount = 1;
-	writeComputeTextureInfo[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeComputeTextureInfo[1].pImageInfo = &cloudLowFrequencyNoiseImageInfo;
+	writeComputeTextureInfo[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeComputeTextureInfo[1].pImageInfo = &previousFrameTextureInfo;
 
 	writeComputeTextureInfo[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[2].pNext = NULL;
@@ -1264,7 +1331,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeComputeTextureInfo[2].dstBinding = 2;
 	writeComputeTextureInfo[2].descriptorCount = 1;
 	writeComputeTextureInfo[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeComputeTextureInfo[2].pImageInfo = &cloudHighFrequencyNoiseImageInfo;
+	writeComputeTextureInfo[2].pImageInfo = &cloudLowFrequencyNoiseImageInfo;
 
 	writeComputeTextureInfo[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[3].pNext = NULL;
@@ -1272,15 +1339,31 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeComputeTextureInfo[3].dstBinding = 3;
 	writeComputeTextureInfo[3].descriptorCount = 1;
 	writeComputeTextureInfo[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeComputeTextureInfo[3].pImageInfo = &cloudCurlNoiseImageInfo;
+	writeComputeTextureInfo[3].pImageInfo = &cloudHighFrequencyNoiseImageInfo;
 
 	writeComputeTextureInfo[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[4].pNext = NULL;
 	writeComputeTextureInfo[4].dstSet = computeSet;
 	writeComputeTextureInfo[4].dstBinding = 4;
 	writeComputeTextureInfo[4].descriptorCount = 1;
-	writeComputeTextureInfo[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeComputeTextureInfo[4].pBufferInfo = &timeBufferInfo;
+	writeComputeTextureInfo[4].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeComputeTextureInfo[4].pImageInfo = &cloudCurlNoiseImageInfo;
+
+	writeComputeTextureInfo[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeComputeTextureInfo[5].pNext = NULL;
+	writeComputeTextureInfo[5].dstSet = computeSet;
+	writeComputeTextureInfo[5].dstBinding = 5;
+	writeComputeTextureInfo[5].descriptorCount = 1;
+	writeComputeTextureInfo[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeComputeTextureInfo[5].pImageInfo = &weatherMapInfo;
+
+	writeComputeTextureInfo[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeComputeTextureInfo[6].pNext = NULL;
+	writeComputeTextureInfo[6].dstSet = computeSet;
+	writeComputeTextureInfo[6].dstBinding = 6;
+	writeComputeTextureInfo[6].descriptorCount = 1;
+	writeComputeTextureInfo[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeComputeTextureInfo[6].pBufferInfo = &timeBufferInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeComputeTextureInfo.size()), writeComputeTextureInfo.data(), 0, nullptr);
 
@@ -1296,7 +1379,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeCloudSamplerInfo[0].dstBinding = 0;
 	writeCloudSamplerInfo[0].descriptorCount = 1;
 	writeCloudSamplerInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeCloudSamplerInfo[0].pImageInfo = &computeTextureInfo;
+	writeCloudSamplerInfo[0].pImageInfo = &currentFrameTextureInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCloudSamplerInfo.size()), writeCloudSamplerInfo.data(), 0, nullptr);
 
@@ -1359,7 +1442,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 //----------------------------------------------
 //-------------- Format Helper Functions -------
 //----------------------------------------------
-VkFormat Renderer::findSupportedFormat(const std::vector<VkFormat>& candidates,
+VkFormat Renderer::FindSupportedFormat(const std::vector<VkFormat>& candidates,
 									   VkImageTiling tiling, VkFormatFeatureFlags features)
 {
 	for (VkFormat format : candidates)
@@ -1378,9 +1461,9 @@ VkFormat Renderer::findSupportedFormat(const std::vector<VkFormat>& candidates,
 	throw std::runtime_error("failed to find supported format!");
 }
 
-VkFormat Renderer::findDepthFormat()
+VkFormat Renderer::FindDepthFormat()
 {
-	return findSupportedFormat({ VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT },
+	return FindSupportedFormat({ VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT },
 								VK_IMAGE_TILING_OPTIMAL,
 								VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
 								);
@@ -1389,7 +1472,20 @@ VkFormat Renderer::findDepthFormat()
 //----------------------------------------------
 //-------------- Create Clouds Resources -------
 //----------------------------------------------
-void Renderer::createCloudResources()
+void Renderer::CreateComputeResources()
+{
+	//To store the results of the compute shader that will be passed on to the frag shader
+	currentFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+	//Stores the results of the previous Frame
+	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	previousFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+
+	//Create the textures that will be passed to the compute shader to create clouds
+	CreateCloudResources();
+}
+
+void Renderer::CreateCloudResources()
 {
 	// Low Frequency Cloud 3D Texture
 	const std::string LowFreq_folder_path = "../../src/CloudScapes/textures/CloudTexturesUsed/LowFrequency/";
@@ -1411,12 +1507,18 @@ void Renderer::createCloudResources()
 
 	// Curl Noise 2D Texture
 	const std::string curlNoiseTexture_path = "../../src/CloudScapes/textures/CloudTexturesUsed/curlNoise.png";
-	cloudMotionTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM); //Need to pad an extra channel because R8G8B8 is not supported
+	cloudMotionTexture = new Texture2D(device, 128, 128, VK_FORMAT_R8G8B8A8_UNORM); //Need to pad an extra channel because R8G8B8 is not supported
 	cloudMotionTexture->createTextureFromFile(logicalDevice, computeCommandPool, curlNoiseTexture_path, 4, 
 											VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 											VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
-}
 
+	// Weather Map 2D Texture
+	const std::string weatherMapTexture_path = "../../src/CloudScapes/textures/CloudTexturesUsed/weatherMap.png";
+	weatherMapTexture = new Texture2D(device, 512, 512, VK_FORMAT_R8G8B8A8_UNORM); //Need to pad an extra channel because R8G8B8 is not supported
+	weatherMapTexture->createTextureFromFile(logicalDevice, computeCommandPool, weatherMapTexture_path, 4,
+											VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+											VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
+}
 
 //----------------------------------------------
 //--------------------- IMGUI ------------------

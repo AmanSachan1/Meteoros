@@ -5,13 +5,15 @@
 
 #define WORKGROUP_SIZE 32
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
-layout (set = 0, binding = 0, rgba8) uniform writeonly image2D resultImage;
+layout (set = 0, binding = 0, rgba8) uniform writeonly image2D currentFrameResultImage;
+layout (set = 0, binding = 1, rgba8) uniform image2D previousFrameResultImage;
 
-layout (set = 0, binding = 1) uniform sampler3D cloudBaseShapeSampler;
-layout (set = 0, binding = 2) uniform sampler3D cloudDetailsHighFreqSampler; // Dont use alpha channel
-layout (set = 0, binding = 3) uniform sampler2D curlNoiseSampler; // Don't use alpha channel
+layout (set = 0, binding = 2) uniform sampler3D cloudBaseShapeSampler;
+layout (set = 0, binding = 3) uniform sampler3D cloudDetailsHighFreqSampler; // Dont use alpha channel
+layout (set = 0, binding = 4) uniform sampler2D curlNoiseSampler; // Don't use alpha channel
+layout (set = 0, binding = 5) uniform sampler2D weatherMapSampler; // Don't use alpha channel
 
-layout (set = 0, binding = 4) uniform TimeUBO
+layout (set = 0, binding = 6) uniform TimeUBO
 {
     vec2 time; //stores delat time and total time
 };
@@ -41,7 +43,7 @@ struct Intersection {
 #define BACKGROUND_SKY 0
 
 #define CLOUDS_ALL_NOISES 0
-#define DENSITY_SLICES 1
+#define DENSITY_SLICES 0
 
 #define TEXTURE_CURL_NOISE 0
 #define TEXTURE_HIGH_FREQ 0
@@ -724,7 +726,7 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 
 void main() 
 {
-    ivec2 dim = imageSize(resultImage);
+    ivec2 dim = imageSize(currentFrameResultImage);
 	vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
 
 	vec3 weather_data = vec3(1, 1, 1); //Use Actual Texture
@@ -748,7 +750,7 @@ void main()
 
 		// Change the Color From blue to something based on the atmosphere color
 
-		imageStore( resultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol, 1.0) );
+		imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol, 1.0) );
 		return;
 	}
 
@@ -807,5 +809,5 @@ void main()
 #endif
 	
 	//Pass the color off to the cloud pipeline's frag shader
-    imageStore( resultImage, ivec2(gl_GlobalInvocationID.xy), finalColor );
+    imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), finalColor );
 }

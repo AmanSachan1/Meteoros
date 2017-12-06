@@ -29,7 +29,7 @@ namespace
 
 		vkDeviceWaitIdle(device->GetVkDevice());
 		swapChain->Recreate();
-		renderer->RecreateFrameResources();
+		renderer->RecreateOnResize(width, height);
 	}
 
 	bool leftMouseDown = false;

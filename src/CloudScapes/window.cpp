@@ -23,8 +23,9 @@ void InitializeWindow(int width, int height, const char* name)
     }
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-    window = glfwCreateWindow(width, height, name, nullptr, nullptr);
+    glfwWindowHint(GLFW_RESIZABLE, GL_TRUE);
+	window = glfwCreateWindow(width, height, name, nullptr, nullptr);
+    //window = glfwCreateWindow(width, height, name, glfwGetPrimaryMonitor(), nullptr);
 
     if (!window) {
         fprintf(stderr, "Failed to initialize GLFW window\n");
