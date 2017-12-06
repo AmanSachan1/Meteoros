@@ -707,6 +707,7 @@ void Renderer::DestroyFrameResources()
 
 void Renderer::RecreateFrameResources()
 {
+	// All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
 	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
@@ -1232,27 +1233,24 @@ void Renderer::CreateAllDescriptorSets()
 	// Using manual-based Model constructor --------------------------------------------------
 	// Arbitrary test model
 	const std::vector<Vertex> vertices = {
-		{ { -0.5f, 0.5f,  0.0f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
-		{ { 0.5f,  0.5f,  0.0f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
-		{ { 0.5f,  -0.5f, 0.0f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { -0.5f, -0.5f, 0.0f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
-
-		{ { -0.5f, 0.5f,  -0.5f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
-		{ { 0.5f,  0.5f, -0.5f, 1.0f }, { 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
-		{ { 0.5f,  -0.5f, -0.5f, 1.0f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
-		{ { -0.5f, -0.5f, -0.5f, 1.0f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
+		{ { 1.0f, 0.0f, 1.0f,  1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
+		{ { 1.0f,  0.0f, 1.0f,  1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
+		{ { 1.0f,  0.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
+		{ { 1.0f, 0.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
 	};
-	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0,
-										  4, 5, 6, 6, 7, 4 };
+	std::vector<unsigned int> indices = { 2,1,0,0,2,3 };//0, 1, 2, 2, 3, 0};
 	house = new Model(device, graphicsCommandPool, vertices, indices);
 	house->SetTexture(device, graphicsCommandPool, texture_path);
 
+	//glm::mat4 modelMat = glm::rotate(house->GetModelMatrix(), scene->GetTime().y * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 1.0f)); //Ask Austin why the rotation doesnt work
+	//house->SetModelBuffer(modelMat);
+
 	// Quad model
 	const std::vector<Vertex> quadVertices = {
-		{ { -1.0f, -1.0f, 0.99999f, 1.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
-		{ { 1.0f,  -1.0f, 0.99999f, 1.0f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
-		{ { 1.0f,  1.0f, 0.99999f, 1.0f }, { 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
-		{ { -1.0f, 1.0f, 0.99999f, 1.0f }, { 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
+		{ { -1.0f, -1.0f, 0.99999f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
+		{ { 1.0f,  -1.0f, 0.99999f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
+		{ { 1.0f,  1.0f, 0.99999f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
+		{ { -1.0f, 1.0f, 0.99999f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
 	};
 	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
 	quad = new Model(device, graphicsCommandPool, quadVertices, quadIndices);

@@ -39,7 +39,10 @@ public:
 
 	const ModelBufferObject& getModelBufferObject() const;
 
+	glm::mat4 Model::GetModelMatrix() const;
 	VkBuffer GetModelBuffer() const;
+	void SetModelBuffer(glm::mat4 &model);
+
 	VkImage GetTexture() const;
 	VkDeviceMemory GetTextureMemory() const;
 	VkImageView GetTextureView() const;

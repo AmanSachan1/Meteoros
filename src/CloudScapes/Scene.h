@@ -38,4 +38,5 @@ public:
 
 	VkBuffer GetTimeBuffer() const;
 	void UpdateTime();
+	glm::vec2 Scene::GetTime() const;
 };

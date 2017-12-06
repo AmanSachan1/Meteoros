@@ -9,7 +9,7 @@
 // In that case you avoid rebinding most of the descriptors across draw calls which is potentially more efficient.
 
 layout (location = 0) in vec4 inPosition;
-layout (location = 1) in vec3 inColor;
+layout (location = 1) in vec4 inColor;
 layout (location = 2) in vec2 inTexCoord;
 
 out gl_PerVertex 
@@ -24,6 +24,6 @@ void main()
 {
     gl_Position = inPosition;
 
-	fragColor = inColor;
+	fragColor = vec3(inColor);
 	fragTexCoord = inTexCoord;
 }

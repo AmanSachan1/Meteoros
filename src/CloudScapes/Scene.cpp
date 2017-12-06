@@ -38,3 +38,8 @@ void Scene::UpdateTime()
 
 	memcpy(mappedData, &time, sizeof(Time));
 }
+
+glm::vec2 Scene::GetTime() const
+{
+	return time._time;
+}

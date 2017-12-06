@@ -21,8 +21,12 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::vector<
 	}
 
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, sizeof(ModelBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
-	
+	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelBufferObject),
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		modelBuffer, modelBufferMemory);
+
+	vkMapMemory(device->GetVkDevice(), modelBufferMemory, 0, sizeof(ModelBufferObject), 0, &mappedData);
+	memcpy(mappedData, &modelBufferObject, sizeof(ModelBufferObject));
 }
 
 Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::string model_path, const std::string texture_path)
@@ -43,9 +47,14 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::string 
 		BufferUtils::CreateBufferFromData(device, commandPool, this->indices.data(), indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBuffer, indexBufferMemory);
 	}
 
-	// Create Index Buffer
+	// Create Model Buffer
 	modelBufferObject.modelMatrix = glm::mat4(1.0f);
-	BufferUtils::CreateBufferFromData(device, commandPool, &modelBufferObject, sizeof(ModelBufferObject), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, modelBuffer, modelBufferMemory);
+	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(ModelBufferObject),
+							VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+							modelBuffer, modelBufferMemory);
+
+	vkMapMemory(device->GetVkDevice(), modelBufferMemory, 0, sizeof(ModelBufferObject), 0, &mappedData);
+	memcpy(mappedData, &modelBufferObject, sizeof(ModelBufferObject));
 
 	SetTexture(device, commandPool, texture_path);
 }
@@ -64,6 +73,7 @@ Model::~Model()
 		vkFreeMemory(device->GetVkDevice(), vertexBufferMemory, nullptr);
 	}
 
+	vkUnmapMemory(device->GetVkDevice(), modelBufferMemory);
 	vkDestroyBuffer(device->GetVkDevice(), modelBuffer, nullptr);
 	vkFreeMemory(device->GetVkDevice(), modelBufferMemory, nullptr);
 
@@ -128,7 +138,7 @@ void Model::LoadModel(const std::string model_path)
 										attrib.vertices[3 * index.vertex_index + 2], 
 										1.0f);
 			
-			vertex.color = glm::vec3(1.0f, 1.0f, 1.0f);
+			vertex.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 
 			//The origin of texture coordinates in Vulkan is the top-left corner, whereas 
 			//the OBJ format assumes the bottom-left corner. 
@@ -180,9 +190,18 @@ const ModelBufferObject& Model::getModelBufferObject() const
 	return modelBufferObject;
 }
 
+glm::mat4 Model::GetModelMatrix() const
+{
+	return modelBufferObject.modelMatrix;
+}
 VkBuffer Model::GetModelBuffer() const
 {
 	return modelBuffer;
+}
+void Model::SetModelBuffer(glm::mat4 &model)
+{
+	modelBufferObject.modelMatrix = model;
+	memcpy(mappedData, &modelBufferObject, sizeof(ModelBufferObject));
 }
 
 VkImage Model::GetTexture() const
