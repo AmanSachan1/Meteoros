@@ -267,8 +267,8 @@ void Renderer::CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subp
 	// Can add more shader modules to the list of shader stages that are part of the overall graphics pipeline
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Shader_modules
 	// Create vert and frag shader modules
-	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.vert.spv", device->GetVkDevice());
-	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.frag.spv", device->GetVkDevice());
+	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/geometryPlain.vert.spv", device->GetVkDevice());
+	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/geometryPlain.frag.spv", device->GetVkDevice());
 
 	// Assign each shader module to the appropriate stage in the pipeline
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
@@ -463,8 +463,8 @@ void Renderer::CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpas
 	// Can add more shader modules to the list of shader stages that are part of the overall graphics pipeline
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Shader_modules
 	// Create vert and frag shader modules
-	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/clouds.vert.spv", device->GetVkDevice());
-	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/clouds.frag.spv", device->GetVkDevice());
+	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/cloudDisplay.vert.spv", device->GetVkDevice());
+	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/cloudDisplay.frag.spv", device->GetVkDevice());
 
 	// Assign each shader module to the appropriate stage in the pipeline
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
@@ -655,7 +655,7 @@ void Renderer::CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpas
 
 void Renderer::CreateComputePipeline()
 {
-	VkShaderModule compShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/shader.comp.spv", device->GetVkDevice());
+	VkShaderModule compShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/cloudCompute.comp.spv", device->GetVkDevice());
 
 	VkPipelineShaderStageCreateInfo compShaderStageInfo = {};
 	compShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1233,12 +1233,12 @@ void Renderer::CreateAllDescriptorSets()
 	// Using manual-based Model constructor --------------------------------------------------
 	// Arbitrary test model
 	const std::vector<Vertex> vertices = {
-		{ { 1.0f, 0.0f, 1.0f,  1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
-		{ { 1.0f,  0.0f, 1.0f,  1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
-		{ { 1.0f,  0.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { 1.0f, 0.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
+		{ { 1.0f, 0.0f, -1.0f,  1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
+		{ { -1.0f,  0.0f, 1.0f,  1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
+		{ { -1.0f,  0.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
+		{ { 1.0f, 0.0f, -1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
 	};
-	std::vector<unsigned int> indices = { 2,1,0,0,2,3 };//0, 1, 2, 2, 3, 0};
+	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0  };//2,1,0,0,2,3};
 	house = new Model(device, graphicsCommandPool, vertices, indices);
 	house->SetTexture(device, graphicsCommandPool, texture_path);
 
