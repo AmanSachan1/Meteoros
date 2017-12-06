@@ -36,42 +36,55 @@ struct Intersection {
     float t;
 };
 
-//Global Defines
-#define earthRadius 6371000.0 // earth's actual radius in km = 6371
-#define atmosphereRadiusInner earthRadius + 7500.0 //15000 meters above
-#define atmosphereRadiusOuter earthRadius + 20000.0 //35000 meters above
+//Global Defines for Debug Views
+#define LIGHTING 0
+#define BACKGROUND_SKY 0
 
-#define EARTH_CENTER vec3(0, 0, -earthRadius)
+#define CLOUDS_ALL_NOISES 0
+#define DENSITY_SLICES 0
 
-// #define LightVec normalize(vec3(1.0,1.0,1.0));
-// #define SUN_LOCATION vec3(0, atmosphereRadiusOuter + earthRadius / 2.0, -earthRadius * 5.0)
-#define SUN_LOCATION vec3(0, atmosphereRadiusOuter + earthRadius / 2.0, -earthRadius * 1.5)
-#define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, earthRadius, -earthRadius * 10.0)
-#define SUN_COLOR vec3(1.0, 1.0, 1.0)
+#define TEXTURE_CURL_NOISE 0
+#define TEXTURE_HIGH_FREQ 1
+#define TEXTURE_LOW_FREQ 0
+#define HEIGHT_GRADIENT 0
 
-#define inStratusMinMax vec2(0.0, 0.3)
-#define inCumulusMinMax vec2(0.01, 0.45)
-#define inCumulonimbusMinMax vec2(0.0, 0.95)
-
+//Global Defines for math constants
 #define PI 3.14159265
 #define InvPI 0.31830988618
 #define THREE_OVER_SIXTEEN_PI 0.05968310365946075
 #define ONE_OVER_FOUR_PI 0.07957747154594767
-
-#define E 2.718281828459
 #define EPSILON 0.0001
+#define E 2.718281828459
 
+// Global Define for Noise FBM
 #define NUM_FBM_OCTAVES 7
 
-//Global Defines for Debug Views
-#define LIGHTING false
-#define CLOUDS_ALL_NOISES false
-#define DENSITY_SLICES false
-#define HEIGHT_GRADIENT false
-#define TEXTURE_CURL_NOISE false
-#define TEXTURE_HIGH_FREQ false
-#define TEXTURE_LOW_FREQ false
-#define BACKGROUND_SKY false
+//Global Defines for Earth and Cloud Layers 
+#define EARTH_RADIUS 6371000.0 // earth's actual radius in km = 6371
+#define EARTH_CENTER vec3(0, 0, -earthRadius)
+#define ATMOSPHERE_RADIUS_INNER earthRadius + 7500.0 //paper suggests values of 15000-35000m above
+#define ATMOSPHERE_RADIUS_OUTTER earthRadius + 20000.0
+
+#define IN_STRATUS_MIN_MAX vec2(0.0, 0.3)
+#define IN_CUMULUSUS_MIN_MAX vec2(0.01, 0.45)
+#define IN_CUMULONIMBUS_MIN_MAX vec2(0.0, 0.95)
+
+// Global Defines for Preetham 
+#define EE 1000.0
+#define SHADOW_CUTOFF 1.6110731557
+#define SHADOW_STEEPNESS 1.5
+#define SUN_ANGULAR_COS 0.999956676946448443553574619906976478926848692873900859324
+#define MIE_CONST vec3( 1.839991851443397, 2.779802391966052, 4.079047954386109)
+#define RAYLEIGH_TOTAL vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5)
+
+// #define LightVec normalize(vec3(1.0,1.0,1.0));
+#define SUN_LOCATION vec3(0, ATMOSPHERE_RADIUS_OUTTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO: make it a uniform so we have an animated sky
+#define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, EARTH_RADIUS, -EARTH_RADIUS * 10.0)
+#define SUN_COLOR vec3(1.0, 1.0, 1.0)
+
+//--------------------------------------------------------
+//					TOOL BOX FUNCTIONS
+//--------------------------------------------------------
 
 float bias(float b, float t)
 {
@@ -230,23 +243,26 @@ float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phas
     return light_energy;
 }
 
-
-
+//--------------------------------------------------------
+//					PREETHAM SKY MODEL
+//--------------------------------------------------------
 /*
 	Preetham Sky from: 
 	https://github.com/markstock/GenUtahSky/blob/master/utah.cal
 
 	A1			- Turbidity
     A2,A3,A4	- sun direction
+	
+	Other resources for preetham sky model: 
+	Preetham Sky From Project Marshmallow - Dan McCann and Joe Klinger
+	Adapted from open source of zz85 on Github, math from Preetham Model, initially implemented by Simon Wallner and Martin Upitis
 */
 
 /*
-
 float perez(float t, float g, float a, float b, float c, float d, float e)
 {
 	(1.0 + a * exp(b / (0.004 + abs(cos(t))))) * (1 + c * exp(d * g) + e * cos(g) * cos(g));
 }
-
 
 vec3 preethamSky(float turbidity, vec3 sunDirection)
 {
@@ -312,23 +328,12 @@ vec3 preethamSky(float turbidity, vec3 sunDirection)
 	skyg = -0.513885*x + 1.4253036*y + 0.0885814*z;
 	skyb = 0.0052982*x - 0.0146949*y + 1.0093968*z;
 }
-
 */
-
-
-/*
-	Preetham Sky From Project Marshmallow - Dan McCann and Joe Klinger
-	Adapted from open source of zz85 on Github, math from Preetham Model, initially implemented by Simon Wallner and Martin Upitis
-*/
-
 
 float rayleighPhase(float cosTheta) 
 {
     return THREE_OVER_SIXTEEN_PI * (1.0 + cosTheta * cosTheta);
 }
-
-#define MIE_CONST vec3( 1.839991851443397, 2.779802391966052, 4.079047954386109)
-#define RAYLEIGH_TOTAL vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5)
 
 vec3 calcSkyBetaR() 
 {
@@ -345,18 +350,11 @@ vec3 calcSkyBetaV()
     return vec3(0.434 * c * MIE_CONST * mie);
 }
 
-#define SHADOW_CUTOFF 1.6110731557
-#define SHADOW_STEEPNESS 1.5
-#define EE 1000.0
-#define E 2.718281828459
-
 float calcSunIntensity() 
 {
 	float zenithAngleCos = clamp(normalize(BACKGROUND_SKY_SUN_LOCATION).y, -1.0, 1.0);
 	return EE * max(0.0, 1.0 - pow(E, -((SHADOW_CUTOFF - acos(zenithAngleCos)) / SHADOW_STEEPNESS)));
 }
-
-#define SUN_ANGULAR_COS 0.999956676946448443553574619906976478926848692873900859324
 
 vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir) {
     vec3 color = vec3(0);
@@ -401,11 +399,9 @@ vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir) {
 
 // End credit to Preetham Sun Sky model
 
-
 //--------------------------------------------------------
 //					CLOUD SAMPLING
 //--------------------------------------------------------
-
 
 //Compute Ray for ray marching based on screenspace point
 Ray castRay( vec2 screenPoint, vec3 eye )
@@ -491,7 +487,6 @@ float getHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
 	return clamp(height_fraction, 0.0, 1.0);
 }
 
-
 // float getDensityHeightGradientForPoint(float height_fraction, vec3 weather_data) 
 float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
 {
@@ -574,8 +569,6 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	baseCloud *= densityHeightGradient;
 	return baseCloud;
 
-
-
 	// // COVERAGE 
 	// float coverage = weather_data[0];
 	// float base_cloud_with_coverage = remap(baseCloud, coverage, 1.0, 0.0, 1.0);
@@ -587,9 +580,6 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	// base_cloud_with_coverage *= coverage * brightness_factor;
 	// return base_cloud_with_coverage;
 	*/
-
-
-
 
 	//Get the density-height gradient
 	float densityHeightGradient = getDensityHeightGradientForPoint(point, weather_data);
@@ -610,18 +600,13 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 
 	// Find inCloudMinMax
 	vec2 inCloudMinMax;
-	if(weather_data.b == 0) 
-	{
+	if(weather_data.b == 0) {
 		inCloudMinMax = inStratusMinMax;
 	}
-	
-	else if(weather_data.b == 1) 
-	{
+	else if(weather_data.b == 1) {
 		inCloudMinMax = inCumulusMinMax;
 	}
-	
-	else if(weather_data.b == 0.5) 
-	{
+	else if(weather_data.b == 0.5) {
 		inCloudMinMax = inCumulonimbusMinMax;
 	}
 
@@ -750,8 +735,7 @@ void main()
 	vec3 eyePos = -camera.eye.xyz;
 	Ray ray = castRay(screenPoint, eyePos);
 
-
-    // Preetham Sun/Sky Model
+    // Get sky background color from Preetham Sun/Sky Model
     // The first produces a better day time result than the second one (but you see the sun)
     // The second one (albeit correct) gives more of a sunset
     vec3 backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin);
@@ -770,16 +754,15 @@ void main()
 
 	// Find the start and en points of the ray march
 	vec3 earthCenter = eyePos;
-	earthCenter.y = -earthRadius * 0.5; //move earth below camera
-	Intersection atmospherInnerIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, atmosphereRadiusInner);
-	Intersection atmospherOuterIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, atmosphereRadiusOuter);
+	earthCenter.y = -EARTH_RADIUS * 0.5; //move earth below camera
+	Intersection atmospherInnerIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, ATMOSPHERE_RADIUS_INNER);
+	Intersection atmospherOuterIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, ATMOSPHERE_RADIUS_OUTER);
 
 	// Ray March
 	float transmittance = 1.0;
     float accumDensity = 0.0;
 	rayMarch(ray, weather_data, atmospherInnerIsect.point, atmospherOuterIsect.point, 
 			atmospherInnerIsect.t, atmospherOuterIsect.t, accumDensity, transmittance);
-
 
 	// Henyey-Greenstein for debug view
     vec3 currRayDir = ray.direction;
@@ -789,7 +772,6 @@ void main()
     float silver_spread = 0.1;
     float hg_light = HGCombined(cos_angle, eccentricity, silver_intensity, silver_spread);
     // accumDensity *= hg_light;
-
 
 	// opacity fades to prevent hard cutoff at horizon blend in with 
     accumDensity *= smoothstep(0, 1, min(1, remap(ray.direction.y, 0, 0.05, 0, 1)));
@@ -804,37 +786,23 @@ void main()
 #if HEIGHT_GRADIENT
 	float densityHeightGradient = getDensityHeightGradientForPoint( vec3(uv, 1.0), weather_data );
 	finalColor = vec4(densityHeightGradient);
-#endif
-
-#if TEXTURE_LOW_FREQ
+#elif TEXTURE_LOW_FREQ
 	vec4 lowFrequencyNoises = texture( cloudBaseShapeSampler, vec3(uv, sin(time.y)) );
 	finalColor = vec4(lowFrequencyNoises);
-#endif
-
-#if TEXTURE_HIGH_FREQ
+#elif TEXTURE_HIGH_FREQ
 	vec4 highFrequencyNoises = texture( cloudDetailsHighFreqSampler, vec3(uv, sin(time.y)) );
 	finalColor = vec4(highFrequencyNoises);
-#endif
-
-#if TEXTURE_CURL_NOISE
+#elif TEXTURE_CURL_NOISE
 	vec4 curlNoise = texture( curlNoiseSampler, uv );
 	finalColor = vec4(curlNoise);
-#endif
-
-#if DENSITY_SLICES
+#elif DENSITY_SLICES
 	float density = sampleCloudDensity( vec3(uv, sin(time.y)), weather_data );
 	finalColor = normalize( vec4(vec3(density), 1.0) );
-#endif
-
-#if CLOUDS_ALL_NOISES
+#elif CLOUDS_ALL_NOISES
 	finalColor = vec4( vec3(accumDensity), 1.0 );
-#endif
-
-#if LIGHTING
+#elif LIGHTING
 	finalColor = vec4(vec3(hg_light), 1.0);
-#endif
-
-#if BACKGROUND_SKY
+#elif BACKGROUND_SKY
 	finalColor = vec4(backgroundCol, 1.0);
 #endif
 	
