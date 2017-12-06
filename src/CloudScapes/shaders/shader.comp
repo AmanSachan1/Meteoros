@@ -41,10 +41,10 @@ struct Intersection {
 #define BACKGROUND_SKY 0
 
 #define CLOUDS_ALL_NOISES 0
-#define DENSITY_SLICES 0
+#define DENSITY_SLICES 1
 
 #define TEXTURE_CURL_NOISE 0
-#define TEXTURE_HIGH_FREQ 1
+#define TEXTURE_HIGH_FREQ 0
 #define TEXTURE_LOW_FREQ 0
 #define HEIGHT_GRADIENT 0
 
@@ -61,12 +61,12 @@ struct Intersection {
 
 //Global Defines for Earth and Cloud Layers 
 #define EARTH_RADIUS 6371000.0 // earth's actual radius in km = 6371
-#define EARTH_CENTER vec3(0, 0, -earthRadius)
-#define ATMOSPHERE_RADIUS_INNER earthRadius + 7500.0 //paper suggests values of 15000-35000m above
-#define ATMOSPHERE_RADIUS_OUTTER earthRadius + 20000.0
+#define EARTH_CENTER vec3(0, 0, -EARTH_RADIUS)
+#define ATMOSPHERE_RADIUS_INNER EARTH_RADIUS + 7500.0 //paper suggests values of 15000-35000m above
+#define ATMOSPHERE_RADIUS_OUTER EARTH_RADIUS + 20000.0
 
 #define IN_STRATUS_MIN_MAX vec2(0.0, 0.3)
-#define IN_CUMULUSUS_MIN_MAX vec2(0.01, 0.45)
+#define IN_CUMULUS_MIN_MAX vec2(0.01, 0.45)
 #define IN_CUMULONIMBUS_MIN_MAX vec2(0.0, 0.95)
 
 // Global Defines for Preetham 
@@ -78,7 +78,7 @@ struct Intersection {
 #define RAYLEIGH_TOTAL vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5)
 
 // #define LightVec normalize(vec3(1.0,1.0,1.0));
-#define SUN_LOCATION vec3(0, ATMOSPHERE_RADIUS_OUTTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO: make it a uniform so we have an animated sky
+#define SUN_LOCATION vec3(0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO: make it a uniform so we have an animated sky
 #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, EARTH_RADIUS, -EARTH_RADIUS * 10.0)
 #define SUN_COLOR vec3(1.0, 1.0, 1.0)
 
@@ -601,13 +601,13 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	// Find inCloudMinMax
 	vec2 inCloudMinMax;
 	if(weather_data.b == 0) {
-		inCloudMinMax = inStratusMinMax;
+		inCloudMinMax = IN_STRATUS_MIN_MAX;
 	}
 	else if(weather_data.b == 1) {
-		inCloudMinMax = inCumulusMinMax;
+		inCloudMinMax = IN_CUMULUS_MIN_MAX;
 	}
 	else if(weather_data.b == 0.5) {
-		inCloudMinMax = inCumulonimbusMinMax;
+		inCloudMinMax = IN_CUMULONIMBUS_MIN_MAX;
 	}
 
 	float height_fraction = getHeightFractionForPoint(point, inCloudMinMax);
