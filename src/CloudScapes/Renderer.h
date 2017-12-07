@@ -34,8 +34,7 @@ public:
 	Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height);
 	~Renderer();
 
-	void DestroyResourcesDependentOnWindowSize();
-	void DestroyResourcesIndependentOfWindowSize();
+	void DestroyOnWindowResize();
 
 	void InitializeRenderer();
 	void RecreateOnResize(uint32_t width, uint32_t height);
@@ -55,6 +54,7 @@ public:
 	// Descriptor Sets
 	void CreateAllDescriptorSets();
 	VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout);
+	
 	void WriteToAndUpdateAllDescriptorSets();
 	// Helper Functions forWriting and updating Descriptor Sets
 	void WriteToAndUpdateComputeDescriptorSets();
@@ -90,10 +90,10 @@ public:
 								VkImageTiling tiling, VkFormatFeatureFlags features);
 	VkFormat FindDepthFormat();
 
+	// Resource Creation and Recreation
 	void CreateComputeResources();
-	//Cloud Resource Functions
+	void RecreateComputeResources();
 	void CreateCloudResources();
-
 	void CreatePostProcessResources();
 
 	// IMGUI

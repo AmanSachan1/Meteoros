@@ -189,7 +189,7 @@ int main(int argc, char** argv)
 	//---------------------
 	//------ CleanUp ------
 	//---------------------	
-	delete renderer;
+	delete renderer; 
 	delete scene;
 	delete camera;
 

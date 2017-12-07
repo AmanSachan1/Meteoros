@@ -17,20 +17,17 @@ Renderer::~Renderer()
 {
 	vkDeviceWaitIdle(logicalDevice);
 
-	// TODO: Destroy any resources you created
-	DestroyResourcesDependentOnWindowSize();
-	DestroyResourcesIndependentOfWindowSize();
-}
-
-void Renderer::DestroyResourcesDependentOnWindowSize()
-{
+	// Destroy any resources you created
 	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
 	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
+
+	vkDestroyCommandPool(logicalDevice, graphicsCommandPool, nullptr);
+	vkDestroyCommandPool(logicalDevice, computeCommandPool, nullptr);
 
 	DestroyFrameResources();
 
 	//Regular Pipelines
-	// All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
+	//All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
 	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, cloudsPipelineLayout, nullptr);
@@ -67,33 +64,49 @@ void Renderer::DestroyResourcesDependentOnWindowSize()
 
 	//Descriptor Set
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
+	
+	//Textures
+	delete currentFrameResultTexture;
+	delete previousFrameComputeResultTexture;
+	delete godRaysCreationDataTexture;
 
-	delete scene->GetModels()[0];
+	delete cloudBaseShapeTexture;
+	delete cloudDetailsTexture;
+	delete cloudMotionTexture;
+	delete weatherMapTexture;
+}
+
+void Renderer::DestroyOnWindowResize()
+{
+	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
+	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
+
+	DestroyFrameResources();
+
+	//Regular Pipelines
+	// All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
+	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
+	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, cloudsPipelineLayout, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
+	vkDestroyPipeline(logicalDevice, cloudsPipeline, nullptr);
+	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
+
+	//Post Process Pipelines
+	vkDestroyPipelineCache(logicalDevice, postProcessPipeLineCache, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_GodRays_PipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_GodRays_PipeLine, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_FinalPass_PipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_FinalPass_PipeLine, nullptr);
+
+	//Render Pass
+	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
 	//Textures
 	delete currentFrameResultTexture;
 	delete previousFrameComputeResultTexture;
 	delete godRaysCreationDataTexture;
-}
-void Renderer::DestroyResourcesIndependentOfWindowSize()
-{
-	//Command Pools
-	vkDestroyCommandPool(logicalDevice, graphicsCommandPool, nullptr);
-	vkDestroyCommandPool(logicalDevice, computeCommandPool, nullptr);
-
-	//Descriptor Set Layouts
-	vkDestroyDescriptorSetLayout(logicalDevice, timeSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, sunAndSkySetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, keyPressQuerySetLayout, nullptr);
-	
-	//delete background quad
-	delete quad;
-
-	//Textures
-	delete cloudBaseShapeTexture;
-	delete cloudDetailsTexture;
-	delete cloudMotionTexture;
-	delete weatherMapTexture;
 }
 
 void Renderer::InitializeRenderer()
@@ -860,22 +873,14 @@ void Renderer::DestroyFrameResources()
 
 void Renderer::RecreateFrameResources()
 {
-	DestroyResourcesDependentOnWindowSize();
+	DestroyOnWindowResize();
 
-	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
-	//Stores the results of the previous Frame
-	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
-	
+	RecreateComputeResources();	
 	CreatePostProcessResources();
 	
 	CreateRenderPass();
 
-	CreateDescriptorPool();
-	CreateAllDescriptorSetLayouts();
-	CreateAllDescriptorSets();
+	WriteToAndUpdateAllDescriptorSets();
 
 	CreateFrameResources();
 	CreateAllPipeLines(renderPass, 0);
@@ -1078,30 +1083,30 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//--- Clouds Pipeline---
 		//------------------------
 
-		// Bind the clouds pipeline
-		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipeline);
-		
-		// Bind sampler descriptor set
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 0, 1, &cloudSet, 0, nullptr);
+		//// Bind the clouds pipeline
+		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipeline);
+		//
+		//// Bind sampler descriptor set
+		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 0, 1, &cloudSet, 0, nullptr);
 
-		// Bind the vertex and index buffers
-		VkDeviceSize quadOffsets[] = { 0 };
-		const VkBuffer quadVertices = quad->getVertexBuffer();
-		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &quadVertices, quadOffsets);
+		//// Bind the vertex and index buffers
+		//VkDeviceSize quadOffsets[] = { 0 };
+		//const VkBuffer quadVertices = quad->getVertexBuffer();
+		//vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &quadVertices, quadOffsets);
 
-		// Bind triangle index buffer
-		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], quad->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+		//// Bind triangle index buffer
+		//vkCmdBindIndexBuffer(graphicsCommandBuffer[i], quad->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-		// Draw indexed triangle
-		/*
-		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
-		indexCount;
-		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-		firstIndex:  Used as an offset into the index buffer
-		vertexOffset: Used as an offset into the vertex buffer
-		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		*/
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], quad->getIndexBufferSize(), 1, 0, 0, 1);
+		//// Draw indexed triangle
+		///*
+		//vkCmdDrawIndexed has the following parameters, aside from the command buffer:
+		//indexCount;
+		//instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+		//firstIndex:  Used as an offset into the index buffer
+		//vertexOffset: Used as an offset into the vertex buffer
+		//firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+		//*/
+		//vkCmdDrawIndexed(graphicsCommandBuffer[i], quad->getIndexBufferSize(), 1, 0, 0, 1);
 
 		//------------------------
 		//--- Graphics Pipeline---
@@ -1133,10 +1138,10 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
 		//vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
 
-		//// Final Pass Pipeline
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipelineLayout, 0, 1, &finalPassSet, 0, NULL);
-		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipeLine);
-		//vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
+		// Final Pass Pipeline
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipelineLayout, 0, 1, &finalPassSet, 0, NULL);
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipeLine);
+		vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
 
 		//---------- End RenderPass ---------
 		vkCmdEndRenderPass(graphicsCommandBuffer[i]);
@@ -1766,6 +1771,16 @@ void Renderer::CreateComputeResources()
 
 	//Create the textures that will be passed to the compute shader to create clouds
 	CreateCloudResources();
+}
+
+void Renderer::RecreateComputeResources()
+{
+	//To store the results of the compute shader that will be passed on to the frag shader
+	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
+	//Stores the results of the previous Frame
+	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
 
 void Renderer::CreateCloudResources()
