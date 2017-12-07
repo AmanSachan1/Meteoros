@@ -43,6 +43,8 @@ void Renderer::DestroyResourcesDependentOnWindowSize()
 	vkDestroyPipelineCache(logicalDevice, postProcessPipeLineCache, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, postProcess_GodRays_PipelineLayout, nullptr);
 	vkDestroyPipeline(logicalDevice, postProcess_GodRays_PipeLine, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_FinalPass_PipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_FinalPass_PipeLine, nullptr);
 
 	//Render Pass
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
@@ -53,6 +55,7 @@ void Renderer::DestroyResourcesDependentOnWindowSize()
 	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
 
 	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
+
 	vkDestroyDescriptorSetLayout(logicalDevice, godRaysSetLayout, nullptr);
 	
 	//Descriptor Set
@@ -61,6 +64,7 @@ void Renderer::DestroyResourcesDependentOnWindowSize()
 	//Textures
 	delete currentFrameResultTexture;
 	delete previousFrameComputeResultTexture;
+	delete godRaysCreationDataTexture;
 }
 void Renderer::DestroyResourcesIndependentOfWindowSize()
 {
@@ -72,10 +76,11 @@ void Renderer::DestroyResourcesIndependentOfWindowSize()
 	vkDestroyDescriptorSetLayout(logicalDevice, timeSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, sunAndSkySetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, keyPressQuerySetLayout, nullptr);
+	
+	vkDestroyDescriptorSetLayout(logicalDevice, finalPassSetLayout, nullptr);
 
-	//Models
+	//delete background quad
 	delete quad;
-	delete house;
 
 	//Textures
 	delete cloudBaseShapeTexture;
@@ -273,7 +278,7 @@ VkPipelineLayout Renderer::CreatePipelineLayout(std::vector<VkDescriptorSetLayou
 
 void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 {
-	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout });
+	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout, timeSetLayout, sunAndSkySetLayout, keyPressQuerySetLayout });
 	CreateComputePipeline();
 
 	cloudsPipelineLayout = CreatePipelineLayout({ cloudSetLayout });
@@ -282,7 +287,7 @@ void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
 	CreateGraphicsPipeline(renderPass, 0);
 
-	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ godRaysSetLayout });
+	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ godRaysSetLayout, sunAndSkySetLayout });
 	postProcess_FinalPass_PipelineLayout = CreatePipelineLayout({ finalPassSetLayout });
 	CreatePostProcessPipeLines(renderPass);
 }

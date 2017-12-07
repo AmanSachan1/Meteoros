@@ -140,7 +140,6 @@ private:
 	std::vector<VkFramebuffer> frameBuffers;
 	
 	// Change the buffers when you set it up in a models class
-	Model* house;
 	Model* quad;
 
 	VkImage depthImage;

@@ -28,6 +28,13 @@ Scene::~Scene()
 	vkUnmapMemory(device->GetVkDevice(), keyPressQueryBufferMemory);
 	vkDestroyBuffer(device->GetVkDevice(), keyPressQueryBuffer, nullptr);
 	vkFreeMemory(device->GetVkDevice(), keyPressQueryBufferMemory, nullptr);
+
+	for (int i = 0; i < models.size(); i++)
+	{
+		delete models[i];
+	}
+
+	models.erase(models.begin(), models.end());
 }
 
 void Scene::CreateModelsInScene(VkCommandPool commandPool)
