@@ -16,7 +16,10 @@ struct Time
 
 struct SunAndSky
 {
-	glm::vec4 sunLocation = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+	glm::vec4 sunLocation = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+	glm::vec4 sunDirection = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+	glm::vec4 lightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	float sunIntensity = 1.0;
 };
 
 struct KeyPressQuery

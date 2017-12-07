@@ -117,8 +117,8 @@ void Renderer::InitializeRenderer()
 
 	CreateAllPipeLines(renderPass, 0);
 
-	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
+	RecordGraphicsCommandBuffer();
 }
 
 void Renderer::RecreateOnResize(uint32_t width, uint32_t height)
@@ -291,7 +291,7 @@ VkPipelineLayout Renderer::CreatePipelineLayout(std::vector<VkDescriptorSetLayou
 
 void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 {
-	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout });// , timeSetLayout, sunAndSkySetLayout, keyPressQuerySetLayout });
+	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout, timeSetLayout, sunAndSkySetLayout, keyPressQuerySetLayout });
 	CreateComputePipeline();
 
 	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
@@ -873,63 +873,32 @@ void Renderer::RecordGraphicsCommandBuffer()
 		// buffer itself and no secondary command buffers will be executed.
 
 		//------------------------
-		//--- Clouds Pipeline---
-		//------------------------
-
-		//// Bind the clouds pipeline
-		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipeline);
-		//
-		//// Bind sampler descriptor set
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 0, 1, &cloudSet, 0, nullptr);
-
-		//// Bind the vertex and index buffers
-		//VkDeviceSize quadOffsets[] = { 0 };
-		//const VkBuffer quadVertices = quad->getVertexBuffer();
-		//vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &quadVertices, quadOffsets);
-
-		//// Bind triangle index buffer
-		//vkCmdBindIndexBuffer(graphicsCommandBuffer[i], quad->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-		//// Draw indexed triangle
-		///*
-		//vkCmdDrawIndexed has the following parameters, aside from the command buffer:
-		//indexCount;
-		//instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-		//firstIndex:  Used as an offset into the index buffer
-		//vertexOffset: Used as an offset into the vertex buffer
-		//firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		//*/
-		//vkCmdDrawIndexed(graphicsCommandBuffer[i], quad->getIndexBufferSize(), 1, 0, 0, 1);
-
-		//------------------------
 		//--- Graphics Pipeline---
 		//------------------------
 
-		//// Bind the graphics pipeline
-		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		// Bind the graphics pipeline
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-		//// Bind graphics descriptor set
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
+		// Bind graphics descriptor set
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
 
-		//// Bind the vertex and index buffers
-		//VkDeviceSize geomOffsets[] = { 0 };
-		//const VkBuffer geomVertices = scene->GetModels()[0]->getVertexBuffer();
-		//vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
+		// Bind the vertex and index buffers
+		VkDeviceSize geomOffsets[] = { 0 };
+		const VkBuffer geomVertices = scene->GetModels()[0]->getVertexBuffer();
+		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
+		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-		//// Bind triangle index buffer
-		//vkCmdBindIndexBuffer(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-		//// Draw indexed triangle
-		//vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
+		// Draw indexed triangle
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
 
 		//-----------------------------
 		//--- PostProcess Pipelines ---
 		//-----------------------------
-		//// God Rays Pipeline
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &godRaysSet, 0, NULL);
-		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
-		//vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
+		// God Rays Pipeline
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &godRaysSet, 0, NULL);
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
+		vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
 
 		// Final Pass Pipeline
 		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipelineLayout, 0, 1, &finalPassSet, 0, NULL);
@@ -1229,7 +1198,7 @@ void Renderer::WriteToAndUpdateAllDescriptorSets()
 	WriteToAndUpdateRemainingDescriptorSets();
 	WriteToAndUpdatePostDescriptorSets();
 }
-
+// Helper functions for writing and updating Descriptor Sets
 void Renderer::WriteToAndUpdateComputeDescriptorSets()
 {
 	//------------------------------------------
