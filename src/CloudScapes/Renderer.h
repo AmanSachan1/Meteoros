@@ -34,6 +34,9 @@ public:
 	Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height);
 	~Renderer();
 
+	void DestroyResourcesDependentOnWindowSize();
+	void DestroyResourcesIndependentOfWindowSize();
+
 	void InitializeRenderer();
 	void RecreateOnResize(uint32_t width, uint32_t height);
 
@@ -52,15 +55,21 @@ public:
 	// Descriptor Sets
 	void CreateAllDescriptorSets();
 	VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout);
-	void WriteToAndUpdateDescriptorSets(); // Helper Functions for Creating DescriptorSets
-	
+	void WriteToAndUpdateAllDescriptorSets();
+	// Helper Functions forWriting and updating Descriptor Sets
+	void WriteToAndUpdateComputeDescriptorSets();
+	void WriteToAndUpdateGraphicsDescriptorSets();
+	void WriteToAndUpdateCloudsDescriptorSets();
+	void WriteToAndUpdateRemainingDescriptorSets();
+	void WriteToAndUpdatePostDescriptorSets();
+
 	// Pipelines
 	VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts);
 	void CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass);
 	void CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpass);
 	void CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subpass);
 	void CreateComputePipeline();	
-	void CreatePostProcessPipeLines(VkRenderPass renderPass, unsigned int subpass);
+	void CreatePostProcessPipeLines(VkRenderPass renderPass);
 
 	// Frame Resources
 	void CreateFrameResources();
@@ -165,9 +174,15 @@ private:
 	
 	VkDescriptorPool descriptorPool;
 
-	//Used in compute and graphics
+	//Descriptors used in multiple Pipelines
 	VkDescriptorSetLayout cameraSetLayout;
 	VkDescriptorSet cameraSet;
+	VkDescriptorSetLayout timeSetLayout;
+	VkDescriptorSet timeSet;
+	VkDescriptorSetLayout sunAndSkySetLayout;
+	VkDescriptorSet sunAndSkySet;
+	VkDescriptorSetLayout keyPressQuerySetLayout;
+	VkDescriptorSet keyPressQuerySet;
 
 	//Descriptor Set Layouts for each pipeline
 	VkDescriptorSetLayout computeSetLayout;	// Compute shader binding layout
@@ -178,4 +193,8 @@ private:
 	VkDescriptorSet computeSet;	// Compute shader descriptor Set	
 	VkDescriptorSet cloudSet; // Descriptor Set for cloud pipeline Data
 	VkDescriptorSet graphicsSet; // Graphics ( Regular Geometric Meshes ) specific descriptor sets
+
+	//Descriptors used in Post Process pipelines
+	VkDescriptorSetLayout godRaysSetLayout;
+	VkDescriptorSet godRaysSet;
 };

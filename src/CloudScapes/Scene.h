@@ -14,6 +14,16 @@ struct Time
 	glm::vec2 _time = glm::vec2(0.0f, 0.0f); //stores delta time and total time packed as a vec2 so vulkan offsetting doesnt become an issue later
 };
 
+struct SunAndSky
+{
+	glm::vec4 sunLocation = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
+};
+
+struct KeyPressQuery
+{
+	int key_debug = 0;
+};
+
 class Scene 
 {
 private:
@@ -22,7 +32,17 @@ private:
 	Time time;
 	VkBuffer timeBuffer;
 	VkDeviceMemory timeBufferMemory;
-	void* mappedData;
+	void* time_mappedData;
+
+	SunAndSky sunAndSky;
+	VkBuffer sunAndSkyBuffer;
+	VkDeviceMemory sunAndSkyBufferMemory;
+	void* sunAndSky_mappedData;
+
+	KeyPressQuery keyPressQuery;
+	VkBuffer keyPressQueryBuffer;
+	VkDeviceMemory keyPressQueryBufferMemory;
+	void* keyPressQuery_mappedData;
 
 	std::vector<Model*> models;
 
@@ -38,5 +58,13 @@ public:
 
 	VkBuffer GetTimeBuffer() const;
 	void UpdateTime();
-	glm::vec2 Scene::GetTime() const;
+	glm::vec2 GetTime() const;
+
+	VkBuffer GetSunAndSkyBuffer() const;
+	void UpdateSunAndSky();
+	//SunAndSky GetSunAndSky() const;
+
+	VkBuffer GetKeyPressQueryBuffer() const;
+	void UpdateKeyPressQuery();
+	//KeyPressQuery GetKeyPressQuery() const;
 };

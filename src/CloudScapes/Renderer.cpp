@@ -18,15 +18,20 @@ Renderer::~Renderer()
 	vkDeviceWaitIdle(logicalDevice);
 
 	// TODO: Destroy any resources you created
+	DestroyResourcesDependentOnWindowSize();
+	DestroyResourcesIndependentOfWindowSize();
+}
+
+void Renderer::DestroyResourcesDependentOnWindowSize()
+{
 	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
 	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
-
-	vkDestroyCommandPool(logicalDevice, graphicsCommandPool, nullptr);
-	vkDestroyCommandPool(logicalDevice, computeCommandPool, nullptr);
 
 	DestroyFrameResources();
 
 	//Regular Pipelines
+	// All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
+	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, cloudsPipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
@@ -42,18 +47,37 @@ Renderer::~Renderer()
 	//Render Pass
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
-	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
+	//Descriptor Set Layouts
 	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, cloudSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
+
+	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, godRaysSetLayout, nullptr);
 	
+	//Descriptor Set
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
+	//Textures
+	delete currentFrameComputeResultTexture;
+	delete previousFrameComputeResultTexture;
+}
+void Renderer::DestroyResourcesIndependentOfWindowSize()
+{
+	//Command Pools
+	vkDestroyCommandPool(logicalDevice, graphicsCommandPool, nullptr);
+	vkDestroyCommandPool(logicalDevice, computeCommandPool, nullptr);
+
+	//Descriptor Set Layouts
+	vkDestroyDescriptorSetLayout(logicalDevice, timeSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, sunAndSkySetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, keyPressQuerySetLayout, nullptr);
+
+	//Models
 	delete quad;
 	delete house;
 
-	delete currentFrameComputeResultTexture;
-	delete previousFrameComputeResultTexture;
+	//Textures
 	delete cloudBaseShapeTexture;
 	delete cloudDetailsTexture;
 	delete cloudMotionTexture;
@@ -82,18 +106,7 @@ void Renderer::InitializeRenderer()
 void Renderer::RecreateOnResize(uint32_t width, uint32_t height)
 {
 	window_width = width;
-	window_height = height;
-
-	delete currentFrameComputeResultTexture;
-	delete previousFrameComputeResultTexture;
-
-	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	currentFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
-	//Stores the results of the previous Frame
-	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	previousFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
-
+	window_height = height;	
 	RecreateFrameResources();
 }
 
@@ -269,7 +282,7 @@ void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 	CreateGraphicsPipeline(renderPass, 0);
 
 	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ cloudSetLayout });
-	CreatePostProcessPipeLines(renderPass, 0);
+	CreatePostProcessPipeLines(renderPass);
 }
 
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Conclusion
@@ -691,7 +704,7 @@ void Renderer::CreateComputePipeline()
 	vkDestroyShaderModule(device->GetVkDevice(), compShaderModule, nullptr);
 }
 
-void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass, unsigned int subpass)
+void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 {
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = 
 		VulkanInitializers::pipelineInputAssemblyStateCreateInfo( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
@@ -731,7 +744,7 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass, unsigned int 
 	postProcessPipelineCreateInfo.pViewportState = &viewportState; //defined above
 	postProcessPipelineCreateInfo.pDepthStencilState = &depthStencilState; //defined above
 	postProcessPipelineCreateInfo.pDynamicState = &dynamicState; //defined above
-	postProcessPipelineCreateInfo.subpass = subpass; // passed in
+	postProcessPipelineCreateInfo.subpass = 0; // no subpasses
 	postProcessPipelineCreateInfo.stageCount = shaderStages.size(); //reserving memory for the shader stages that will soon be defined
 	postProcessPipelineCreateInfo.pStages = shaderStages.data(); 
 
@@ -796,49 +809,27 @@ void Renderer::DestroyFrameResources()
 
 void Renderer::RecreateFrameResources()
 {
-	// All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
-	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
-	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
+	DestroyResourcesDependentOnWindowSize();
 
-	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
-
-	vkDestroyPipeline(logicalDevice, cloudsPipeline, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, cloudsPipelineLayout, nullptr);
-
-	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
-	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
-
-	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
-
-	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, cloudSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
-
-	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
-
-	delete quad;
-	delete house;
+	//delete quad;
+	//delete house;
 
 	CreateRenderPass();
+
+	//To store the results of the compute shader that will be passed on to the frag shader
+	currentFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+	//Stores the results of the previous Frame
+	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	previousFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
 	CreateAllDescriptorSets();
 
-	DestroyFrameResources();
 	CreateFrameResources();
 
-	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
-	CreateGraphicsPipeline(renderPass, 0);
-
-	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout });
-	CreateComputePipeline();
-
-	cloudsPipelineLayout = CreatePipelineLayout({ cloudSetLayout });
-	CreateCloudsPipeline(renderPass, 0);
+	CreateAllPipeLines(renderPass, 0);
 
 	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
@@ -1163,6 +1154,7 @@ void Renderer::CreateDescriptorPool()
 	// compute and graphics descriptor sets are allocated from the same pool
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 		// Format for elements: { type, descriptorCount }
+		// ------------ Compute -----------------
 		// Compute Texture Write 
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 		// Previous Frame Data as Texture for Reprojection
@@ -1173,18 +1165,32 @@ void Renderer::CreateDescriptorPool()
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // curl noise texture
 		// Weather Map
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
-		// Time
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+		// Store Texture for God Rays PostProcess
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 
+		// ------------ Graphics -----------------
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, //model matrix
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, //texture sampler for model
+
+		// ------------ Cloud Pipeline -----------
 		// Sampler in the clouds pipeline that reads the image created by the compute Shader 
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
 
+		// ------------ Can be attached to multiple pipelines -----------------
 		// Camera Descriptor that is used in both compute and graphics pipelines
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+		// Time
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+		// SunAndSky
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+		// KeyPress
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
 
-		// Graphics		
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, //model matrix
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, //texture sampler for model
+		// ------------ PostProcess pipelines -----------------
+		// GodRays -- GreyScale Image of where light is in the sky
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		// Anti Aliasing //TODO
+		// Tone Mapping //TODO
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
@@ -1235,22 +1241,20 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	// Stage Flags --> which shader you're referencing this descriptor from 
 	// pImmutableSamplers --> for image sampling related descriptors
 
-	//Compute
+	//-------------------- Computes Pipeline --------------------
 	VkDescriptorSetLayoutBinding currentFrameComputeResultLayoutBinding =  { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding previousFrameComputeResultLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudLowFrequencyNoiseSetLayoutBinding =  { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudHighFrequencyNoiseSetLayoutBinding = { 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudCurlNoiseSetLayoutBinding =          { 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding weatherMapSetLayoutBinding =              { 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
-	VkDescriptorSetLayoutBinding timeSetLayoutBinding =                    { 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 
-	std::array<VkDescriptorSetLayoutBinding, 7> computeBindings = { currentFrameComputeResultLayoutBinding,
+	std::array<VkDescriptorSetLayoutBinding, 6> computeBindings = { currentFrameComputeResultLayoutBinding,
 																	previousFrameComputeResultLayoutBinding,
 																	cloudLowFrequencyNoiseSetLayoutBinding, 
 																	cloudHighFrequencyNoiseSetLayoutBinding,
 																	cloudCurlNoiseSetLayoutBinding,
-																	weatherMapSetLayoutBinding,
-																	timeSetLayoutBinding };
+																	weatherMapSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo computeLayoutInfo = {};
 	computeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	computeLayoutInfo.bindingCount = static_cast<uint32_t>(computeBindings.size());
@@ -1259,19 +1263,7 @@ void Renderer::CreateAllDescriptorSetLayouts()
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
 
-	//Clouds
-	VkDescriptorSetLayoutBinding cloudPostComputeSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
-
-	std::array<VkDescriptorSetLayoutBinding, 1> cloudBindings = { cloudPostComputeSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo cloudLayoutInfo = {};
-	cloudLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	cloudLayoutInfo.bindingCount = static_cast<uint32_t>(cloudBindings.size());
-	cloudLayoutInfo.pBindings = cloudBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &cloudLayoutInfo, nullptr, &cloudSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
-
-	//Graphics 
+	//-------------------- Graphics Pipeline --------------------
 	VkDescriptorSetLayoutBinding modelSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr };
 	VkDescriptorSetLayoutBinding samplerSetLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 	
@@ -1284,7 +1276,20 @@ void Renderer::CreateAllDescriptorSetLayouts()
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
 
-	// Camera
+	//-------------------- Clouds Pipelines --------------------
+	VkDescriptorSetLayoutBinding cloudPostComputeSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> cloudBindings = { cloudPostComputeSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo cloudLayoutInfo = {};
+	cloudLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	cloudLayoutInfo.bindingCount = static_cast<uint32_t>(cloudBindings.size());
+	cloudLayoutInfo.pBindings = cloudBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &cloudLayoutInfo, nullptr, &cloudSetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	//-------------------- Descriptors that are discrete and mey be attached to multiple pieplines --------------------
+	//Camera
 	VkDescriptorSetLayoutBinding cameraSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
 
 	std::array<VkDescriptorSetLayoutBinding, 1> cameraBindings = { cameraSetLayoutBinding };
@@ -1295,6 +1300,55 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	if (vkCreateDescriptorSetLayout(logicalDevice, &cameraLayoutInfo, nullptr, &cameraSetLayout) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
+
+	//Time --> Would be better to use pushConstants --> TODO at somepoint
+	VkDescriptorSetLayoutBinding timeSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> timeBindings = { timeSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo timeLayoutInfo = {};
+	timeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	timeLayoutInfo.bindingCount = static_cast<uint32_t>(timeBindings.size());
+	timeLayoutInfo.pBindings = timeBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &timeLayoutInfo, nullptr, &timeSetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	//SunAndSky
+	VkDescriptorSetLayoutBinding sunAndSkySetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> sunAndSkyBindings = { sunAndSkySetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo sunAndSkyLayoutInfo = {};
+	sunAndSkyLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	sunAndSkyLayoutInfo.bindingCount = static_cast<uint32_t>(sunAndSkyBindings.size());
+	sunAndSkyLayoutInfo.pBindings = sunAndSkyBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &sunAndSkyLayoutInfo, nullptr, &sunAndSkySetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	//KeyPressQuery
+	VkDescriptorSetLayoutBinding keyPressQuerySetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> keyPressQueryBindings = { keyPressQuerySetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo keyPressQueryLayoutInfo = {};
+	keyPressQueryLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	keyPressQueryLayoutInfo.bindingCount = static_cast<uint32_t>(keyPressQueryBindings.size());
+	keyPressQueryLayoutInfo.pBindings = keyPressQueryBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &keyPressQueryLayoutInfo, nullptr, &keyPressQuerySetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	//-------------------- Post Process --------------------
+	//God Rays
+	VkDescriptorSetLayoutBinding godRaysSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> godRaysBindings = { godRaysSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo godRaysLayoutInfo = {};
+	godRaysLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	godRaysLayoutInfo.bindingCount = static_cast<uint32_t>(godRaysBindings.size());
+	godRaysLayoutInfo.pBindings = godRaysBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &godRaysLayoutInfo, nullptr, &godRaysSetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
 }
 
 void Renderer::CreateAllDescriptorSets()
@@ -1303,7 +1357,13 @@ void Renderer::CreateAllDescriptorSets()
 	computeSet = CreateDescriptorSet(descriptorPool, computeSetLayout);
 	cloudSet = CreateDescriptorSet(descriptorPool, cloudSetLayout);
 	graphicsSet = CreateDescriptorSet(descriptorPool, graphicsSetLayout);
+
 	cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
+	timeSet = CreateDescriptorSet(descriptorPool, timeSetLayout);
+	sunAndSkySet = CreateDescriptorSet(descriptorPool, sunAndSkySetLayout);
+	keyPressQuerySet = CreateDescriptorSet(descriptorPool, keyPressQuerySetLayout);
+
+	godRaysSet = CreateDescriptorSet(descriptorPool, godRaysSetLayout);
 
 	// Model and texture file paths
 	const std::string model_path = "../../src/CloudScapes/models/teapot.obj";
@@ -1314,10 +1374,8 @@ void Renderer::CreateAllDescriptorSets()
 
 	const std::string texture_path = "../../src/CloudScapes/textures/statue.jpg";
 	
-
 	// Using .obj-based Model constructor ----------------------------------------------------
 	//house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
-
 
 	// Using manual-based Model constructor --------------------------------------------------
 	// Arbitrary test model
@@ -1345,10 +1403,19 @@ void Renderer::CreateAllDescriptorSets()
 	quad = new Model(device, graphicsCommandPool, quadVertices, quadIndices);
 
 	//Write to and Update DescriptorSets
-	WriteToAndUpdateDescriptorSets();
+	WriteToAndUpdateAllDescriptorSets();
 }
 
-void Renderer::WriteToAndUpdateDescriptorSets()
+void Renderer::WriteToAndUpdateAllDescriptorSets()
+{
+	WriteToAndUpdateComputeDescriptorSets();
+	WriteToAndUpdateGraphicsDescriptorSets();
+	WriteToAndUpdateCloudsDescriptorSets();
+	WriteToAndUpdateRemainingDescriptorSets();
+	WriteToAndUpdatePostDescriptorSets();
+}
+
+void Renderer::WriteToAndUpdateComputeDescriptorSets()
 {
 	//------------------------------------------
 	//-------Compute Pipeline DescriptorSets----
@@ -1376,7 +1443,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	cloudHighFrequencyNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	cloudHighFrequencyNoiseImageInfo.imageView = cloudDetailsTexture->GetTextureImageView();
 	cloudHighFrequencyNoiseImageInfo.sampler = cloudDetailsTexture->GetTextureSampler();
-	
+
 	// Cloud Curl Noise
 	VkDescriptorImageInfo cloudCurlNoiseImageInfo = {};
 	cloudCurlNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -1389,13 +1456,7 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	weatherMapInfo.imageView = weatherMapTexture->GetTextureImageView();
 	weatherMapInfo.sampler = weatherMapTexture->GetTextureSampler();
 
-	// Time Descriptor
-	VkDescriptorBufferInfo timeBufferInfo = {};
-	timeBufferInfo.buffer = scene->GetTimeBuffer();
-	timeBufferInfo.offset = 0;
-	timeBufferInfo.range = sizeof(Time);
-
-	std::array<VkWriteDescriptorSet, 7> writeComputeTextureInfo = {};
+	std::array<VkWriteDescriptorSet, 6> writeComputeTextureInfo = {};
 	writeComputeTextureInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[0].pNext = NULL;
 	writeComputeTextureInfo[0].dstSet = computeSet;
@@ -1444,55 +1505,13 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeComputeTextureInfo[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	writeComputeTextureInfo[5].pImageInfo = &weatherMapInfo;
 
-	writeComputeTextureInfo[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeComputeTextureInfo[6].pNext = NULL;
-	writeComputeTextureInfo[6].dstSet = computeSet;
-	writeComputeTextureInfo[6].dstBinding = 6;
-	writeComputeTextureInfo[6].descriptorCount = 1;
-	writeComputeTextureInfo[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeComputeTextureInfo[6].pBufferInfo = &timeBufferInfo;
-
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeComputeTextureInfo.size()), writeComputeTextureInfo.data(), 0, nullptr);
-
-	//------------------------------------------
-	//-------Cloud Pipeline DescriptorSets----
-	//------------------------------------------
-
-	// Texture Quad Reads in
-	std::array<VkWriteDescriptorSet, 1> writeCloudSamplerInfo = {};
-	writeCloudSamplerInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeCloudSamplerInfo[0].pNext = NULL;
-	writeCloudSamplerInfo[0].dstSet = cloudSet;
-	writeCloudSamplerInfo[0].dstBinding = 0;
-	writeCloudSamplerInfo[0].descriptorCount = 1;
-	writeCloudSamplerInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeCloudSamplerInfo[0].pImageInfo = &currentFrameTextureInfo;
-
-	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCloudSamplerInfo.size()), writeCloudSamplerInfo.data(), 0, nullptr);
-
-	//-------------------------------
-	//----Camera DescriptorSet----
-	//-------------------------------
-
-	// Camera 
-	VkDescriptorBufferInfo cameraBufferInfo = {};
-	cameraBufferInfo.buffer = camera->GetBuffer();
-	cameraBufferInfo.offset = 0;
-	cameraBufferInfo.range = sizeof(CameraUBO);
-
-	std::array<VkWriteDescriptorSet, 1> writeCameraSetInfo = {};
-	writeCameraSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeCameraSetInfo[0].dstSet = cameraSet;
-	writeCameraSetInfo[0].dstBinding = 0;
-	writeCameraSetInfo[0].descriptorCount = 1;									// How many 
-	writeCameraSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeCameraSetInfo[0].pBufferInfo = &cameraBufferInfo;
-
-	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCameraSetInfo.size()), writeCameraSetInfo.data(), 0, nullptr);
-
-	//-------------------------------
-	//----Graphics DescriptorSets----
-	//-------------------------------
+}
+void Renderer::WriteToAndUpdateGraphicsDescriptorSets()
+{
+	//---------------------------------
+	//---- Graphics DescriptorSets ----
+	//---------------------------------
 
 	// Model
 	VkDescriptorBufferInfo modelBufferInfo = {};
@@ -1524,6 +1543,70 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeGraphicsSetInfo[1].pImageInfo = &imageInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
+}
+void Renderer::WriteToAndUpdateCloudsDescriptorSets()
+{
+	//------------------------------------------
+	//-------Cloud Pipeline DescriptorSets----
+	//------------------------------------------
+	VkDescriptorImageInfo currentFrameTextureInfo = {};
+	currentFrameTextureInfo.imageLayout = currentFrameComputeResultTexture->GetTextureLayout();
+	currentFrameTextureInfo.imageView = currentFrameComputeResultTexture->GetTextureImageView();
+	currentFrameTextureInfo.sampler = currentFrameComputeResultTexture->GetTextureSampler();
+	// Texture Quad Reads in
+	std::array<VkWriteDescriptorSet, 1> writeCloudSamplerInfo = {};
+	writeCloudSamplerInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeCloudSamplerInfo[0].pNext = NULL;
+	writeCloudSamplerInfo[0].dstSet = cloudSet;
+	writeCloudSamplerInfo[0].dstBinding = 0;
+	writeCloudSamplerInfo[0].descriptorCount = 1;
+	writeCloudSamplerInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeCloudSamplerInfo[0].pImageInfo = &currentFrameTextureInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCloudSamplerInfo.size()), writeCloudSamplerInfo.data(), 0, nullptr);
+}
+void Renderer::WriteToAndUpdateRemainingDescriptorSets()
+{
+	//--------------------------------------------------------------------
+	//---- Descriptor Sets that can be attached to multiple pipelines ----
+	//--------------------------------------------------------------------
+
+	// Camera Descriptor
+	VkDescriptorBufferInfo cameraBufferInfo = {};
+	cameraBufferInfo.buffer = camera->GetBuffer();
+	cameraBufferInfo.offset = 0;
+	cameraBufferInfo.range = sizeof(CameraUBO);
+
+	std::array<VkWriteDescriptorSet, 1> writeCameraSetInfo = {};
+	writeCameraSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeCameraSetInfo[0].dstSet = cameraSet;
+	writeCameraSetInfo[0].dstBinding = 0;
+	writeCameraSetInfo[0].descriptorCount = 1;									// How many 
+	writeCameraSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeCameraSetInfo[0].pBufferInfo = &cameraBufferInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCameraSetInfo.size()), writeCameraSetInfo.data(), 0, nullptr);
+
+	// Time Descriptor
+	VkDescriptorBufferInfo timeBufferInfo = {};
+	timeBufferInfo.buffer = scene->GetTimeBuffer();
+	timeBufferInfo.offset = 0;
+	timeBufferInfo.range = sizeof(Time);
+
+	std::array<VkWriteDescriptorSet, 1> writeTimeSetInfo = {};
+	writeTimeSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeTimeSetInfo[0].pNext = NULL;
+	writeTimeSetInfo[0].dstSet = timeSet;
+	writeTimeSetInfo[0].dstBinding = 0;
+	writeTimeSetInfo[0].descriptorCount = 1;
+	writeTimeSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeTimeSetInfo[0].pBufferInfo = &timeBufferInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeTimeSetInfo.size()), writeTimeSetInfo.data(), 0, nullptr);
+}
+void Renderer::WriteToAndUpdatePostDescriptorSets()
+{
+
 }
 
 //----------------------------------------------
