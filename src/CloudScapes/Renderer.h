@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include "VulkanDevice.h"
+#include "VulkanInitializers.h"
 #include "SwapChain.h"
 #include "ShaderModule.h"
 #include "BufferUtils.h"
@@ -55,9 +56,11 @@ public:
 	
 	// Pipelines
 	VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts);
+	void CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass);
 	void CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpass);
 	void CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subpass);
-	void CreateComputePipeline();
+	void CreateComputePipeline();	
+	void CreatePostProcessPipeLines(VkRenderPass renderPass, unsigned int subpass);
 
 	// Frame Resources
 	void CreateFrameResources();
@@ -112,6 +115,10 @@ private:
 	VkPipeline cloudsPipeline;
 	VkPipeline graphicsPipeline;
 	VkPipeline computePipeline;
+
+	VkPipelineCache postProcessPipeLineCache;
+	VkPipelineLayout postProcess_GodRays_PipelineLayout;
+	VkPipeline postProcess_GodRays_PipeLine;
 
 	VkRenderPass renderPass;
 

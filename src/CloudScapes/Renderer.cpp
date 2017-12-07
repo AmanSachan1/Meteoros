@@ -26,12 +26,20 @@ Renderer::~Renderer()
 
 	DestroyFrameResources();
 
+	//Regular Pipelines
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, cloudsPipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
 	vkDestroyPipeline(logicalDevice, cloudsPipeline, nullptr);
 	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
+
+	//Post Process Pipelines
+	vkDestroyPipelineCache(logicalDevice, postProcessPipeLineCache, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_GodRays_PipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_GodRays_PipeLine, nullptr);
+
+	//Render Pass
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
 	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
@@ -65,14 +73,7 @@ void Renderer::InitializeRenderer()
 
 	CreateFrameResources();
 
-	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout });
-	CreateComputePipeline();
-
-	cloudsPipelineLayout = CreatePipelineLayout({ cloudSetLayout });
-	CreateCloudsPipeline(renderPass, 0);
-
-	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
-	CreateGraphicsPipeline(renderPass, 0);
+	CreateAllPipeLines(renderPass, 0);
 
 	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
@@ -254,6 +255,21 @@ VkPipelineLayout Renderer::CreatePipelineLayout(std::vector<VkDescriptorSetLayou
 	}
 
 	return pipelineLayout;
+}
+
+void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
+{
+	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout });
+	CreateComputePipeline();
+
+	cloudsPipelineLayout = CreatePipelineLayout({ cloudSetLayout });
+	CreateCloudsPipeline(renderPass, 0);
+
+	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
+	CreateGraphicsPipeline(renderPass, 0);
+
+	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ cloudSetLayout });
+	CreatePostProcessPipeLines(renderPass, 0);
 }
 
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Conclusion
@@ -673,6 +689,79 @@ void Renderer::CreateComputePipeline()
 	}
 
 	vkDestroyShaderModule(device->GetVkDevice(), compShaderModule, nullptr);
+}
+
+void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass, unsigned int subpass)
+{
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = 
+		VulkanInitializers::pipelineInputAssemblyStateCreateInfo( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+
+	VkPipelineRasterizationStateCreateInfo rasterizationState =
+		VulkanInitializers::pipelineRasterizationStateCreateInfo( VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
+
+	VkPipelineColorBlendAttachmentState blendAttachmentState =
+		VulkanInitializers::pipelineColorBlendAttachmentState( 0xf, VK_FALSE);
+
+	VkPipelineColorBlendStateCreateInfo colorBlendState =
+		VulkanInitializers::pipelineColorBlendStateCreateInfo( 1, &blendAttachmentState);
+
+	VkPipelineDepthStencilStateCreateInfo depthStencilState =
+		VulkanInitializers::pipelineDepthStencilStateCreateInfo( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
+
+	VkPipelineViewportStateCreateInfo viewportState =
+		VulkanInitializers::pipelineViewportStateCreateInfo(1, 1, 0);
+
+	VkPipelineMultisampleStateCreateInfo multiSampleState =
+		VulkanInitializers::pipelineMultisampleStateCreateInfo( VK_SAMPLE_COUNT_1_BIT, 0);
+
+	std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	VkPipelineDynamicStateCreateInfo dynamicState =
+		VulkanInitializers::pipelineDynamicStateCreateInfo( dynamicStateEnables, 0 );
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages; //Defined later on and changes per pipeline binding since we are creating many pipelines here
+
+	// -------- Create Base PostProcess pipeline Info ---------
+	VkGraphicsPipelineCreateInfo postProcessPipelineCreateInfo =
+		VulkanInitializers::graphicsPipelineCreateInfo( postProcess_GodRays_PipelineLayout, renderPass, 0);
+
+	postProcessPipelineCreateInfo.pInputAssemblyState = &inputAssemblyState; //defined above
+	postProcessPipelineCreateInfo.pRasterizationState = &rasterizationState; //defined above
+	postProcessPipelineCreateInfo.pColorBlendState = &colorBlendState; //defined above
+	postProcessPipelineCreateInfo.pMultisampleState = &multiSampleState; //defined above
+	postProcessPipelineCreateInfo.pViewportState = &viewportState; //defined above
+	postProcessPipelineCreateInfo.pDepthStencilState = &depthStencilState; //defined above
+	postProcessPipelineCreateInfo.pDynamicState = &dynamicState; //defined above
+	postProcessPipelineCreateInfo.subpass = subpass; // passed in
+	postProcessPipelineCreateInfo.stageCount = shaderStages.size(); //reserving memory for the shader stages that will soon be defined
+	postProcessPipelineCreateInfo.pStages = shaderStages.data(); 
+
+	// -------- Create Multiple Pipelines based on the above base ---------
+	//Create a pipeline cache so multiple pieplines cane be created from the same pipeline creation Info
+	VulkanInitializers::createPipelineCache(logicalDevice, postProcessPipeLineCache);
+
+	// -------- God Rays pipeline -----------------------------------------
+	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.vert.spv", logicalDevice);
+	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.frag.spv", logicalDevice);
+
+	// Assign each shader module to the appropriate stage in the pipeline
+	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule);
+	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule);
+
+	// Empty vertex input state
+	VkPipelineVertexInputStateCreateInfo emptyInputState = VulkanInitializers::pipelineVertexInputStateCreateInfo();
+	postProcessPipelineCreateInfo.pVertexInputState = &emptyInputState;
+	postProcessPipelineCreateInfo.layout = postProcess_GodRays_PipelineLayout;
+
+	if (vkCreateGraphicsPipelines(logicalDevice, postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, nullptr, &postProcess_GodRays_PipeLine) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create post process pipeline");
+	}
+
+	vkDestroyShaderModule(device->GetVkDevice(), vertShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), fragShaderModule, nullptr);
+
+	// -------- Anti Aliasing  pipeline -----------------------------------------
+
+	// -------- Tone Mapping pipeline -----------------------------------------
 }
 
 //----------------------------------------------
