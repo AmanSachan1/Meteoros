@@ -1086,6 +1086,35 @@ void Renderer::RecordGraphicsCommandBuffer()
 
 		vkCmdEndRenderPass(graphicsCommandBuffer[i]);
 
+		//-----------------------------
+		//--- PostProcess Pipelines ---
+		//-----------------------------
+//		//\God Rays Pipeline
+//		// Bind the clouds pipeline
+//		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
+//
+//		// Bind sampler descriptor set
+//		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &cloudSet, 0, nullptr);
+//
+//		// Bind the vertex and index buffers
+////		VkDeviceSize quadOffsets[] = { 0 };
+////		const VkBuffer quadVertices = quad->getVertexBuffer();
+//		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &quadVertices, quadOffsets);
+//
+//		// Bind triangle index buffer
+//		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], quad->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+//
+//		// Draw indexed triangle
+//		/*
+//		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
+//		indexCount;
+//		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
+//		firstIndex:  Used as an offset into the index buffer
+//		vertexOffset: Used as an offset into the vertex buffer
+//		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
+//		*/
+//		vkCmdDrawIndexed(graphicsCommandBuffer[i], quad->getIndexBufferSize(), 1, 0, 0, 1);
+
 		//---------- End Recording ----------
 		if (vkEndCommandBuffer(graphicsCommandBuffer[i]) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to record the graphics command buffer");
@@ -1177,14 +1206,11 @@ void Renderer::CreateDescriptorPool()
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
 
 		// ------------ Can be attached to multiple pipelines -----------------
-		// Camera Descriptor that is used in both compute and graphics pipelines
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
-		// Time
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
-		// SunAndSky
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
-		// KeyPress
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // Camera
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // Time
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // SunAndSky
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // KeyPress
 
 		// ------------ PostProcess pipelines -----------------
 		// GodRays -- GreyScale Image of where light is in the sky
