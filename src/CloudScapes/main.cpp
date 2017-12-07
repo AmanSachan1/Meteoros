@@ -36,7 +36,7 @@ namespace
 	double previousX = 0.0;
 	double previousY = 0.0;
 	float deltaForRotation = 0.005;
-	float deltaForMovement = 0.001;
+	float deltaForMovement = 100.0;//0.001;
 
 	void keyboardInputs(GLFWwindow* window)
 	{
