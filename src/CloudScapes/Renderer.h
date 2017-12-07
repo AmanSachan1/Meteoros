@@ -94,6 +94,8 @@ public:
 	//Cloud Resource Functions
 	void CreateCloudResources();
 
+	void CreatePostProcessResources();
+
 	// IMGUI
 	void ImGuiSetup(GLFWwindow* window); 
 	void ImGuiCreation();
@@ -129,6 +131,9 @@ private:
 	VkPipelineLayout postProcess_GodRays_PipelineLayout;
 	VkPipeline postProcess_GodRays_PipeLine;
 
+	VkPipelineLayout postProcess_FinalPass_PipelineLayout;
+	VkPipeline postProcess_FinalPass_PipeLine;
+
 	VkRenderPass renderPass;
 
 	std::vector<VkImageView> imageViews;
@@ -142,9 +147,10 @@ private:
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
 
-	Texture2D* currentFrameComputeResultTexture;
+	Texture2D* currentFrameResultTexture;
 	Texture2D* previousFrameComputeResultTexture;
-	
+	Texture2D* godRaysCreationDataTexture;
+
 	Texture2D* weatherMapTexture;
 	Texture3D* cloudBaseShapeTexture;
 	/*
@@ -197,4 +203,7 @@ private:
 	//Descriptors used in Post Process pipelines
 	VkDescriptorSetLayout godRaysSetLayout;
 	VkDescriptorSet godRaysSet;
+
+	VkDescriptorSetLayout finalPassSetLayout;
+	VkDescriptorSet finalPassSet;
 };

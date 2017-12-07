@@ -53,6 +53,7 @@ public:
 	Scene(VulkanDevice* device);
 	~Scene();
 
+	void CreateModelsInScene(VkCommandPool commandPool);
 	const std::vector<Model*>& GetModels() const;
 	void AddModel(Model* model);
 

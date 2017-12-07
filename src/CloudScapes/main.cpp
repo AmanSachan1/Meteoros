@@ -35,7 +35,7 @@ namespace
 	bool leftMouseDown = false;
 	double previousX = 0.0;
 	double previousY = 0.0;
-	float deltaForRotation = 0.005;
+	float deltaForRotation = 0.05;
 	float deltaForMovement = 0.001;
 
 	void keyboardInputs(GLFWwindow* window)
@@ -166,8 +166,13 @@ int main(int argc, char** argv)
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
     while (!ShouldQuit()) 
 	{
-		glfwPollEvents();
+		//Mouse inputs and window resize callbacks
+		glfwPollEvents();		
+		// Update Uniforms
 		scene->UpdateTime();
+		scene->UpdateSunAndSky();
+		scene->UpdateKeyPressQuery();
+		// Get Inputd frome the Keyboard
 		keyboardInputs(GetGLFWWindow());
 
 		//renderer->ImGuiSetup(GetGLFWWindow());

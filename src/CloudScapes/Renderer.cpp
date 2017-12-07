@@ -59,7 +59,7 @@ void Renderer::DestroyResourcesDependentOnWindowSize()
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
 	//Textures
-	delete currentFrameComputeResultTexture;
+	delete currentFrameResultTexture;
 	delete previousFrameComputeResultTexture;
 }
 void Renderer::DestroyResourcesIndependentOfWindowSize()
@@ -90,6 +90,7 @@ void Renderer::InitializeRenderer()
 	CreateRenderPass();
 
 	CreateComputeResources();
+	CreatePostProcessResources();
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -281,7 +282,8 @@ void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
 	CreateGraphicsPipeline(renderPass, 0);
 
-	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ cloudSetLayout });
+	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ godRaysSetLayout });
+	postProcess_FinalPass_PipelineLayout = CreatePipelineLayout({ finalPassSetLayout });
 	CreatePostProcessPipeLines(renderPass);
 }
 
@@ -327,8 +329,6 @@ void Renderer::CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subp
 	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = Vertex::getAttributeDescriptions();
 
 	// -------- Vertex input --------
-	// Because we're hard coding the vertex data directly in the vertex shader, we'll fill in this structure to specify 
-	// that there is no vertex data to load for now. We'll write the vertex buffers later.
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -523,8 +523,6 @@ void Renderer::CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpas
 	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = Vertex::getAttributeDescriptions();
 
 	// -------- Vertex input --------
-	// Because we're hard coding the vertex data directly in the vertex shader, we'll fill in this structure to specify 
-	// that there is no vertex data to load for now. We'll write the vertex buffers later.
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -706,6 +704,9 @@ void Renderer::CreateComputePipeline()
 
 void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 {
+	// -------- Vertex input binding --------
+	VkPipelineVertexInputStateCreateInfo emptyVertexInputState = VulkanInitializers::pipelineVertexInputStateCreateInfo();
+
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = 
 		VulkanInitializers::pipelineInputAssemblyStateCreateInfo( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
 
@@ -721,29 +722,49 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	VkPipelineDepthStencilStateCreateInfo depthStencilState =
 		VulkanInitializers::pipelineDepthStencilStateCreateInfo( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
 
+	// Viewports and Scissors (rectangles that define in which regions pixels are stored)
+	VkViewport viewport = {};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(swapChain->GetVkExtent().width);
+	viewport.height = static_cast<float>(swapChain->GetVkExtent().height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	// While viewports define the transformation from the image to the framebuffer, 
+	// scissor rectangles define in which regions pixels will actually be stored.
+	// we simply want to draw to the entire framebuffer, so we'll specify a scissor rectangle that covers the framebuffer entirely
+	VkRect2D scissor = {};
+	scissor.offset = { 0, 0 };
+	scissor.extent = swapChain->GetVkExtent();
+
 	VkPipelineViewportStateCreateInfo viewportState =
 		VulkanInitializers::pipelineViewportStateCreateInfo(1, 1, 0);
+
+	viewportState.pViewports = &viewport;
+	viewportState.pScissors = &scissor;
 
 	VkPipelineMultisampleStateCreateInfo multiSampleState =
 		VulkanInitializers::pipelineMultisampleStateCreateInfo( VK_SAMPLE_COUNT_1_BIT, 0);
 
-	std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-	VkPipelineDynamicStateCreateInfo dynamicState =
-		VulkanInitializers::pipelineDynamicStateCreateInfo( dynamicStateEnables, 0 );
+	// No Dynamic states
+	//std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	//VkPipelineDynamicStateCreateInfo dynamicState =
+	//	VulkanInitializers::pipelineDynamicStateCreateInfo( dynamicStateEnables, 0 );
 
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages; //Defined later on and changes per pipeline binding since we are creating many pipelines here
 
 	// -------- Create Base PostProcess pipeline Info ---------
 	VkGraphicsPipelineCreateInfo postProcessPipelineCreateInfo =
 		VulkanInitializers::graphicsPipelineCreateInfo( postProcess_GodRays_PipelineLayout, renderPass, 0);
-
+	postProcessPipelineCreateInfo.pVertexInputState = &emptyVertexInputState;; //defined above
 	postProcessPipelineCreateInfo.pInputAssemblyState = &inputAssemblyState; //defined above
 	postProcessPipelineCreateInfo.pRasterizationState = &rasterizationState; //defined above
 	postProcessPipelineCreateInfo.pColorBlendState = &colorBlendState; //defined above
 	postProcessPipelineCreateInfo.pMultisampleState = &multiSampleState; //defined above
 	postProcessPipelineCreateInfo.pViewportState = &viewportState; //defined above
 	postProcessPipelineCreateInfo.pDepthStencilState = &depthStencilState; //defined above
-	postProcessPipelineCreateInfo.pDynamicState = &dynamicState; //defined above
+	postProcessPipelineCreateInfo.pDynamicState = nullptr; //defined above
 	postProcessPipelineCreateInfo.subpass = 0; // no subpasses
 	postProcessPipelineCreateInfo.stageCount = shaderStages.size(); //reserving memory for the shader stages that will soon be defined
 	postProcessPipelineCreateInfo.pStages = shaderStages.data(); 
@@ -753,28 +774,45 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	VulkanInitializers::createPipelineCache(logicalDevice, postProcessPipeLineCache);
 
 	// -------- God Rays pipeline -----------------------------------------
-	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.vert.spv", logicalDevice);
-	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.frag.spv", logicalDevice);
+	VkShaderModule godRays_vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.vert.spv", logicalDevice);
+	VkShaderModule godRays_fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.frag.spv", logicalDevice);
 
 	// Assign each shader module to the appropriate stage in the pipeline
-	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule);
-	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule);
+	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, godRays_vertShaderModule);
+	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, godRays_fragShaderModule);
 
 	// Empty vertex input state
-	VkPipelineVertexInputStateCreateInfo emptyInputState = VulkanInitializers::pipelineVertexInputStateCreateInfo();
-	postProcessPipelineCreateInfo.pVertexInputState = &emptyInputState;
+
 	postProcessPipelineCreateInfo.layout = postProcess_GodRays_PipelineLayout;
 
 	if (vkCreateGraphicsPipelines(logicalDevice, postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, nullptr, &postProcess_GodRays_PipeLine) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create post process pipeline");
 	}
 
-	vkDestroyShaderModule(device->GetVkDevice(), vertShaderModule, nullptr);
-	vkDestroyShaderModule(device->GetVkDevice(), fragShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), godRays_vertShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), godRays_fragShaderModule, nullptr);
 
 	// -------- Anti Aliasing  pipeline -----------------------------------------
 
-	// -------- Tone Mapping pipeline -----------------------------------------
+	// -------- Final Pass pipeline -----------------------------------------
+	// Does Compositing and Tone Mapping
+
+	VkShaderModule finalPass_vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_FinalPass.vert.spv", logicalDevice);
+	VkShaderModule finalPass_fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_FinalPass.frag.spv", logicalDevice);
+
+	// Assign each shader module to the appropriate stage in the pipeline
+	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, finalPass_vertShaderModule);
+	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, finalPass_fragShaderModule);
+
+	// Empty vertex input state
+	postProcessPipelineCreateInfo.layout = postProcess_FinalPass_PipelineLayout;
+
+	if (vkCreateGraphicsPipelines(logicalDevice, postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, nullptr, &postProcess_FinalPass_PipeLine) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create post process pipeline");
+	}
+
+	vkDestroyShaderModule(device->GetVkDevice(), finalPass_vertShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), finalPass_fragShaderModule, nullptr);
 }
 
 //----------------------------------------------
@@ -817,11 +855,11 @@ void Renderer::RecreateFrameResources()
 	CreateRenderPass();
 
 	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	currentFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 	//Stores the results of the previous Frame
 	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	previousFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -1006,7 +1044,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-		imageMemoryBarrier.image = currentFrameComputeResultTexture->GetTextureImage();
+		imageMemoryBarrier.image = currentFrameResultTexture->GetTextureImage();
 		imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 		imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 		imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;		
@@ -1067,53 +1105,30 @@ void Renderer::RecordGraphicsCommandBuffer()
 
 		// Bind the vertex and index buffers
 		VkDeviceSize geomOffsets[] = { 0 };
-		const VkBuffer geomVertices = house->getVertexBuffer();
+		const VkBuffer geomVertices = scene->GetModels()[0]->getVertexBuffer();
 		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
 
 		// Bind triangle index buffer
-		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
 		// Draw indexed triangle
-		/*
-		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
-		indexCount;
-		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-		firstIndex:  Used as an offset into the index buffer
-		vertexOffset: Used as an offset into the vertex buffer
-		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		*/
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
-
-		vkCmdEndRenderPass(graphicsCommandBuffer[i]);
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
 
 		//-----------------------------
 		//--- PostProcess Pipelines ---
 		//-----------------------------
-//		//\God Rays Pipeline
-//		// Bind the clouds pipeline
-//		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
-//
-//		// Bind sampler descriptor set
-//		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &cloudSet, 0, nullptr);
-//
-//		// Bind the vertex and index buffers
-////		VkDeviceSize quadOffsets[] = { 0 };
-////		const VkBuffer quadVertices = quad->getVertexBuffer();
-//		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &quadVertices, quadOffsets);
-//
-//		// Bind triangle index buffer
-//		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], quad->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-//
-//		// Draw indexed triangle
-//		/*
-//		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
-//		indexCount;
-//		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-//		firstIndex:  Used as an offset into the index buffer
-//		vertexOffset: Used as an offset into the vertex buffer
-//		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-//		*/
-//		vkCmdDrawIndexed(graphicsCommandBuffer[i], quad->getIndexBufferSize(), 1, 0, 0, 1);
+		// God Rays Pipeline
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &godRaysSet, 0, NULL);
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
+		vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
+
+		// Final Pass Pipeline
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipelineLayout, 0, 1, &finalPassSet, 0, NULL);
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipeLine);
+		vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
+
+		//---------- End RenderPass ---------
+		vkCmdEndRenderPass(graphicsCommandBuffer[i]);
 
 		//---------- End Recording ----------
 		if (vkEndCommandBuffer(graphicsCommandBuffer[i]) != VK_SUCCESS) {
@@ -1215,8 +1230,10 @@ void Renderer::CreateDescriptorPool()
 		// ------------ PostProcess pipelines -----------------
 		// GodRays -- GreyScale Image of where light is in the sky
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 		// Anti Aliasing //TODO
-		// Tone Mapping //TODO
+		// Final Pass with Tone Mapping
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
@@ -1268,19 +1285,21 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	// pImmutableSamplers --> for image sampling related descriptors
 
 	//-------------------- Computes Pipeline --------------------
-	VkDescriptorSetLayoutBinding currentFrameComputeResultLayoutBinding =  { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding currentFrameResultLayoutBinding =         { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding previousFrameComputeResultLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudLowFrequencyNoiseSetLayoutBinding =  { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudHighFrequencyNoiseSetLayoutBinding = { 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudCurlNoiseSetLayoutBinding =          { 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding weatherMapSetLayoutBinding =              { 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding godRaysCreationDataSetLayoutBinding =	   { 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 
-	std::array<VkDescriptorSetLayoutBinding, 6> computeBindings = { currentFrameComputeResultLayoutBinding,
+	std::array<VkDescriptorSetLayoutBinding, 7> computeBindings = { currentFrameResultLayoutBinding,
 																	previousFrameComputeResultLayoutBinding,
 																	cloudLowFrequencyNoiseSetLayoutBinding, 
 																	cloudHighFrequencyNoiseSetLayoutBinding,
 																	cloudCurlNoiseSetLayoutBinding,
-																	weatherMapSetLayoutBinding };
+																	weatherMapSetLayoutBinding,
+																	godRaysCreationDataSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo computeLayoutInfo = {};
 	computeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	computeLayoutInfo.bindingCount = static_cast<uint32_t>(computeBindings.size());
@@ -1365,14 +1384,27 @@ void Renderer::CreateAllDescriptorSetLayouts()
 
 	//-------------------- Post Process --------------------
 	//God Rays
-	VkDescriptorSetLayoutBinding godRaysSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	VkDescriptorSetLayoutBinding resultantImageSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	VkDescriptorSetLayoutBinding godRaysSetLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 
-	std::array<VkDescriptorSetLayoutBinding, 1> godRaysBindings = { godRaysSetLayoutBinding };
+	std::array<VkDescriptorSetLayoutBinding, 2> godRaysBindings = { resultantImageSetLayoutBinding, godRaysSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo godRaysLayoutInfo = {};
 	godRaysLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	godRaysLayoutInfo.bindingCount = static_cast<uint32_t>(godRaysBindings.size());
 	godRaysLayoutInfo.pBindings = godRaysBindings.data();
 	if (vkCreateDescriptorSetLayout(logicalDevice, &godRaysLayoutInfo, nullptr, &godRaysSetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	//Final Pass
+	VkDescriptorSetLayoutBinding preFinalImageSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> finalPassBindings = { preFinalImageSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo finalPassLayoutInfo = {};
+	finalPassLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	finalPassLayoutInfo.bindingCount = static_cast<uint32_t>(finalPassBindings.size());
+	finalPassLayoutInfo.pBindings = finalPassBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &finalPassLayoutInfo, nullptr, &finalPassSetLayout) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
 }
@@ -1390,35 +1422,11 @@ void Renderer::CreateAllDescriptorSets()
 	keyPressQuerySet = CreateDescriptorSet(descriptorPool, keyPressQuerySetLayout);
 
 	godRaysSet = CreateDescriptorSet(descriptorPool, godRaysSetLayout);
-
-	// Model and texture file paths
-	const std::string model_path = "../../src/CloudScapes/models/teapot.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/cyllinder2.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/wahoo.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/dodecahedron.obj";
-
-	const std::string texture_path = "../../src/CloudScapes/textures/statue.jpg";
+	finalPassSet = CreateDescriptorSet(descriptorPool, finalPassSetLayout);
 	
-	// Using .obj-based Model constructor ----------------------------------------------------
-	//house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
+	scene->CreateModelsInScene(graphicsCommandPool);
 
-	// Using manual-based Model constructor --------------------------------------------------
-	// Arbitrary test model
-	const std::vector<Vertex> vertices = {
-		{ { 1.0f, 0.0f, -1.0f,  1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
-		{ { -1.0f,  0.0f, 1.0f,  1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
-		{ { -1.0f,  0.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { 1.0f, 0.0f, -1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
-	};
-	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0  };//2,1,0,0,2,3};
-	house = new Model(device, graphicsCommandPool, vertices, indices);
-	house->SetTexture(device, graphicsCommandPool, texture_path);
-
-	//glm::mat4 modelMat = glm::rotate(house->GetModelMatrix(), scene->GetTime().y * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 1.0f)); //Ask Austin why the rotation doesnt work
-	//house->SetModelBuffer(modelMat);
-
-	// Quad model
+	// Background Quad model
 	const std::vector<Vertex> quadVertices = {
 		{ { -1.0f, -1.0f, 0.99999f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
 		{ { 1.0f,  -1.0f, 0.99999f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
@@ -1448,9 +1456,9 @@ void Renderer::WriteToAndUpdateComputeDescriptorSets()
 	//------------------------------------------
 	// Texture Compute Shader Writes To
 	VkDescriptorImageInfo currentFrameTextureInfo = {};
-	currentFrameTextureInfo.imageLayout = currentFrameComputeResultTexture->GetTextureLayout();
-	currentFrameTextureInfo.imageView = currentFrameComputeResultTexture->GetTextureImageView();
-	currentFrameTextureInfo.sampler = currentFrameComputeResultTexture->GetTextureSampler();
+	currentFrameTextureInfo.imageLayout = currentFrameResultTexture->GetTextureLayout();
+	currentFrameTextureInfo.imageView = currentFrameResultTexture->GetTextureImageView();
+	currentFrameTextureInfo.sampler = currentFrameResultTexture->GetTextureSampler();
 
 	// previous Frame Data for Reprojection
 	VkDescriptorImageInfo previousFrameTextureInfo = {};
@@ -1476,13 +1484,19 @@ void Renderer::WriteToAndUpdateComputeDescriptorSets()
 	cloudCurlNoiseImageInfo.imageView = cloudMotionTexture->GetTextureImageView();
 	cloudCurlNoiseImageInfo.sampler = cloudMotionTexture->GetTextureSampler();
 
-	// Cloud Curl Noise
+	// Weather Map
 	VkDescriptorImageInfo weatherMapInfo = {};
 	weatherMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	weatherMapInfo.imageView = weatherMapTexture->GetTextureImageView();
 	weatherMapInfo.sampler = weatherMapTexture->GetTextureSampler();
 
-	std::array<VkWriteDescriptorSet, 6> writeComputeTextureInfo = {};
+	// God Rays Creation Data Texture
+	VkDescriptorImageInfo godRaysCreationDataTextureInfo = {};
+	godRaysCreationDataTextureInfo.imageLayout = godRaysCreationDataTexture->GetTextureLayout();
+	godRaysCreationDataTextureInfo.imageView = godRaysCreationDataTexture->GetTextureImageView();
+	godRaysCreationDataTextureInfo.sampler = godRaysCreationDataTexture->GetTextureSampler();
+
+	std::array<VkWriteDescriptorSet, 7> writeComputeTextureInfo = {};
 	writeComputeTextureInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[0].pNext = NULL;
 	writeComputeTextureInfo[0].dstSet = computeSet;
@@ -1531,6 +1545,14 @@ void Renderer::WriteToAndUpdateComputeDescriptorSets()
 	writeComputeTextureInfo[5].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
 	writeComputeTextureInfo[5].pImageInfo = &weatherMapInfo;
 
+	writeComputeTextureInfo[6].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeComputeTextureInfo[6].pNext = NULL;
+	writeComputeTextureInfo[6].dstSet = computeSet;
+	writeComputeTextureInfo[6].dstBinding = 6;
+	writeComputeTextureInfo[6].descriptorCount = 1;
+	writeComputeTextureInfo[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeComputeTextureInfo[6].pImageInfo = &godRaysCreationDataTextureInfo;
+
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeComputeTextureInfo.size()), writeComputeTextureInfo.data(), 0, nullptr);
 }
 void Renderer::WriteToAndUpdateGraphicsDescriptorSets()
@@ -1538,18 +1560,20 @@ void Renderer::WriteToAndUpdateGraphicsDescriptorSets()
 	//---------------------------------
 	//---- Graphics DescriptorSets ----
 	//---------------------------------
+	// We know we are only drawing one model but change this if creating multiple models
+	std::vector<Model*> models = scene->GetModels();
 
 	// Model
 	VkDescriptorBufferInfo modelBufferInfo = {};
-	modelBufferInfo.buffer = house->GetModelBuffer();
+	modelBufferInfo.buffer = models[0]->GetModelBuffer();
 	modelBufferInfo.offset = 0;
 	modelBufferInfo.range = sizeof(ModelBufferObject);
 
 	// Texture
 	VkDescriptorImageInfo imageInfo = {};
 	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView = house->GetTextureView();
-	imageInfo.sampler = house->GetTextureSampler();
+	imageInfo.imageView = models[0]->GetTextureView();
+	imageInfo.sampler = models[0]->GetTextureSampler();
 
 	std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
 
@@ -1576,9 +1600,9 @@ void Renderer::WriteToAndUpdateCloudsDescriptorSets()
 	//-------Cloud Pipeline DescriptorSets----
 	//------------------------------------------
 	VkDescriptorImageInfo currentFrameTextureInfo = {};
-	currentFrameTextureInfo.imageLayout = currentFrameComputeResultTexture->GetTextureLayout();
-	currentFrameTextureInfo.imageView = currentFrameComputeResultTexture->GetTextureImageView();
-	currentFrameTextureInfo.sampler = currentFrameComputeResultTexture->GetTextureSampler();
+	currentFrameTextureInfo.imageLayout = currentFrameResultTexture->GetTextureLayout();
+	currentFrameTextureInfo.imageView = currentFrameResultTexture->GetTextureImageView();
+	currentFrameTextureInfo.sampler = currentFrameResultTexture->GetTextureSampler();
 	// Texture Quad Reads in
 	std::array<VkWriteDescriptorSet, 1> writeCloudSamplerInfo = {};
 	writeCloudSamplerInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1632,7 +1656,59 @@ void Renderer::WriteToAndUpdateRemainingDescriptorSets()
 }
 void Renderer::WriteToAndUpdatePostDescriptorSets()
 {
+	//------------------------------------------
+	//-------- Post Process Descriptor Sets ----
+	//------------------------------------------
+	//God Rays
+	// Texture God Rays Post Process Shader Writes To
+	VkDescriptorImageInfo resultantImageTextureInfo = {};
+	resultantImageTextureInfo.imageLayout = currentFrameResultTexture->GetTextureLayout();
+	resultantImageTextureInfo.imageView = currentFrameResultTexture->GetTextureImageView();
+	resultantImageTextureInfo.sampler = currentFrameResultTexture->GetTextureSampler();
 
+	// God Rays Creation Data Texture
+	VkDescriptorImageInfo godRaysDataTextureInfo = {};
+	godRaysDataTextureInfo.imageLayout = godRaysCreationDataTexture->GetTextureLayout();
+	godRaysDataTextureInfo.imageView = godRaysCreationDataTexture->GetTextureImageView();
+	godRaysDataTextureInfo.sampler = godRaysCreationDataTexture->GetTextureSampler();
+
+	std::array<VkWriteDescriptorSet, 2> writeGodRaysPassInfo = {};
+	writeGodRaysPassInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeGodRaysPassInfo[0].pNext = NULL;
+	writeGodRaysPassInfo[0].dstSet = godRaysSet;
+	writeGodRaysPassInfo[0].dstBinding = 0;
+	writeGodRaysPassInfo[0].descriptorCount = 1;
+	writeGodRaysPassInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeGodRaysPassInfo[0].pImageInfo = &resultantImageTextureInfo;
+
+	writeGodRaysPassInfo[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeGodRaysPassInfo[1].pNext = NULL;
+	writeGodRaysPassInfo[1].dstSet = godRaysSet;
+	writeGodRaysPassInfo[1].dstBinding = 1;
+	writeGodRaysPassInfo[1].descriptorCount = 1;
+	writeGodRaysPassInfo[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeGodRaysPassInfo[1].pImageInfo = &godRaysDataTextureInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeGodRaysPassInfo.size()), writeGodRaysPassInfo.data(), 0, nullptr);
+
+	// Final Pass
+	// preFinalPassImage --> appply tone mapping and other effects to this
+	VkDescriptorImageInfo preFinalPassImageInfo = {};
+	preFinalPassImageInfo.imageLayout = currentFrameResultTexture->GetTextureLayout();
+	preFinalPassImageInfo.imageView = currentFrameResultTexture->GetTextureImageView();
+	preFinalPassImageInfo.sampler = currentFrameResultTexture->GetTextureSampler();
+
+	std::array<VkWriteDescriptorSet, 1> writeFinalPassInfo = {};
+
+	writeFinalPassInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeFinalPassInfo[0].pNext = NULL;
+	writeFinalPassInfo[0].dstSet = finalPassSet;
+	writeFinalPassInfo[0].dstBinding = 0;
+	writeFinalPassInfo[0].descriptorCount = 1;
+	writeFinalPassInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeFinalPassInfo[0].pImageInfo = &preFinalPassImageInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeFinalPassInfo.size()), writeFinalPassInfo.data(), 0, nullptr);
 }
 
 //----------------------------------------------
@@ -1666,16 +1742,16 @@ VkFormat Renderer::FindDepthFormat()
 }
 
 //----------------------------------------------
-//-------------- Create Clouds Resources -------
+//------------- Create Compute Resources -------
 //----------------------------------------------
 void Renderer::CreateComputeResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	currentFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 	//Stores the results of the previous Frame
 	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	previousFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//Create the textures that will be passed to the compute shader to create clouds
 	CreateCloudResources();
@@ -1714,6 +1790,16 @@ void Renderer::CreateCloudResources()
 	weatherMapTexture->createTextureFromFile(logicalDevice, computeCommandPool, weatherMapTexture_path, 4,
 											VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 											VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
+}
+
+//----------------------------------------------
+//------------- Create Compute Resources -------
+//----------------------------------------------
+void Renderer::CreatePostProcessResources()
+{
+	//To store the results of the compute shader that will be passed on to the frag shader
+	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	godRaysCreationDataTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
 
 //----------------------------------------------
