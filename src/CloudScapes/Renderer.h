@@ -59,14 +59,12 @@ public:
 	// Helper Functions forWriting and updating Descriptor Sets
 	void WriteToAndUpdateComputeDescriptorSets();
 	void WriteToAndUpdateGraphicsDescriptorSets();
-	void WriteToAndUpdateCloudsDescriptorSets();
 	void WriteToAndUpdateRemainingDescriptorSets();
 	void WriteToAndUpdatePostDescriptorSets();
 
 	// Pipelines
 	VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts);
 	void CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass);
-	void CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpass);
 	void CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subpass);
 	void CreateComputePipeline();	
 	void CreatePostProcessPipeLines(VkRenderPass renderPass);
@@ -120,10 +118,8 @@ private:
 	VkCommandPool graphicsCommandPool;
 	VkCommandPool computeCommandPool;
 
-	VkPipelineLayout cloudsPipelineLayout;
 	VkPipelineLayout graphicsPipelineLayout;
 	VkPipelineLayout computePipelineLayout;
-	VkPipeline cloudsPipeline;
 	VkPipeline graphicsPipeline;
 	VkPipeline computePipeline;
 
@@ -138,9 +134,6 @@ private:
 
 	std::vector<VkImageView> imageViews;
 	std::vector<VkFramebuffer> frameBuffers;
-	
-	// Change the buffers when you set it up in a models class
-	Model* quad;
 
 	VkImage depthImage;
 	VkDeviceMemory depthImageMemory;
@@ -152,29 +145,27 @@ private:
 
 	Texture2D* weatherMapTexture;
 	Texture3D* cloudBaseShapeTexture;
-	/*
-	3D cloudBaseShapeTexture
-	4 channels…
-	128^3 resolution…
-	The first channel is the Perlin-Worley noise.
-	The other 3 channels are Worley noise at increasing frequencies. 
-	This 3d texture is used to define the base shape for our clouds.
-	*/
 	Texture3D* cloudDetailsTexture;
-	/*
-	3D cloudDetailsTexture
-	3 channels…
-	32^3 resolution…
-	Uses Worley noise at increasing frequencies. 
-	This texture is used to add detail to the base cloud shape defined by the first 3d noise.
-	*/
 	Texture2D* cloudMotionTexture;
 	/*
-	2D cloudMotionTexture
-	3 channels…
-	128^2 resolution…
-	Uses curl noise. Which is non divergent and is used to fake fluid motion. 
-	We use this noise to distort our cloud shapes and add a sense of turbulence.
+		3D cloudBaseShapeTexture
+		4 channels…
+		128^3 resolution…
+		The first channel is the Perlin-Worley noise.
+		The other 3 channels are Worley noise at increasing frequencies. 
+		This 3d texture is used to define the base shape for our clouds.
+
+		3D cloudDetailsTexture
+		3 channels…
+		32^3 resolution…
+		Uses Worley noise at increasing frequencies. 
+		This texture is used to add detail to the base cloud shape defined by the first 3d noise.
+
+		2D cloudMotionTexture
+		3 channels…
+		128^2 resolution…
+		Uses curl noise. Which is non divergent and is used to fake fluid motion. 
+		We use this noise to distort our cloud shapes and add a sense of turbulence.
 	*/
 	
 	VkDescriptorPool descriptorPool;
@@ -191,12 +182,10 @@ private:
 
 	//Descriptor Set Layouts for each pipeline
 	VkDescriptorSetLayout computeSetLayout;	// Compute shader binding layout
-	VkDescriptorSetLayout cloudSetLayout;
 	VkDescriptorSetLayout graphicsSetLayout;
 
 	// Descriptor Sets for each pipeline
-	VkDescriptorSet computeSet;	// Compute shader descriptor Set	
-	VkDescriptorSet cloudSet; // Descriptor Set for cloud pipeline Data
+	VkDescriptorSet computeSet;	// Compute shader descriptor Set
 	VkDescriptorSet graphicsSet; // Graphics ( Regular Geometric Meshes ) specific descriptor sets
 
 	//Descriptors used in Post Process pipelines
