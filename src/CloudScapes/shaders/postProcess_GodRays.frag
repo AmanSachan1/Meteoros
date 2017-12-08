@@ -20,71 +20,83 @@ layout (set = 2, binding = 0) uniform SunAndSkyUBO
 	float sunIntensity;
 };
 
-layout(location = 0) in vec2 fragTexCoord;
+layout(location = 0) in vec2 in_uv;
 
-#define NUM_SAMPLES 100
-#define WEIGHT_FOR_SAMPLE 0.02
+#define MAX_SAMPLES 100
+#define ATMOSPHERE_DENSITY 1.0f
+#define WEIGHT_FOR_SAMPLE 0.01 //0.01
 #define DECAY 1.0
-#define EXPOSURE 2.0
+#define EXPOSURE 1.1
 
-//Reference: https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch13.html
+#define PI 3.14159265
+
+//References: - https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch13.html
+//			  -	https://github.com/Erkaman/glsl-godrays
 void main() 
 {	
 	ivec2 dim = imageSize(currentFrameResultImage); //texture(currentFrameResultImage, fragTexCoord).rgb;
-	ivec2 pixelPos = ivec2(floor(dim.x * fragTexCoord.x), floor(dim.y * fragTexCoord.y)); 
-	
-	vec4 inverseLightIntensity = vec4(texture(godRayCreationDataSampler, fragTexCoord).rgb, 1.0);
+	ivec2 pixelPos = ivec2(floor(dim.x * in_uv.x), floor(dim.y * in_uv.y));
+	vec2 uv = in_uv;
 
-	vec2 radialSize = vec2(1.0 / dim.s, 1.0 / dim.t); 
-	vec2 uv = fragTexCoord;
+	vec3 cam_to_sun = normalize(sunLocation.xyz - camera.eye.xyz);
+	vec3 camForward =  -normalize(vec3(camera.view[0][2], camera.view[1][2], camera.view[2][2] ));
 
-	// vec3 cam_to_sun = normalize(sunLocation.xyz - eye.xyz);
-	// vec3 camForward =  -normalize(vec3(camera.view[0][2], camera.view[1][2], camera.view[2][2] ));
+	float sunAngleY = abs(tan( (cam_to_sun.y-camForward.y) )); //would divide by z but z = 1
+	float sunAngleX = abs(tan( (cam_to_sun.x-camForward.x) )); //would divide by z but z = 1
 
-	// float sunAngle = abs(tan( (cam_to_sun.y-camForward.y) )); //would divide by z but z = 1
-	// if(sunAngle < tanFovBy2)
-	// {
-	// 	//sun is inside camera frustum
-	// 	//calculate screen space pos and proceed normally
-	// }
-	// else
-	// {
-	// 	//sun is outside camera frustum
-	// 	//figure out closest pixel inside the camera frustum and do radial blur based on that
-	// }
-
-	// Sun Pos in screen space
-	vec4 sunPos_ = camera.proj * camera.view * sunLocation;
-	vec2 sunPos_ss = (sunPos_.xy+1.0f)/2.0f;
-
-	// Calculate vector from pixel to light source in screen space.
-	vec2 deltaTexCoord = (uv - sunPos_ss);
-
-	// Divide by number of samples and scale by control factor.
-	deltaTexCoord *= 1.0f / float(NUM_SAMPLES) * (1.0f);
-
-	// Store initial sample.
-	vec3 color = inverseLightIntensity.xyz;
-
-	// Set up illumination decay factor.
-	float illuminationDecay = 1.0f;
-
-	// Evaluate summation from Equation 3 NUM_SAMPLES iterations.
-	for (int i = 0; i < NUM_SAMPLES; i++)
+	int numSamples = MAX_SAMPLES;
+	float sunAngle_totalexcess = 0.0f;
+	bool flag_sunOutsideFrustum = false;
+	// If Sun lies outside the camera frustum reduce num samples
+	if(sunAngleY > camera.tanFovBy2.y)
 	{
-		// Step sample location along ray.
-		uv -= deltaTexCoord;
-		// Retrieve sample at new location.
-		vec3 sampleColor = texture(godRayCreationDataSampler, uv).rgb;
-		// Apply sample attenuation scale/decay factors.
-		sampleColor *= illuminationDecay * WEIGHT_FOR_SAMPLE;
-		// Accumulate combined color.
-		color += sampleColor;
-		// Update exponential decay factor.
-		illuminationDecay *= DECAY;
+		sunAngle_totalexcess += sunAngleY-camera.tanFovBy2.y;
+	}
+	if(sunAngleX > camera.tanFovBy2.x)
+	{
+		sunAngle_totalexcess += sunAngleX-camera.tanFovBy2.x;
 	}
 
-	vec4 final_color = vec4(color*EXPOSURE, 1.0);
+	//reduce numSamples if sun outside frustum
+	if(flag_sunOutsideFrustum)
+	{
+		numSamples = int(float(numSamples)*(sunAngle_totalexcess/PI));
+	}	
 
-	//imageStore( currentFrameResultImage, pixelPos, final_color );
+	vec4 sunPos_ndc = camera.proj * camera.view * sunLocation; 	// Sun Pos in NDC space
+
+	//Clamping ensures that the screen space position is always some pixel that can be accessed in the image being sampled
+	//This helps avoid weirdness due to the sun not lying inside the frustum 
+	vec2 sunPos_ss = clamp((sunPos_ndc.xy+1.0f)/2.0f, 0.0, 1.0); //Sun Pos in Screen Space
+
+	// Fix For Angling the god rays correctly --> screen space stuff doesnt account for z so the sun/light source can be 
+	//behind you but the shader will assum its still in front of you
+	if( dot(cam_to_sun, camForward) < 0.0f )
+	{
+		sunPos_ss = -sunPos_ss;
+	}
+
+	vec3 accumColor = vec3(0.0f, 0.0f, 0.0f);
+	float illuminationDecay = 1.0f;
+	// Calculate the radial change in uv coords in a direction towards the light source, i.e the sun
+	vec2 delta_uv = ((uv - sunPos_ss)/float(numSamples)) * ATMOSPHERE_DENSITY;
+
+	// Take samples along the vector from the pixel to the light source;
+	//Use these samples to calculate an accumulated color
+	for (int i = 0; i < numSamples; i++)
+	{
+		vec4 sampleValue = texture(godRayCreationDataSampler, uv);
+		vec3 sampleColor = sampleValue.rgb * sampleValue.a; // Retrieve sample at new location.		
+		sampleColor *= illuminationDecay * WEIGHT_FOR_SAMPLE; // Apply sample attenuation scale/decay factors.
+		accumColor += sampleColor;
+		
+		illuminationDecay *= DECAY; // Update exponential decay factor.		
+		uv -= delta_uv; // Step sample location along ray.
+	}
+
+	vec4 god_ray_color = vec4( accumColor*EXPOSURE, 1.0 );
+	vec4 originalpixelColor = imageLoad( currentFrameResultImage, pixelPos );
+	vec4 final_color = originalpixelColor + god_ray_color;
+
+	imageStore( currentFrameResultImage, pixelPos, originalpixelColor );
 }

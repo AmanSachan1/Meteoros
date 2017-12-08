@@ -698,7 +698,9 @@ void main()
     accumDensity *= smoothstep(0, 1, min(1, remap(ray.direction.y, 0, 0.05, 0, 1)));
 
     vec4 finalColor = vec4(mix(backgroundCol, vec3(clamp(transmittance, 0.0, 1.0)), accumDensity), 1.0);
-    vec4 greyScaleColor = vec4(mix(BLACK, vec3(clamp(WHITE, 0.0, 1.0)), 1.0-accumDensity), 1.0);
+    float lightIntensity = length(backgroundCol)/length(WHITE);
+    vec4 greyScaleColor = lightColor;
+    greyScaleColor.a = mix(0.0, lightIntensity, 1.0-accumDensity);
 
 // Begin debug renders
 #if HEIGHT_GRADIENT
