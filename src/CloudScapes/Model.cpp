@@ -30,6 +30,7 @@ Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::vector<
 }
 
 Model::Model(VulkanDevice* device, VkCommandPool commandPool, const std::string model_path, const std::string texture_path)
+	: device(device)
 {
 	LoadModel(model_path);
 

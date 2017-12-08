@@ -40,32 +40,17 @@ Scene::~Scene()
 void Scene::CreateModelsInScene(VkCommandPool commandPool)
 {
 	// Model and texture file paths
-	const std::string model_path = "../../src/CloudScapes/models/teapot.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/cyllinder2.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/wahoo.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/dodecahedron.obj";
-
+	const std::string model_path = "../../src/CloudScapes/models/thinCube.obj";
 	const std::string texture_path = "../../src/CloudScapes/textures/statue.jpg";
 
 	// Using .obj-based Model constructor ----------------------------------------------------
-	//house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
+	Model* groundPlane = new Model(device, commandPool, model_path, texture_path);
+	
+	glm::mat4 modelMat = groundPlane->GetModelMatrix();
+	modelMat = glm::translate(modelMat, glm::vec3(0.0f, -10.0f, 0.0f)) * glm::scale(modelMat, glm::vec3(100.0f, 1.0f, 100.0f)) * modelMat;
+	groundPlane->SetModelBuffer(modelMat);
 
-	// Using manual-based Model constructor --------------------------------------------------
-	const std::vector<Vertex> vertices = {
-		{ { 1.0f, 0.0f, -1.0f,  1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
-		{ { -1.0f,  0.0f, 1.0f,  1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
-		{ { -1.0f,  0.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { 1.0f, 0.0f, -1.0f, 1.0f },{ 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
-	};
-	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0 };//2,1,0,0,2,3};
-	Model* GroundPlane = new Model(device, commandPool, vertices, indices);
-	GroundPlane->SetTexture(device, commandPool, texture_path);
-
-	//glm::mat4 modelMat = glm::rotate(house->GetModelMatrix(), scene->GetTime().y * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 1.0f)); //Ask Austin why the rotation doesnt work
-	//GroundPlane->SetModelBuffer(modelMat);
-
-	AddModel(GroundPlane);
+	AddModel(groundPlane);
 }
 const std::vector<Model*>& Scene::GetModels() const
 {
