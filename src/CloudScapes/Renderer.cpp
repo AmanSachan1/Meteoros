@@ -297,7 +297,7 @@ void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
 	CreateGraphicsPipeline(renderPass, 0);
 
-	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ godRaysSetLayout, sunAndSkySetLayout });
+	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ godRaysSetLayout, cameraSetLayout, sunAndSkySetLayout });
 	postProcess_FinalPass_PipelineLayout = CreatePipelineLayout({ finalPassSetLayout });
 	CreatePostProcessPipeLines(renderPass);
 }
@@ -600,7 +600,15 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, godRays_vertShaderModule);
 	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, godRays_fragShaderModule);
 
-	// Empty vertex input state
+	// Additive blending --> needed for radial blur that is used in god rays
+	//blendAttachmentState.colorWriteMask = 0xF;
+	//blendAttachmentState.blendEnable = VK_TRUE;
+	//blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+	//blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	//blendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	//blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+	//blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	//blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
 
 	postProcessPipelineCreateInfo.layout = postProcess_GodRays_PipelineLayout;
 
@@ -610,6 +618,9 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 
 	vkDestroyShaderModule(device->GetVkDevice(), godRays_vertShaderModule, nullptr);
 	vkDestroyShaderModule(device->GetVkDevice(), godRays_fragShaderModule, nullptr);
+
+	// Set Blend State to false as it isnt used in any other post process
+	//blendAttachmentState.blendEnable = VK_FALSE;
 
 	// -------- Anti Aliasing  pipeline -----------------------------------------
 
@@ -897,6 +908,8 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//-----------------------------
 		// God Rays Pipeline
 		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &godRaysSet, 0, NULL);
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 1, 1, &cameraSet, 0, NULL);
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 2, 1, &sunAndSkySet, 0, NULL);
 		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
 		vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
 
@@ -951,7 +964,10 @@ void Renderer::RecordComputeCommandBuffer()
 	//Bind Descriptor Sets for compute
 	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeSet, 0, nullptr);
 	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 1, 1, &cameraSet, 0, nullptr);
-	
+	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 2, 1, &timeSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 3, 1, &sunAndSkySet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 4, 1, &keyPressQuerySet, 0, nullptr);
+
 	// Dispatch the compute kernel
 	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
 	uint32_t numBlocksX = (window_width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
@@ -1382,6 +1398,40 @@ void Renderer::WriteToAndUpdateRemainingDescriptorSets()
 	writeTimeSetInfo[0].pBufferInfo = &timeBufferInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeTimeSetInfo.size()), writeTimeSetInfo.data(), 0, nullptr);
+
+	// SunAndSky Descriptor
+	VkDescriptorBufferInfo sunAndSkyBufferInfo = {};
+	sunAndSkyBufferInfo.buffer = scene->GetSunAndSkyBuffer();
+	sunAndSkyBufferInfo.offset = 0;
+	sunAndSkyBufferInfo.range = sizeof(SunAndSky);
+
+	std::array<VkWriteDescriptorSet, 1> writeSunAndSkySetInfo = {};
+	writeSunAndSkySetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeSunAndSkySetInfo[0].pNext = NULL;
+	writeSunAndSkySetInfo[0].dstSet = sunAndSkySet;
+	writeSunAndSkySetInfo[0].dstBinding = 0;
+	writeSunAndSkySetInfo[0].descriptorCount = 1;
+	writeSunAndSkySetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeSunAndSkySetInfo[0].pBufferInfo = &sunAndSkyBufferInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeSunAndSkySetInfo.size()), writeSunAndSkySetInfo.data(), 0, nullptr);
+
+	// KeyPressQuery Descriptor
+	VkDescriptorBufferInfo keyPressQueryBufferInfo = {};
+	keyPressQueryBufferInfo.buffer = scene->GetKeyPressQueryBuffer();
+	keyPressQueryBufferInfo.offset = 0;
+	keyPressQueryBufferInfo.range = sizeof(KeyPressQuery);
+
+	std::array<VkWriteDescriptorSet, 1> writeKeyPressQuerySetInfo = {};
+	writeKeyPressQuerySetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeKeyPressQuerySetInfo[0].pNext = NULL;
+	writeKeyPressQuerySetInfo[0].dstSet = keyPressQuerySet;
+	writeKeyPressQuerySetInfo[0].dstBinding = 0;
+	writeKeyPressQuerySetInfo[0].descriptorCount = 1;
+	writeKeyPressQuerySetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeKeyPressQuerySetInfo[0].pBufferInfo = &keyPressQueryBufferInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeKeyPressQuerySetInfo.size()), writeKeyPressQuerySetInfo.data(), 0, nullptr);
 }
 void Renderer::WriteToAndUpdatePostDescriptorSets()
 {

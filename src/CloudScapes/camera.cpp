@@ -37,7 +37,7 @@ void Camera::UpdateBuffer()
 
 	cameraUBO.eyePos = glm::vec4(eyePos, 1.0);
 
-	cameraUBO.tanFovBy2.y = std::tan(fovy*0.5 * (PI / 180.0));
+	cameraUBO.tanFovBy2.y = std::abs(std::tan(fovy*0.5 * (PI / 180.0)));
 	cameraUBO.tanFovBy2.x = aspect * cameraUBO.tanFovBy2.y;
 }
 void Camera::CopyToGPUMemory()
