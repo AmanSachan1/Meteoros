@@ -8,13 +8,12 @@
 // You can use this feature to put descriptors that vary per-object and descriptors that are shared into separate descriptor sets.
 // In that case you avoid rebinding most of the descriptors across draw calls which is potentially more efficient.
 
-layout(set = 1, binding = 0) uniform CameraUBO
+layout (set = 1, binding = 0) uniform CameraUBO
 {
-	mat4 viewMatrix;
-	mat4 projectionMatrix;
-	vec3 lookAt_worldSpace;
-	float tanFovVby2;
-	float tanFovHby2;
+	mat4 view;
+	mat4 proj;
+	vec4 eye;
+	vec2 tanFovBy2;
 };
 
 layout(set = 0, binding = 0) uniform ModelUBO
@@ -36,7 +35,7 @@ layout(location = 1) out vec2 fragTexCoord;
 
 void main() 
 {
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * inPosition;
+    gl_Position = proj * view * modelMatrix * inPosition;
 
 	fragColor = vec3(inColor);
 	fragTexCoord = inTexCoord;
