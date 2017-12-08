@@ -22,7 +22,7 @@ Texture2D::~Texture2D()
 
 //This function creates a texture that can be written to
 //And thus can be used to prepare a texture target that is used to store compute shader calculations
-void Texture2D::createTextureAsBackGround(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool)
+void Texture2D::createEmptyTexture(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool)
 {
 	// Get device properties for the requested texture format
 	VkFormatProperties formatProperties;

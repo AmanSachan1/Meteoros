@@ -38,6 +38,7 @@ namespace
 	float deltaForRotation = 0.005;
 	float deltaForMovement = 100.0;//0.001;
 
+
 	void keyboardInputs(GLFWwindow* window)
 	{
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
@@ -166,8 +167,13 @@ int main(int argc, char** argv)
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
     while (!ShouldQuit()) 
 	{
-		glfwPollEvents();
+		//Mouse inputs and window resize callbacks
+		glfwPollEvents();		
+		// Update Uniforms
 		scene->UpdateTime();
+		scene->UpdateSunAndSky();
+		scene->UpdateKeyPressQuery();
+		// Get Inputd frome the Keyboard
 		keyboardInputs(GetGLFWWindow());
 
 		//renderer->ImGuiSetup(GetGLFWWindow());
@@ -184,7 +190,7 @@ int main(int argc, char** argv)
 	//---------------------
 	//------ CleanUp ------
 	//---------------------	
-	delete renderer;
+	delete renderer; 
 	delete scene;
 	delete camera;
 

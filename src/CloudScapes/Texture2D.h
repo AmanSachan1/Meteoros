@@ -18,7 +18,7 @@ public:
 	void createTextureSampler(VkSamplerAddressMode addressMode, float maxAnisotropy);
 	void createTextureImageView();
 
-	void createTextureAsBackGround(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool);
+	void createEmptyTexture(VkDevice logicalDevice, VkPhysicalDevice physicalDevice, VkCommandPool commandPool);
 	void createTextureFromFile(VkDevice logicalDevice, VkCommandPool commandPool, const std::string texture_path, int numChannels,
 								VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, 
 								VkSamplerAddressMode addressMode, float maxAnisotropy);

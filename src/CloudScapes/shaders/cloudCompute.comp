@@ -8,16 +8,11 @@
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
 layout (set = 0, binding = 0, rgba8) uniform writeonly image2D currentFrameResultImage;
 layout (set = 0, binding = 1, rgba8) uniform image2D previousFrameResultImage;
-
 layout (set = 0, binding = 2) uniform sampler3D cloudBaseShapeSampler;
 layout (set = 0, binding = 3) uniform sampler3D cloudDetailsHighFreqSampler; // Dont use alpha channel
 layout (set = 0, binding = 4) uniform sampler2D curlNoiseSampler; // Don't use alpha channel
 layout (set = 0, binding = 5) uniform sampler2D weatherMapSampler; // Don't use alpha channel
-
-layout (set = 0, binding = 6) uniform TimeUBO
-{
-    vec2 time; //stores delta time and total time
-};
+layout (set = 0, binding = 6, rgba8) uniform image2D godRaysCreationDataImage;
 
 layout (set = 1, binding = 0) uniform CameraUBO
 {
@@ -26,6 +21,24 @@ layout (set = 1, binding = 0) uniform CameraUBO
     vec4 eye;
     vec2 tanFovBy2;
 } camera;
+
+layout (set = 2, binding = 0) uniform TimeUBO
+{
+    vec2 time; //stores delat time and total time
+};
+
+layout (set = 3, binding = 0) uniform SunAndSkyUBO
+{
+    vec4 sunLocation;
+	vec4 sunDirection;
+	vec4 lightColor;
+	float sunIntensity;
+};
+
+layout (set = 4, binding = 0) uniform KeyPressQueryUBO
+{
+    int key_debug;
+} keyPressQuery;
 
 struct Ray {
     vec3 origin;

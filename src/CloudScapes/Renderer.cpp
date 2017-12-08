@@ -17,7 +17,7 @@ Renderer::~Renderer()
 {
 	vkDeviceWaitIdle(logicalDevice);
 
-	// TODO: Destroy any resources you created
+	// Destroy any resources you created
 	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
 	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
 
@@ -26,30 +26,79 @@ Renderer::~Renderer()
 
 	DestroyFrameResources();
 
+	//Regular Pipelines
+	//All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
+	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, cloudsPipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-	vkDestroyPipeline(logicalDevice, cloudsPipeline, nullptr);
 	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
+
+	//Post Process Pipelines
+	vkDestroyPipelineCache(logicalDevice, postProcessPipeLineCache, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_GodRays_PipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_GodRays_PipeLine, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_FinalPass_PipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_FinalPass_PipeLine, nullptr);
+
+	//Render Pass
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
-	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
+	//Descriptor Set Layouts
 	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, cloudSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
+
+	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, timeSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, sunAndSkySetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, keyPressQuerySetLayout, nullptr);
+
+	vkDestroyDescriptorSetLayout(logicalDevice, godRaysSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, finalPassSetLayout, nullptr);
 	
+	//Descriptor Set
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
-
-	delete quad;
-	delete house;
-
-	delete currentFrameComputeResultTexture;
+	
+	//Textures
+	delete currentFrameResultTexture;
 	delete previousFrameComputeResultTexture;
+	delete godRaysCreationDataTexture;
+
 	delete cloudBaseShapeTexture;
 	delete cloudDetailsTexture;
 	delete cloudMotionTexture;
 	delete weatherMapTexture;
+}
+
+void Renderer::DestroyOnWindowResize()
+{
+	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
+	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
+
+	DestroyFrameResources();
+
+	//Regular Pipelines
+	// All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
+	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
+	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
+	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
+
+	//Post Process Pipelines
+	vkDestroyPipelineCache(logicalDevice, postProcessPipeLineCache, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_GodRays_PipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_GodRays_PipeLine, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_FinalPass_PipelineLayout, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_FinalPass_PipeLine, nullptr);
+
+	//Render Pass
+	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
+
+	//Textures
+	delete currentFrameResultTexture;
+	delete previousFrameComputeResultTexture;
+	delete godRaysCreationDataTexture;
 }
 
 void Renderer::InitializeRenderer()
@@ -58,6 +107,7 @@ void Renderer::InitializeRenderer()
 	CreateRenderPass();
 
 	CreateComputeResources();
+	CreatePostProcessResources();
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -65,33 +115,16 @@ void Renderer::InitializeRenderer()
 
 	CreateFrameResources();
 
-	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout });
-	CreateComputePipeline();
+	CreateAllPipeLines(renderPass, 0);
 
-	cloudsPipelineLayout = CreatePipelineLayout({ cloudSetLayout });
-	CreateCloudsPipeline(renderPass, 0);
-
-	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
-	CreateGraphicsPipeline(renderPass, 0);
-
-	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
+	RecordGraphicsCommandBuffer();
 }
 
 void Renderer::RecreateOnResize(uint32_t width, uint32_t height)
 {
 	window_width = width;
 	window_height = height;
-
-	delete currentFrameComputeResultTexture;
-	delete previousFrameComputeResultTexture;
-
-	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	currentFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
-	//Stores the results of the previous Frame
-	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	previousFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
 
 	RecreateFrameResources();
 }
@@ -256,6 +289,19 @@ VkPipelineLayout Renderer::CreatePipelineLayout(std::vector<VkDescriptorSetLayou
 	return pipelineLayout;
 }
 
+void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
+{
+	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout, timeSetLayout, sunAndSkySetLayout, keyPressQuerySetLayout });
+	CreateComputePipeline();
+
+	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
+	CreateGraphicsPipeline(renderPass, 0);
+
+	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ godRaysSetLayout, sunAndSkySetLayout });
+	postProcess_FinalPass_PipelineLayout = CreatePipelineLayout({ finalPassSetLayout });
+	CreatePostProcessPipeLines(renderPass);
+}
+
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Conclusion
 // Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
 // function argument 'subpass': index of the sub pass where this graphics pipeline will be used.
@@ -298,8 +344,6 @@ void Renderer::CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subp
 	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = Vertex::getAttributeDescriptions();
 
 	// -------- Vertex input --------
-	// Because we're hard coding the vertex data directly in the vertex shader, we'll fill in this structure to specify 
-	// that there is no vertex data to load for now. We'll write the vertex buffers later.
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -455,204 +499,6 @@ void Renderer::CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subp
 	vkDestroyShaderModule(device->GetVkDevice(), fragShaderModule, nullptr);
 }
 
-void Renderer::CreateCloudsPipeline(VkRenderPass renderPass, unsigned int subpass)
-{
-	//--------------------------------------------------------
-	//---------------- Set up shader stages ------------------
-	//--------------------------------------------------------
-	// Can add more shader modules to the list of shader stages that are part of the overall graphics pipeline
-	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Shader_modules
-	// Create vert and frag shader modules
-	VkShaderModule vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/cloudDisplay.vert.spv", device->GetVkDevice());
-	VkShaderModule fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/cloudDisplay.frag.spv", device->GetVkDevice());
-
-	// Assign each shader module to the appropriate stage in the pipeline
-	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
-	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertShaderStageInfo.module = vertShaderModule;
-	vertShaderStageInfo.pName = "main";
-
-	VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
-	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragShaderStageInfo.module = fragShaderModule;
-	fragShaderStageInfo.pName = "main";
-
-	//Add Shadermodules to the list of shader stages
-	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
-
-	//--------------------------------------------------------
-	//------------- Set up fixed-function stages -------------
-	//--------------------------------------------------------
-
-	// -------- Vertex input binding --------
-	// Tell Vulkan how to pass this data format to the vertex shader once it's been uploaded to GPU memory 
-	// Vertex binding describes at which rate to load data from memory throughout the vertices
-	VkVertexInputBindingDescription vertexInputBinding = Vertex::getBindingDescription();
-	// Inpute attribute bindings describe shader attribute locations and memory layouts
-	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = Vertex::getAttributeDescriptions();
-
-	// -------- Vertex input --------
-	// Because we're hard coding the vertex data directly in the vertex shader, we'll fill in this structure to specify 
-	// that there is no vertex data to load for now. We'll write the vertex buffers later.
-	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
-	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 1;
-	vertexInputInfo.pVertexBindingDescriptions = &vertexInputBinding;
-	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
-	vertexInputInfo.pVertexAttributeDescriptions = vertexInputAttributes.data();
-
-	// -------- Input assembly --------
-	// The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn 
-	// from the vertices and if primitive restart should be enabled.
-	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
-	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	inputAssembly.primitiveRestartEnable = VK_FALSE;
-
-	// Viewports and Scissors (rectangles that define in which regions pixels are stored)
-	VkViewport viewport = {};
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(swapChain->GetVkExtent().width);
-	viewport.height = static_cast<float>(swapChain->GetVkExtent().height);
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-
-	// While viewports define the transformation from the image to the framebuffer, 
-	// scissor rectangles define in which regions pixels will actually be stored.
-	// we simply want to draw to the entire framebuffer, so we'll specify a scissor rectangle that covers the framebuffer entirely
-	VkRect2D scissor = {};
-	scissor.offset = { 0, 0 };
-	scissor.extent = swapChain->GetVkExtent();
-
-	// Now this viewport and scissor rectangle need to be combined into a viewport state using the 
-	// VkPipelineViewportStateCreateInfo struct. It is possible to use multiple viewports and scissor
-	// rectangles on some graphics cards, so its members reference an array of them. Using multiple requires 
-	// enabling a GPU feature (see logical device creation).
-	VkPipelineViewportStateCreateInfo viewportState = {};
-	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.viewportCount = 1;
-	viewportState.pViewports = &viewport;
-	viewportState.scissorCount = 1;
-	viewportState.pScissors = &scissor;
-
-	// -------- Rasterize --------
-	// The rasterizer takes the geometry that is shaped by the vertices from the vertex shader and turns
-	// it into fragments to be colored by the fragment shader.
-	// It also performs depth testing, face culling and the scissor test, and it can be configured to output 
-	// fragments that fill entire polygons or just the edges (wireframe rendering). All this is configured 
-	// using the VkPipelineRasterizationStateCreateInfo structure.
-	VkPipelineRasterizationStateCreateInfo rasterizer = {};
-	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizer.depthClampEnable = VK_FALSE;
-	rasterizer.rasterizerDiscardEnable = VK_FALSE; // If rasterizerDiscardEnable is set to VK_TRUE, then geometry never 
-												   // passes through the rasterizer stage. This basically disables any output to the framebuffer.
-	rasterizer.polygonMode = VK_POLYGON_MODE_FILL; //make fragments instead of lines or points
-	rasterizer.lineWidth = 1.0f;
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-
-	rasterizer.depthBiasEnable = VK_FALSE; // The rasterizer can alter the depth values by adding a constant value or biasing 
-										   // them based on a fragment's slope. This is sometimes used for shadow mapping, but 
-										   // we won't be using it.Just set depthBiasEnable to VK_FALSE.
-	rasterizer.depthBiasConstantFactor = 0.0f;
-	rasterizer.depthBiasClamp = 0.0f;
-	rasterizer.depthBiasSlopeFactor = 0.0f;
-
-	// -------- Multisampling --------
-	// (turned off here)
-	// The VkPipelineMultisampleStateCreateInfo struct configures multisampling, which is one of the ways to perform anti-aliasing. 
-	// It works by combining the fragment shader results of multiple polygons that rasterize to the same pixel. This mainly occurs 
-	// along edges, which is also where the most noticeable aliasing artifacts occur. Because it doesn't need to run the fragment 
-	// shader multiple times if only one polygon maps to a pixel, it is significantly less expensive than simply rendering to a 
-	// higher resolution and then downscaling. Enabling it requires enabling a GPU feature.
-	VkPipelineMultisampleStateCreateInfo multisampling = {};
-	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampling.sampleShadingEnable = VK_FALSE;
-	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	multisampling.minSampleShading = 1.0f;
-	multisampling.pSampleMask = nullptr;
-	multisampling.alphaToCoverageEnable = VK_FALSE;
-	multisampling.alphaToOneEnable = VK_FALSE;
-
-	// -------- Depth and Stencil Testing --------
-	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
-	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-
-	//The depthTestEnable field specifies if the depth of new fragments should be compared to the 
-	//depth buffer to see if they should be discarded. The depthWriteEnable field specifies if the 
-	//new depth of fragments that pass the depth test should actually be written to the depth buffer. 
-	//This is useful for drawing transparent objects. They should be compared to the previously rendered 
-	//opaque objects, but not cause further away transparent objects to not be drawn.
-	depthStencil.depthTestEnable = VK_TRUE;
-	depthStencil.depthWriteEnable = VK_TRUE;
-
-	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // specifies the comparison that is performed to keep or discard fragments.
-
-	depthStencil.depthBoundsTestEnable = VK_FALSE;
-	depthStencil.minDepthBounds = 0.0f;
-	depthStencil.maxDepthBounds = 1.0f;
-
-	depthStencil.stencilTestEnable = VK_FALSE;
-	depthStencil.front = {};
-	depthStencil.back = {};
-
-	// -------- Color Blending ---------
-	// (turned off here, but showing options for learning) --> Color Blending is usually for transparency
-	// --> Configuration per attached framebuffer
-	// TODO:: Could be useful for transparency for clouds infront of Terrain or other models
-	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	colorBlendAttachment.blendEnable = VK_FALSE;
-	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-
-	// --> Global color blending settings
-	VkPipelineColorBlendStateCreateInfo colorBlending = {};
-	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlending.logicOpEnable = VK_FALSE;
-	colorBlending.logicOp = VK_LOGIC_OP_COPY;
-	colorBlending.attachmentCount = 1;
-	colorBlending.pAttachments = &colorBlendAttachment;
-	colorBlending.blendConstants[0] = 0.0f;
-	colorBlending.blendConstants[1] = 0.0f;
-	colorBlending.blendConstants[2] = 0.0f;
-	colorBlending.blendConstants[3] = 0.0f;
-
-	// -------- Create clouds pipeline ---------
-	VkGraphicsPipelineCreateInfo pipelineInfo = {};
-	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipelineInfo.stageCount = 2; //vert and frag --> change if you add more
-	pipelineInfo.pStages = shaderStages; //defined above
-	pipelineInfo.pVertexInputState = &vertexInputInfo; //defined above
-	pipelineInfo.pInputAssemblyState = &inputAssembly; //defined above
-	pipelineInfo.pViewportState = &viewportState; //defined above
-	pipelineInfo.pRasterizationState = &rasterizer; //defined above
-	pipelineInfo.pMultisampleState = &multisampling; //defined above
-	pipelineInfo.pDepthStencilState = &depthStencil; //defined above
-	pipelineInfo.pColorBlendState = &colorBlending; //defined above
-	pipelineInfo.pDynamicState = nullptr; //defined above
-	pipelineInfo.layout = cloudsPipelineLayout; // passed in
-	pipelineInfo.renderPass = renderPass; // passed in
-	pipelineInfo.subpass = subpass; // passed in
-	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Vulkan allows you to create a new graphics pipeline by deriving from an existing pipeline. We aren't doing this.
-	pipelineInfo.basePipelineIndex = -1;
-
-	if (vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &cloudsPipeline) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create pipeline");
-	}
-
-	// No need for the shader modules anymore, so we destory them!
-	vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
-	vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
-}
-
 void Renderer::CreateComputePipeline()
 {
 	VkShaderModule compShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/cloudCompute.comp.spv", device->GetVkDevice());
@@ -673,6 +519,119 @@ void Renderer::CreateComputePipeline()
 	}
 
 	vkDestroyShaderModule(device->GetVkDevice(), compShaderModule, nullptr);
+}
+
+void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
+{
+	// -------- Vertex input binding --------
+	VkPipelineVertexInputStateCreateInfo emptyVertexInputState = VulkanInitializers::pipelineVertexInputStateCreateInfo();
+
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = 
+		VulkanInitializers::pipelineInputAssemblyStateCreateInfo( VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
+
+	VkPipelineRasterizationStateCreateInfo rasterizationState =
+		VulkanInitializers::pipelineRasterizationStateCreateInfo( VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
+
+	VkPipelineColorBlendAttachmentState blendAttachmentState =
+		VulkanInitializers::pipelineColorBlendAttachmentState( 0xf, VK_FALSE);
+
+	VkPipelineColorBlendStateCreateInfo colorBlendState =
+		VulkanInitializers::pipelineColorBlendStateCreateInfo( 1, &blendAttachmentState);
+
+	VkPipelineDepthStencilStateCreateInfo depthStencilState =
+		VulkanInitializers::pipelineDepthStencilStateCreateInfo( VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
+
+	// Viewports and Scissors (rectangles that define in which regions pixels are stored)
+	VkViewport viewport = {};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(swapChain->GetVkExtent().width);
+	viewport.height = static_cast<float>(swapChain->GetVkExtent().height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	// While viewports define the transformation from the image to the framebuffer, 
+	// scissor rectangles define in which regions pixels will actually be stored.
+	// we simply want to draw to the entire framebuffer, so we'll specify a scissor rectangle that covers the framebuffer entirely
+	VkRect2D scissor = {};
+	scissor.offset = { 0, 0 };
+	scissor.extent = swapChain->GetVkExtent();
+
+	VkPipelineViewportStateCreateInfo viewportState =
+		VulkanInitializers::pipelineViewportStateCreateInfo(1, 1, 0);
+
+	viewportState.pViewports = &viewport;
+	viewportState.pScissors = &scissor;
+
+	VkPipelineMultisampleStateCreateInfo multiSampleState =
+		VulkanInitializers::pipelineMultisampleStateCreateInfo( VK_SAMPLE_COUNT_1_BIT, 0);
+
+	// No Dynamic states
+	//std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+	//VkPipelineDynamicStateCreateInfo dynamicState =
+	//	VulkanInitializers::pipelineDynamicStateCreateInfo( dynamicStateEnables, 0 );
+
+	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages; //Defined later on and changes per pipeline binding since we are creating many pipelines here
+
+	// -------- Create Base PostProcess pipeline Info ---------
+	VkGraphicsPipelineCreateInfo postProcessPipelineCreateInfo =
+		VulkanInitializers::graphicsPipelineCreateInfo( postProcess_GodRays_PipelineLayout, renderPass, 0);
+	postProcessPipelineCreateInfo.pVertexInputState = &emptyVertexInputState;; //defined above
+	postProcessPipelineCreateInfo.pInputAssemblyState = &inputAssemblyState; //defined above
+	postProcessPipelineCreateInfo.pRasterizationState = &rasterizationState; //defined above
+	postProcessPipelineCreateInfo.pColorBlendState = &colorBlendState; //defined above
+	postProcessPipelineCreateInfo.pMultisampleState = &multiSampleState; //defined above
+	postProcessPipelineCreateInfo.pViewportState = &viewportState; //defined above
+	postProcessPipelineCreateInfo.pDepthStencilState = &depthStencilState; //defined above
+	postProcessPipelineCreateInfo.pDynamicState = nullptr; //defined above
+	postProcessPipelineCreateInfo.subpass = 0; // no subpasses
+	postProcessPipelineCreateInfo.stageCount = shaderStages.size(); //reserving memory for the shader stages that will soon be defined
+	postProcessPipelineCreateInfo.pStages = shaderStages.data(); 
+
+	// -------- Create Multiple Pipelines based on the above base ---------
+	//Create a pipeline cache so multiple pieplines cane be created from the same pipeline creation Info
+	VulkanInitializers::createPipelineCache(logicalDevice, postProcessPipeLineCache);
+
+	// -------- God Rays pipeline -----------------------------------------
+	VkShaderModule godRays_vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.vert.spv", logicalDevice);
+	VkShaderModule godRays_fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.frag.spv", logicalDevice);
+
+	// Assign each shader module to the appropriate stage in the pipeline
+	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, godRays_vertShaderModule);
+	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, godRays_fragShaderModule);
+
+	// Empty vertex input state
+
+	postProcessPipelineCreateInfo.layout = postProcess_GodRays_PipelineLayout;
+
+	if (vkCreateGraphicsPipelines(logicalDevice, postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, nullptr, &postProcess_GodRays_PipeLine) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create post process pipeline");
+	}
+
+	vkDestroyShaderModule(device->GetVkDevice(), godRays_vertShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), godRays_fragShaderModule, nullptr);
+
+	// -------- Anti Aliasing  pipeline -----------------------------------------
+
+	// -------- Final Pass pipeline -----------------------------------------
+	// Does Compositing and Tone Mapping
+
+	VkShaderModule finalPass_vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_FinalPass.vert.spv", logicalDevice);
+	VkShaderModule finalPass_fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_FinalPass.frag.spv", logicalDevice);
+
+	// Assign each shader module to the appropriate stage in the pipeline
+	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, finalPass_vertShaderModule);
+	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, finalPass_fragShaderModule);
+
+	// Empty vertex input state
+	postProcessPipelineCreateInfo.layout = postProcess_FinalPass_PipelineLayout;
+
+	if (vkCreateGraphicsPipelines(logicalDevice, postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, nullptr, &postProcess_FinalPass_PipeLine) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create post process pipeline");
+	}
+
+	vkDestroyShaderModule(device->GetVkDevice(), finalPass_vertShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), finalPass_fragShaderModule, nullptr);
 }
 
 //----------------------------------------------
@@ -707,49 +666,17 @@ void Renderer::DestroyFrameResources()
 
 void Renderer::RecreateFrameResources()
 {
-	// All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
-	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
-	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
+	DestroyOnWindowResize();
 
-	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
-
-	vkDestroyPipeline(logicalDevice, cloudsPipeline, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, cloudsPipelineLayout, nullptr);
-
-	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
-	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
-
-	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
-
-	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, cloudSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
-
-	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
-
-	delete quad;
-	delete house;
-
+	RecreateComputeResources();	
+	CreatePostProcessResources();
+	
 	CreateRenderPass();
 
-	CreateDescriptorPool();
-	CreateAllDescriptorSetLayouts();
-	CreateAllDescriptorSets();
+	WriteToAndUpdateAllDescriptorSets();
 
-	DestroyFrameResources();
 	CreateFrameResources();
-
-	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
-	CreateGraphicsPipeline(renderPass, 0);
-
-	computePipelineLayout = CreatePipelineLayout({ computeSetLayout, cameraSetLayout });
-	CreateComputePipeline();
-
-	cloudsPipelineLayout = CreatePipelineLayout({ cloudSetLayout });
-	CreateCloudsPipeline(renderPass, 0);
+	CreateAllPipeLines(renderPass, 0);
 
 	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
@@ -926,7 +853,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 		imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 		imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-		imageMemoryBarrier.image = currentFrameComputeResultTexture->GetTextureImage();
+		imageMemoryBarrier.image = currentFrameResultTexture->GetTextureImage();
 		imageMemoryBarrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 		imageMemoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 		imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;		
@@ -946,35 +873,6 @@ void Renderer::RecordGraphicsCommandBuffer()
 		// buffer itself and no secondary command buffers will be executed.
 
 		//------------------------
-		//--- Clouds Pipeline---
-		//------------------------
-
-		// Bind the clouds pipeline
-		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipeline);
-		
-		// Bind sampler descriptor set
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cloudsPipelineLayout, 0, 1, &cloudSet, 0, nullptr);
-
-		// Bind the vertex and index buffers
-		VkDeviceSize quadOffsets[] = { 0 };
-		const VkBuffer quadVertices = quad->getVertexBuffer();
-		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &quadVertices, quadOffsets);
-
-		// Bind triangle index buffer
-		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], quad->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-		// Draw indexed triangle
-		/*
-		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
-		indexCount;
-		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-		firstIndex:  Used as an offset into the index buffer
-		vertexOffset: Used as an offset into the vertex buffer
-		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		*/
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], quad->getIndexBufferSize(), 1, 0, 0, 1);
-
-		//------------------------
 		//--- Graphics Pipeline---
 		//------------------------
 
@@ -987,23 +885,27 @@ void Renderer::RecordGraphicsCommandBuffer()
 
 		// Bind the vertex and index buffers
 		VkDeviceSize geomOffsets[] = { 0 };
-		const VkBuffer geomVertices = house->getVertexBuffer();
+		const VkBuffer geomVertices = scene->GetModels()[0]->getVertexBuffer();
 		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
-
-		// Bind triangle index buffer
-		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], house->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
 		// Draw indexed triangle
-		/*
-		vkCmdDrawIndexed has the following parameters, aside from the command buffer:
-		indexCount;
-		instanceCount: Used for instanced rendering, use 1 if you're not doing that.
-		firstIndex:  Used as an offset into the index buffer
-		vertexOffset: Used as an offset into the vertex buffer
-		firstInstance: Used as an offset for instanced rendering, defines the lowest value of gl_InstanceIndex.
-		*/
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], house->getIndexBufferSize(), 1, 0, 0, 1);
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
 
+		//-----------------------------
+		//--- PostProcess Pipelines ---
+		//-----------------------------
+		// God Rays Pipeline
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &godRaysSet, 0, NULL);
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
+		vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
+
+		// Final Pass Pipeline
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipelineLayout, 0, 1, &finalPassSet, 0, NULL);
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipeLine);
+		vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
+
+		//---------- End RenderPass ---------
 		vkCmdEndRenderPass(graphicsCommandBuffer[i]);
 
 		//---------- End Recording ----------
@@ -1074,6 +976,7 @@ void Renderer::CreateDescriptorPool()
 	// compute and graphics descriptor sets are allocated from the same pool
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 		// Format for elements: { type, descriptorCount }
+		// ------------ Compute -----------------
 		// Compute Texture Write 
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 		// Previous Frame Data as Texture for Reprojection
@@ -1084,18 +987,27 @@ void Renderer::CreateDescriptorPool()
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // curl noise texture
 		// Weather Map
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
-		// Time
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
+		// Store Texture for God Rays PostProcess
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 
-		// Sampler in the clouds pipeline that reads the image created by the compute Shader 
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
-
-		// Camera Descriptor that is used in both compute and graphics pipelines
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 },
-
-		// Graphics		
+		// ------------ Graphics -----------------
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, //model matrix
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, //texture sampler for model
+		
+		// ------------ Can be attached to multiple pipelines -----------------
+
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // Camera
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // Time
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // SunAndSky
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // KeyPress
+
+		// ------------ PostProcess pipelines -----------------
+		// GodRays -- GreyScale Image of where light is in the sky
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
+		// Anti Aliasing //TODO
+		// Final Pass with Tone Mapping		
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // Reads the image that was created by the compute Shader and later modified by all other post processes
 	};
 
 	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
@@ -1146,22 +1058,22 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	// Stage Flags --> which shader you're referencing this descriptor from 
 	// pImmutableSamplers --> for image sampling related descriptors
 
-	//Compute
-	VkDescriptorSetLayoutBinding currentFrameComputeResultLayoutBinding =  { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	//-------------------- Computes Pipeline --------------------
+	VkDescriptorSetLayoutBinding currentFrameResultLayoutBinding =         { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding previousFrameComputeResultLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudLowFrequencyNoiseSetLayoutBinding =  { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudHighFrequencyNoiseSetLayoutBinding = { 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudCurlNoiseSetLayoutBinding =          { 4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding weatherMapSetLayoutBinding =              { 5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
-	VkDescriptorSetLayoutBinding timeSetLayoutBinding =                    { 6, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
+	VkDescriptorSetLayoutBinding godRaysCreationDataSetLayoutBinding =	   { 6, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 
-	std::array<VkDescriptorSetLayoutBinding, 7> computeBindings = { currentFrameComputeResultLayoutBinding,
+	std::array<VkDescriptorSetLayoutBinding, 7> computeBindings = { currentFrameResultLayoutBinding,
 																	previousFrameComputeResultLayoutBinding,
 																	cloudLowFrequencyNoiseSetLayoutBinding, 
 																	cloudHighFrequencyNoiseSetLayoutBinding,
 																	cloudCurlNoiseSetLayoutBinding,
 																	weatherMapSetLayoutBinding,
-																	timeSetLayoutBinding };
+																	godRaysCreationDataSetLayoutBinding };
 	VkDescriptorSetLayoutCreateInfo computeLayoutInfo = {};
 	computeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	computeLayoutInfo.bindingCount = static_cast<uint32_t>(computeBindings.size());
@@ -1170,19 +1082,7 @@ void Renderer::CreateAllDescriptorSetLayouts()
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
 
-	//Clouds
-	VkDescriptorSetLayoutBinding cloudPostComputeSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
-
-	std::array<VkDescriptorSetLayoutBinding, 1> cloudBindings = { cloudPostComputeSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo cloudLayoutInfo = {};
-	cloudLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	cloudLayoutInfo.bindingCount = static_cast<uint32_t>(cloudBindings.size());
-	cloudLayoutInfo.pBindings = cloudBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &cloudLayoutInfo, nullptr, &cloudSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
-
-	//Graphics 
+	//-------------------- Graphics Pipeline --------------------
 	VkDescriptorSetLayoutBinding modelSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr };
 	VkDescriptorSetLayoutBinding samplerSetLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 	
@@ -1195,7 +1095,8 @@ void Renderer::CreateAllDescriptorSetLayouts()
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
 
-	// Camera
+	//-------------------- Descriptors that are discrete and mey be attached to multiple pieplines --------------------
+	//Camera
 	VkDescriptorSetLayoutBinding cameraSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
 
 	std::array<VkDescriptorSetLayoutBinding, 1> cameraBindings = { cameraSetLayoutBinding };
@@ -1206,69 +1107,108 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	if (vkCreateDescriptorSetLayout(logicalDevice, &cameraLayoutInfo, nullptr, &cameraSetLayout) != VK_SUCCESS) {
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
+
+	//Time --> Would be better to use pushConstants --> TODO at somepoint
+	VkDescriptorSetLayoutBinding timeSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> timeBindings = { timeSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo timeLayoutInfo = {};
+	timeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	timeLayoutInfo.bindingCount = static_cast<uint32_t>(timeBindings.size());
+	timeLayoutInfo.pBindings = timeBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &timeLayoutInfo, nullptr, &timeSetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	//SunAndSky
+	VkDescriptorSetLayoutBinding sunAndSkySetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> sunAndSkyBindings = { sunAndSkySetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo sunAndSkyLayoutInfo = {};
+	sunAndSkyLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	sunAndSkyLayoutInfo.bindingCount = static_cast<uint32_t>(sunAndSkyBindings.size());
+	sunAndSkyLayoutInfo.pBindings = sunAndSkyBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &sunAndSkyLayoutInfo, nullptr, &sunAndSkySetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	//KeyPressQuery
+	VkDescriptorSetLayoutBinding keyPressQuerySetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> keyPressQueryBindings = { keyPressQuerySetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo keyPressQueryLayoutInfo = {};
+	keyPressQueryLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	keyPressQueryLayoutInfo.bindingCount = static_cast<uint32_t>(keyPressQueryBindings.size());
+	keyPressQueryLayoutInfo.pBindings = keyPressQueryBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &keyPressQueryLayoutInfo, nullptr, &keyPressQuerySetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	//-------------------- Post Process --------------------
+	//God Rays
+	VkDescriptorSetLayoutBinding resultantImageSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	VkDescriptorSetLayoutBinding godRaysSetLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 2> godRaysBindings = { resultantImageSetLayoutBinding, godRaysSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo godRaysLayoutInfo = {};
+	godRaysLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	godRaysLayoutInfo.bindingCount = static_cast<uint32_t>(godRaysBindings.size());
+	godRaysLayoutInfo.pBindings = godRaysBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &godRaysLayoutInfo, nullptr, &godRaysSetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
+
+	//Final Pass
+	VkDescriptorSetLayoutBinding preFinalImageSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 1> finalPassBindings = { preFinalImageSetLayoutBinding };
+	VkDescriptorSetLayoutCreateInfo finalPassLayoutInfo = {};
+	finalPassLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	finalPassLayoutInfo.bindingCount = static_cast<uint32_t>(finalPassBindings.size());
+	finalPassLayoutInfo.pBindings = finalPassBindings.data();
+	if (vkCreateDescriptorSetLayout(logicalDevice, &finalPassLayoutInfo, nullptr, &finalPassSetLayout) != VK_SUCCESS) {
+		throw std::runtime_error("failed to create descriptor set layout!");
+	}
 }
 
 void Renderer::CreateAllDescriptorSets()
 {
 	// Initialize descriptor sets
 	computeSet = CreateDescriptorSet(descriptorPool, computeSetLayout);
-	cloudSet = CreateDescriptorSet(descriptorPool, cloudSetLayout);
 	graphicsSet = CreateDescriptorSet(descriptorPool, graphicsSetLayout);
+
 	cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
+	timeSet = CreateDescriptorSet(descriptorPool, timeSetLayout);
+	sunAndSkySet = CreateDescriptorSet(descriptorPool, sunAndSkySetLayout);
+	keyPressQuerySet = CreateDescriptorSet(descriptorPool, keyPressQuerySetLayout);
 
-	// Model and texture file paths
-	const std::string model_path = "../../src/CloudScapes/models/teapot.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/chaletModel.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/cyllinder2.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/wahoo.obj";
-	//const std::string model_path = "../../src/CloudScapes/models/dodecahedron.obj";
-
-	const std::string texture_path = "../../src/CloudScapes/textures/statue.jpg";
+	godRaysSet = CreateDescriptorSet(descriptorPool, godRaysSetLayout);
+	finalPassSet = CreateDescriptorSet(descriptorPool, finalPassSetLayout);
 	
-
-	// Using .obj-based Model constructor ----------------------------------------------------
-	//house = new Model(device, commandPool, g_vma_Allocator, model_path, texture_path);
-
-
-	// Using manual-based Model constructor --------------------------------------------------
-	// Arbitrary test model
-	const std::vector<Vertex> vertices = {
-		{ { 1.0f, 0.0f, -1.0f,  1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
-		{ { -1.0f,  0.0f, 1.0f,  1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
-		{ { -1.0f,  0.0f, 1.0f, 1.0f },{ 0.0f, 0.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-		{ { 1.0f, 0.0f, -1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
-	};
-	std::vector<unsigned int> indices = { 0, 1, 2, 2, 3, 0  };//2,1,0,0,2,3};
-	house = new Model(device, graphicsCommandPool, vertices, indices);
-	house->SetTexture(device, graphicsCommandPool, texture_path);
-
-	//glm::mat4 modelMat = glm::rotate(house->GetModelMatrix(), scene->GetTime().y * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 1.0f)); //Ask Austin why the rotation doesnt work
-	//house->SetModelBuffer(modelMat);
-
-	// Quad model
-	const std::vector<Vertex> quadVertices = {
-		{ { -1.0f, -1.0f, 0.99999f, 1.0f },{ 1.0f, 0.0f, 0.0f, 1.0f },{ 0.0f, 0.0f } },
-		{ { 1.0f,  -1.0f, 0.99999f, 1.0f },{ 0.0f, 1.0f, 0.0f, 1.0f },{ 1.0f, 0.0f } },
-		{ { 1.0f,  1.0f, 0.99999f, 1.0f }, { 0.0f, 0.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } },
-		{ { -1.0f, 1.0f, 0.99999f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-	};
-	std::vector<unsigned int> quadIndices = { 0, 1, 2, 2, 3, 0, };
-	quad = new Model(device, graphicsCommandPool, quadVertices, quadIndices);
-
+	scene->CreateModelsInScene(graphicsCommandPool);
+	
 	//Write to and Update DescriptorSets
-	WriteToAndUpdateDescriptorSets();
+	WriteToAndUpdateAllDescriptorSets();
 }
 
-void Renderer::WriteToAndUpdateDescriptorSets()
+void Renderer::WriteToAndUpdateAllDescriptorSets()
+{
+	WriteToAndUpdateComputeDescriptorSets();
+	WriteToAndUpdateGraphicsDescriptorSets();
+	WriteToAndUpdateRemainingDescriptorSets();
+	WriteToAndUpdatePostDescriptorSets();
+}
+// Helper functions for writing and updating Descriptor Sets
+void Renderer::WriteToAndUpdateComputeDescriptorSets()
 {
 	//------------------------------------------
 	//-------Compute Pipeline DescriptorSets----
 	//------------------------------------------
 	// Texture Compute Shader Writes To
 	VkDescriptorImageInfo currentFrameTextureInfo = {};
-	currentFrameTextureInfo.imageLayout = currentFrameComputeResultTexture->GetTextureLayout();
-	currentFrameTextureInfo.imageView = currentFrameComputeResultTexture->GetTextureImageView();
-	currentFrameTextureInfo.sampler = currentFrameComputeResultTexture->GetTextureSampler();
+	currentFrameTextureInfo.imageLayout = currentFrameResultTexture->GetTextureLayout();
+	currentFrameTextureInfo.imageView = currentFrameResultTexture->GetTextureImageView();
+	currentFrameTextureInfo.sampler = currentFrameResultTexture->GetTextureSampler();
 
 	// previous Frame Data for Reprojection
 	VkDescriptorImageInfo previousFrameTextureInfo = {};
@@ -1287,24 +1227,24 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	cloudHighFrequencyNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	cloudHighFrequencyNoiseImageInfo.imageView = cloudDetailsTexture->GetTextureImageView();
 	cloudHighFrequencyNoiseImageInfo.sampler = cloudDetailsTexture->GetTextureSampler();
-	
+
 	// Cloud Curl Noise
 	VkDescriptorImageInfo cloudCurlNoiseImageInfo = {};
 	cloudCurlNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	cloudCurlNoiseImageInfo.imageView = cloudMotionTexture->GetTextureImageView();
 	cloudCurlNoiseImageInfo.sampler = cloudMotionTexture->GetTextureSampler();
 
-	// Cloud Curl Noise
+	// Weather Map
 	VkDescriptorImageInfo weatherMapInfo = {};
 	weatherMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	weatherMapInfo.imageView = weatherMapTexture->GetTextureImageView();
 	weatherMapInfo.sampler = weatherMapTexture->GetTextureSampler();
 
-	// Time Descriptor
-	VkDescriptorBufferInfo timeBufferInfo = {};
-	timeBufferInfo.buffer = scene->GetTimeBuffer();
-	timeBufferInfo.offset = 0;
-	timeBufferInfo.range = sizeof(Time);
+	// God Rays Creation Data Texture
+	VkDescriptorImageInfo godRaysCreationDataTextureInfo = {};
+	godRaysCreationDataTextureInfo.imageLayout = godRaysCreationDataTexture->GetTextureLayout();
+	godRaysCreationDataTextureInfo.imageView = godRaysCreationDataTexture->GetTextureImageView();
+	godRaysCreationDataTextureInfo.sampler = godRaysCreationDataTexture->GetTextureSampler();
 
 	std::array<VkWriteDescriptorSet, 7> writeComputeTextureInfo = {};
 	writeComputeTextureInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1360,62 +1300,30 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeComputeTextureInfo[6].dstSet = computeSet;
 	writeComputeTextureInfo[6].dstBinding = 6;
 	writeComputeTextureInfo[6].descriptorCount = 1;
-	writeComputeTextureInfo[6].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeComputeTextureInfo[6].pBufferInfo = &timeBufferInfo;
+	writeComputeTextureInfo[6].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeComputeTextureInfo[6].pImageInfo = &godRaysCreationDataTextureInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeComputeTextureInfo.size()), writeComputeTextureInfo.data(), 0, nullptr);
-
-	//------------------------------------------
-	//-------Cloud Pipeline DescriptorSets----
-	//------------------------------------------
-
-	// Texture Quad Reads in
-	std::array<VkWriteDescriptorSet, 1> writeCloudSamplerInfo = {};
-	writeCloudSamplerInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeCloudSamplerInfo[0].pNext = NULL;
-	writeCloudSamplerInfo[0].dstSet = cloudSet;
-	writeCloudSamplerInfo[0].dstBinding = 0;
-	writeCloudSamplerInfo[0].descriptorCount = 1;
-	writeCloudSamplerInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeCloudSamplerInfo[0].pImageInfo = &currentFrameTextureInfo;
-
-	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCloudSamplerInfo.size()), writeCloudSamplerInfo.data(), 0, nullptr);
-
-	//-------------------------------
-	//----Camera DescriptorSet----
-	//-------------------------------
-
-	// Camera 
-	VkDescriptorBufferInfo cameraBufferInfo = {};
-	cameraBufferInfo.buffer = camera->GetBuffer();
-	cameraBufferInfo.offset = 0;
-	cameraBufferInfo.range = sizeof(CameraUBO);
-
-	std::array<VkWriteDescriptorSet, 1> writeCameraSetInfo = {};
-	writeCameraSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeCameraSetInfo[0].dstSet = cameraSet;
-	writeCameraSetInfo[0].dstBinding = 0;
-	writeCameraSetInfo[0].descriptorCount = 1;									// How many 
-	writeCameraSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	writeCameraSetInfo[0].pBufferInfo = &cameraBufferInfo;
-
-	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCameraSetInfo.size()), writeCameraSetInfo.data(), 0, nullptr);
-
-	//-------------------------------
-	//----Graphics DescriptorSets----
-	//-------------------------------
+}
+void Renderer::WriteToAndUpdateGraphicsDescriptorSets()
+{
+	//---------------------------------
+	//---- Graphics DescriptorSets ----
+	//---------------------------------
+	// We know we are only drawing one model but change this if creating multiple models
+	std::vector<Model*> models = scene->GetModels();
 
 	// Model
 	VkDescriptorBufferInfo modelBufferInfo = {};
-	modelBufferInfo.buffer = house->GetModelBuffer();
+	modelBufferInfo.buffer = models[0]->GetModelBuffer();
 	modelBufferInfo.offset = 0;
 	modelBufferInfo.range = sizeof(ModelBufferObject);
 
 	// Texture
 	VkDescriptorImageInfo imageInfo = {};
 	imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	imageInfo.imageView = house->GetTextureView();
-	imageInfo.sampler = house->GetTextureSampler();
+	imageInfo.imageView = models[0]->GetTextureView();
+	imageInfo.sampler = models[0]->GetTextureSampler();
 
 	std::array<VkWriteDescriptorSet, 2> writeGraphicsSetInfo = {};
 
@@ -1435,6 +1343,101 @@ void Renderer::WriteToAndUpdateDescriptorSets()
 	writeGraphicsSetInfo[1].pImageInfo = &imageInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeGraphicsSetInfo.size()), writeGraphicsSetInfo.data(), 0, nullptr);
+}
+void Renderer::WriteToAndUpdateRemainingDescriptorSets()
+{
+	//--------------------------------------------------------------------
+	//---- Descriptor Sets that can be attached to multiple pipelines ----
+	//--------------------------------------------------------------------
+
+	// Camera Descriptor
+	VkDescriptorBufferInfo cameraBufferInfo = {};
+	cameraBufferInfo.buffer = camera->GetBuffer();
+	cameraBufferInfo.offset = 0;
+	cameraBufferInfo.range = sizeof(CameraUBO);
+
+	std::array<VkWriteDescriptorSet, 1> writeCameraSetInfo = {};
+	writeCameraSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeCameraSetInfo[0].dstSet = cameraSet;
+	writeCameraSetInfo[0].dstBinding = 0;
+	writeCameraSetInfo[0].descriptorCount = 1;									// How many 
+	writeCameraSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeCameraSetInfo[0].pBufferInfo = &cameraBufferInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCameraSetInfo.size()), writeCameraSetInfo.data(), 0, nullptr);
+
+	// Time Descriptor
+	VkDescriptorBufferInfo timeBufferInfo = {};
+	timeBufferInfo.buffer = scene->GetTimeBuffer();
+	timeBufferInfo.offset = 0;
+	timeBufferInfo.range = sizeof(Time);
+
+	std::array<VkWriteDescriptorSet, 1> writeTimeSetInfo = {};
+	writeTimeSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeTimeSetInfo[0].pNext = NULL;
+	writeTimeSetInfo[0].dstSet = timeSet;
+	writeTimeSetInfo[0].dstBinding = 0;
+	writeTimeSetInfo[0].descriptorCount = 1;
+	writeTimeSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeTimeSetInfo[0].pBufferInfo = &timeBufferInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeTimeSetInfo.size()), writeTimeSetInfo.data(), 0, nullptr);
+}
+void Renderer::WriteToAndUpdatePostDescriptorSets()
+{
+	//------------------------------------------
+	//-------- Post Process Descriptor Sets ----
+	//------------------------------------------
+	//God Rays
+	// Texture God Rays Post Process Shader Writes To
+	VkDescriptorImageInfo resultantImageTextureInfo = {};
+	resultantImageTextureInfo.imageLayout = currentFrameResultTexture->GetTextureLayout();
+	resultantImageTextureInfo.imageView = currentFrameResultTexture->GetTextureImageView();
+	resultantImageTextureInfo.sampler = currentFrameResultTexture->GetTextureSampler();
+
+	// God Rays Creation Data Texture
+	VkDescriptorImageInfo godRaysDataTextureInfo = {};
+	godRaysDataTextureInfo.imageLayout = godRaysCreationDataTexture->GetTextureLayout();
+	godRaysDataTextureInfo.imageView = godRaysCreationDataTexture->GetTextureImageView();
+	godRaysDataTextureInfo.sampler = godRaysCreationDataTexture->GetTextureSampler();
+
+	std::array<VkWriteDescriptorSet, 2> writeGodRaysPassInfo = {};
+	writeGodRaysPassInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeGodRaysPassInfo[0].pNext = NULL;
+	writeGodRaysPassInfo[0].dstSet = godRaysSet;
+	writeGodRaysPassInfo[0].dstBinding = 0;
+	writeGodRaysPassInfo[0].descriptorCount = 1;
+	writeGodRaysPassInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeGodRaysPassInfo[0].pImageInfo = &resultantImageTextureInfo;
+
+	writeGodRaysPassInfo[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeGodRaysPassInfo[1].pNext = NULL;
+	writeGodRaysPassInfo[1].dstSet = godRaysSet;
+	writeGodRaysPassInfo[1].dstBinding = 1;
+	writeGodRaysPassInfo[1].descriptorCount = 1;
+	writeGodRaysPassInfo[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeGodRaysPassInfo[1].pImageInfo = &godRaysDataTextureInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeGodRaysPassInfo.size()), writeGodRaysPassInfo.data(), 0, nullptr);
+
+	// Final Pass
+	// preFinalPassImage --> appply tone mapping and other effects to this
+	VkDescriptorImageInfo preFinalPassImageInfo = {};
+	preFinalPassImageInfo.imageLayout = currentFrameResultTexture->GetTextureLayout();
+	preFinalPassImageInfo.imageView = currentFrameResultTexture->GetTextureImageView();
+	preFinalPassImageInfo.sampler = currentFrameResultTexture->GetTextureSampler();
+
+	std::array<VkWriteDescriptorSet, 1> writeFinalPassInfo = {};
+
+	writeFinalPassInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeFinalPassInfo[0].pNext = NULL;
+	writeFinalPassInfo[0].dstSet = finalPassSet;
+	writeFinalPassInfo[0].dstBinding = 0;
+	writeFinalPassInfo[0].descriptorCount = 1;
+	writeFinalPassInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeFinalPassInfo[0].pImageInfo = &preFinalPassImageInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeFinalPassInfo.size()), writeFinalPassInfo.data(), 0, nullptr);
 }
 
 //----------------------------------------------
@@ -1468,19 +1471,29 @@ VkFormat Renderer::FindDepthFormat()
 }
 
 //----------------------------------------------
-//-------------- Create Clouds Resources -------
+//------------- Create Compute Resources -------
 //----------------------------------------------
 void Renderer::CreateComputeResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	currentFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 	//Stores the results of the previous Frame
 	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
-	previousFrameComputeResultTexture->createTextureAsBackGround(logicalDevice, physicalDevice, computeCommandPool);
+	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//Create the textures that will be passed to the compute shader to create clouds
 	CreateCloudResources();
+}
+
+void Renderer::RecreateComputeResources()
+{
+	//To store the results of the compute shader that will be passed on to the frag shader
+	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
+	//Stores the results of the previous Frame
+	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
 
 void Renderer::CreateCloudResources()
@@ -1516,6 +1529,16 @@ void Renderer::CreateCloudResources()
 	weatherMapTexture->createTextureFromFile(logicalDevice, computeCommandPool, weatherMapTexture_path, 4,
 											VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 											VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
+}
+
+//----------------------------------------------
+//------------- Create Compute Resources -------
+//----------------------------------------------
+void Renderer::CreatePostProcessResources()
+{
+	//To store the results of the compute shader that will be passed on to the frag shader
+	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	godRaysCreationDataTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
 
 //----------------------------------------------
