@@ -1443,8 +1443,7 @@ void Renderer::WriteToAndUpdatePostDescriptorSets()
 //----------------------------------------------
 //-------------- Format Helper Functions -------
 //----------------------------------------------
-VkFormat Renderer::FindSupportedFormat(const std::vector<VkFormat>& candidates,
-									   VkImageTiling tiling, VkFormatFeatureFlags features)
+VkFormat Renderer::FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
 {
 	for (VkFormat format : candidates)
 	{
@@ -1461,7 +1460,6 @@ VkFormat Renderer::FindSupportedFormat(const std::vector<VkFormat>& candidates,
 
 	throw std::runtime_error("failed to find supported format!");
 }
-
 VkFormat Renderer::FindDepthFormat()
 {
 	return FindSupportedFormat({ VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT },
