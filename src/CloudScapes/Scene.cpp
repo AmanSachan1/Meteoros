@@ -39,15 +39,16 @@ Scene::~Scene()
 
 void Scene::CreateModelsInScene(VkCommandPool commandPool)
 {
+	// TODO: Large Models cause a crash; Not entirely sure why.
 	// Model and texture file paths
 	const std::string model_path = "../../src/CloudScapes/models/thinCube.obj";
-	const std::string texture_path = "../../src/CloudScapes/textures/statue.jpg";
+	const std::string texture_path = "../../src/CloudScapes/textures/DarkPavement.png";
 
 	// Using .obj-based Model constructor ----------------------------------------------------
 	Model* groundPlane = new Model(device, commandPool, model_path, texture_path);
 	
 	glm::mat4 modelMat = groundPlane->GetModelMatrix();
-	modelMat = glm::translate(modelMat, glm::vec3(0.0f, -10.0f, 0.0f)) * glm::scale(modelMat, glm::vec3(100.0f, 1.0f, 100.0f)) * modelMat;
+	modelMat = glm::translate(modelMat, glm::vec3(0.0f, -0.5f, 0.0f)) * glm::scale(modelMat, glm::vec3(10.0f, 1.0f, 10.0f)) * modelMat;
 	groundPlane->SetModelBuffer(modelMat);
 
 	AddModel(groundPlane);
