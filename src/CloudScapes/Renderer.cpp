@@ -635,6 +635,7 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	}
 
 	vkDestroyShaderModule(device->GetVkDevice(), finalPass_fragShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), generic_vertShaderModule, nullptr);
 }
 
 //----------------------------------------------

@@ -98,8 +98,8 @@ struct Intersection {
 
 // Global Wind Defines
 #define WIND_DIRECTION vec3(1.0,0.0,0.0)
-#define CLOUD_SPEED 10.0
-#define CLOUD_TOP_OFFSET 500.0
+#define CLOUD_SPEED 0.0//0.05
+#define CLOUD_TOP_OFFSET 5.0//500.0 // this offset pushes the tops of the clouds along this wind direction by this many units
 
 // #define LightVec normalize(vec3(1.0,1.0,1.0));
 #define SUN_LOCATION vec3(0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO: make it a uniform so we have an animated sky
@@ -484,6 +484,12 @@ vec3 getProjectedPoint_Sphere(in vec3 point)
 	return 0.5 * EARTH_RADIUS * normalize(point - EARTH_CENTER) + EARTH_CENTER;
 }
 
+vec3 getRelativePositionInAtmosphere(in vec3 pos)
+{
+    return vec3( ( pos - vec3(ATMOSPHERE_RADIUS_INNER) )/
+                 ( ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER ) );
+}
+
 float sampleCloudDensity(vec3 point, vec3 weather_data)
 {
 	//Read in the low-frequency Perlin-Worley noises and Worley noises
@@ -548,6 +554,29 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	return final_cloud;
 }
 
+vec3 skewSamplePointWithWind(in vec3 point, inout float height_fraction, in vec3 weather_data)
+{
+    // Find inCloudMinMax
+    vec2 inCloudMinMax;
+    if(weather_data.b == 0) {
+        inCloudMinMax = IN_STRATUS_MIN_MAX;
+    }
+    else if(weather_data.b == 1) {
+        inCloudMinMax = IN_CUMULUS_MIN_MAX;
+    }
+    else if(weather_data.b == 0.5) {
+        inCloudMinMax = IN_CUMULONIMBUS_MIN_MAX;
+    }
+
+    height_fraction = getHeightFractionForPoint(point, inCloudMinMax);
+    
+    //skew in wind direction
+    point += height_fraction*WIND_DIRECTION*CLOUD_TOP_OFFSET;
+    //Animate clouds in wind direction and add a small upward bias to the wind direction
+    point += (WIND_DIRECTION + vec3(0.0,0.1,0.0))*CLOUD_SPEED*time.y;
+    return point;
+}
+
 float sampleLowFrequency(vec3 point)
 {
     //Read in the low-frequency Perlin-Worley noises and Worley noises
@@ -563,7 +592,7 @@ float sampleLowFrequency(vec3 point)
     return baseCloud;
 }
 
-float erodeCloudWithHighFrequency(in float baseCloud, vec3 point, vec3 weather_data)
+float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float height_fraction, vec3 weather_data)
 {
     //Get the density-height gradient
     float densityHeightGradient = getDensityHeightGradientForPoint(point, weather_data);
@@ -581,20 +610,6 @@ float erodeCloudWithHighFrequency(in float baseCloud, vec3 point, vec3 weather_d
     // Multiply the result by the cloud coverage attribute so that smaller clouds are lighter 
     // and more aesthetically pleasing
     base_cloud_with_coverage *= cloud_coverage;
-
-    // Find inCloudMinMax
-    vec2 inCloudMinMax;
-    if(weather_data.b == 0) {
-        inCloudMinMax = IN_STRATUS_MIN_MAX;
-    }
-    else if(weather_data.b == 1) {
-        inCloudMinMax = IN_CUMULUS_MIN_MAX;
-    }
-    else if(weather_data.b == 0.5) {
-        inCloudMinMax = IN_CUMULONIMBUS_MIN_MAX;
-    }
-
-    float height_fraction = getHeightFractionForPoint(point, inCloudMinMax);
 
     // Add turbulence to the bottome of the clouds
     vec4 curlNoise = texture(curlNoiseSampler, point.xy);
@@ -616,8 +631,6 @@ float erodeCloudWithHighFrequency(in float baseCloud, vec3 point, vec3 weather_d
     return final_cloud;
 }
 
-
-
 void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos, 
 			float start_t, float end_t, inout float accumDensity, inout float transmittance)
 {
@@ -625,33 +638,27 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 	float stepSize = (end_t - start_t) / maxSteps;
 
     vec3 pos;
+    vec3 samplePoint;
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
 		pos = ray.origin + t * ray.direction;
+        
+        samplePoint = getRelativePositionInAtmosphere(pos);
 
-		// TEST: Adjust the position to represent spherical-ness of world
-		//vec3 correctedPos = normalize(pos - EARTH_CENTER) * atmosphereRadiusInner;
-		//density = sampleCloudDensity(correctedPos / 20000.0, weather_data)*0.5;
-
-		vec3 samplePoint = vec3(pos.x, pos.y, abs(pos.z));			//normalize(pos - vec3(0, 0, -earthRadius)) * atmosphereRadiusInner;//pos;//(pos-startPos);///endPos;
-		samplePoint /= 30000.0;										//fixed value found by tweaking don't change or else you will see the tiled texture and notice the repition
-		
-		//vec3 currentProj = getProjectedSamplePoint(samplePoint);
-		//float relHeight = getRelativeHeight(currentPos, currentProj, atmosphereThickness);
-		float baseDensity = sampleLowFrequency(samplePoint);//sampleCloudDensity(samplePoint, weather_data);
+        float samplePoint_heightFraction;
+        vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, samplePoint_heightFraction, weather_data);
+		float baseDensity = sampleLowFrequency(skewedSamplePoint);
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
             //Erode Base cloud shape with higher frequency noise (more expensive and so done when we know for sure we are inside the cloud)
-            float density = erodeCloudWithHighFrequency(baseDensity, samplePoint, weather_data);
+            float density = erodeCloudWithHighFrequency(baseDensity, skewedSamplePoint, samplePoint_heightFraction, weather_data);
 
 			accumDensity += density * (1 / 8.0);
 
 			// Do Lighting calculations with cone sampling
 			float densityAlongLight = 0.0;
-
-
 		} //end if
 		
 		if(accumDensity >= 1.0) 
@@ -721,7 +728,8 @@ void main()
 	vec4 curlNoise = texture( curlNoiseSampler, uv );
 	finalColor = vec4(curlNoise);
 #elif DENSITY_SLICES
-	float density = sampleCloudDensity( vec3(uv, sin(time.y)), weather_data );
+    float baseDensity = sampleLowFrequency( vec3(uv, sin(time.y)) );
+    float density = erodeCloudWithHighFrequency(baseDensity, vec3(uv, sin(time.y)) , weather_data);
 	finalColor = normalize( vec4(vec3(density), 1.0) );
 #elif CLOUDS_ALL_NOISES
 	finalColor = vec4( vec3(accumDensity), 1.0 );
