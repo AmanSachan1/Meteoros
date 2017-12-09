@@ -83,6 +83,7 @@ struct Intersection {
 #define EARTH_CENTER vec3(0, 0, -EARTH_RADIUS)
 #define ATMOSPHERE_RADIUS_INNER EARTH_RADIUS + 7500.0 //paper suggests values of 15000-35000m above
 #define ATMOSPHERE_RADIUS_OUTER EARTH_RADIUS + 20000.0
+#define ATMOSPHERE_THICKNESS ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER
 
 #define IN_STRATUS_MIN_MAX vec2(0.0, 0.3)
 #define IN_CUMULUS_MIN_MAX vec2(0.01, 0.45)
@@ -308,7 +309,8 @@ float calcSunIntensity()
 	return EE * max(0.0, 1.0 - pow(E, -((SHADOW_CUTOFF - acos(zenithAngleCos)) / SHADOW_STEEPNESS)));
 }
 
-vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir) {
+vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir) 
+{
     vec3 color = vec3(0);
 
     sunDir = normalize(sunDir); 
@@ -484,6 +486,11 @@ vec3 getProjectedPoint_Sphere(in vec3 point)
 	return 0.5 * EARTH_RADIUS * normalize(point - EARTH_CENTER) + EARTH_CENTER;
 }
 
+float getRelativeHeightInAtmosphere(in vec3 pos, in vec3 projectedPos)
+{
+    return clamp( length(pos - projectedPos) / ATMOSPHERE_THICKNESS, 0.0, 1.0);
+}
+
 vec3 getRelativePositionInAtmosphere(in vec3 pos)
 {
     return vec3( ( pos - vec3(ATMOSPHERE_RADIUS_INNER) )/
@@ -631,6 +638,15 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float he
     return final_cloud;
 }
 
+//Use coverageSignal from weather map to determine if clouds should exist here; if they should return a low density 
+// float baseCloudTest(in vec3 pos)
+// {
+//     float density;
+
+//     vec3 currentProj = getProjectedShellPoint(pos, EARTH_CENTER);
+
+// }
+
 void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos, 
 			float start_t, float end_t, inout float accumDensity, inout float transmittance)
 {
@@ -639,9 +655,17 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 
     vec3 pos;
     vec3 samplePoint;
+    float cloud_test = 0.0;
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
+        if(accumDensity >= 1.0) 
+        {
+            accumDensity = 1.0;
+            break;
+        } //end if
+
+
 		pos = ray.origin + t * ray.direction;
         
         samplePoint = getRelativePositionInAtmosphere(pos);
@@ -660,12 +684,7 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 			// Do Lighting calculations with cone sampling
 			float densityAlongLight = 0.0;
 		} //end if
-		
-		if(accumDensity >= 1.0) 
-		{
-			accumDensity = 1.0;
-			break;
-		} //end if
+
 
 	} //end raymarcher for loop
 }// end raymarch function
