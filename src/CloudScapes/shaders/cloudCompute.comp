@@ -64,7 +64,7 @@ struct Intersection {
 #define TEXTURE_HIGH_FREQ 0
 #define TEXTURE_LOW_FREQ 0
 #define HEIGHT_GRADIENT 0
-#define TRANSMITTANCE 0
+#define TRANSMITTANCE 1
 
 //Global Defines for math constants
 #define PI 3.14159265
@@ -243,15 +243,41 @@ float BeerLambertModified(float density_along_light_ray, float attenuation_reduc
 float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phase_probability, float cos_angle, float step_size, float brightness)
 {
     // Attenuation – difference from slides – reduce the secondary component when we look toward the sun.
-    float primary_attenuation = exp(-dl);
-    float secondary_attenuation = exp(-dl * 0.25) * 0.7;
+    float primary_attenuation = exp(dl);
+    float secondary_attenuation = exp(dl * 0.25) * 0.7;
 
     // NOTE: in the slides, seconary_attenuation was "secondary_intensity_curve", and primary_attenuation was "primary_intensity_curve". UNSURE IF SAME
-    float attenuation_probability = max( remap( cos_angle, 0.7, 1.0, secondary_attenuation, secondary_attenuation * 0.25) , primary_attenuation);
+    // FIRST INSTANCE
+    float attenuation_probability = max( 
+    									remap(cos_angle, 0.7, 1.0, secondary_attenuation, secondary_attenuation * 0.25), 
+    									primary_attenuation);
+    // --------------------------------------------------------------------------------------------------------------------
+    // SECOND INSTANCE
+    float beerLambertModified = BeerLambertModified(dl, 0.25, 0.7);
+    // float attenuation_probability = mix(primary_attenuation, beerLambertModified, -cos_angle * 0.5 + 0.5);
     
+
     // In-scattering – one difference from presentation slides – we also reduce this effect once light has attenuated to make it directional.
+
+    // FIRST INSTANCE
     float depth_probability = mix( 0.05 + pow( ds_loded, remap( height_fraction, 0.3, 0.85, 0.5, 2.0 )), 1.0, clamp( dl / step_size, 0.0, 1.0));
-    float vertical_probability = pow( remap( height_fraction, 0.07, 0.14, 0.1, 1.0 ), 0.8 );
+    
+    // --------------------------------------------------------------------------------------------------------------------
+    // SECOND INSTANCE
+    // float depth_probability = mix(0.05 + pow(ds_loded, clamp(
+    // 														remap(height_fraction, 0.3, 0.85, 0.5, 2.0), 
+    // 														0.6, 2.0)), 
+    // 							1.0, 
+    // 							clamp(dl / step_size, 0.0, 1.0));
+
+
+
+
+    float vertical_probability = pow(clamp(
+    										remap(height_fraction, 0.07, 0.14, 0.1, 1.0 ), 
+    										0.1, 1.0), 
+    								0.8 );
+    
     float in_scatter_probability = depth_probability * vertical_probability;
 
     float light_energy = attenuation_probability * in_scatter_probability * phase_probability * brightness;
@@ -558,9 +584,8 @@ float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
     // return mix(mix1, mix2, cloudType);
 
     // ================================================
-
-
 }
+
 
 float sampleCloudDensity(vec3 point, vec3 weather_data)
 {
@@ -663,13 +688,11 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
     // float final_cloud = remap(base_cloud_with_coverage, high_freq_modifier * 0.2, 1.0, 0.0, 1.0);
 
     // return final_cloud;
-
-
 }
 
 
 vec3 rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos, 
-            float start_t, float end_t, inout float accumDensity, inout float transmittance, inout float DL)
+            float start_t, float end_t, inout float accumDensity, inout float transmittance)
 {
     vec3 lightDir = normalize(SUN_LOCATION - ray.origin);
 
@@ -707,9 +730,9 @@ vec3 rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
         maxCompUnitVector = vec3(0.0, 0.0, abs(lightDir[2]));
     }
     
-    vec3 tangent = cross(lightDir, maxCompUnitVector);
-    vec3 bitangent = cross(tangent, lightDir);
-    mat3 sunRotMatrix = mat3(bitangent, lightDir, tangent);
+    vec3 zComponent = cross(lightDir, maxCompUnitVector);
+    vec3 xComponent = cross(zComponent, lightDir);
+    mat3 sunRotMatrix = mat3(xComponent, lightDir, zComponent);
 
     vec3 noise_kernel[] = 
     {
@@ -721,12 +744,11 @@ vec3 rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
         sunRotMatrix * vec3(0.0, 3.0, 0.0),     // One sample should be at distance 3x cone length
     };
 
-    vec3 returnColor = vec3(0.0, 0.0, 0.0);
+    vec3 returnColor = vec3(0.0);
 
     for (float t = start_t; t < end_t; t += stepSize)
     {
-
-    	vec3 colorPerSample = vec3(0.0, 0.0, 0.0);
+    	vec3 colorPerSample = vec3(0.0);
         pos = ray.origin + t * ray.direction;
         
         // float perlinTestVal = FBM(vec2(pos[0], pos[1]));
@@ -743,53 +765,46 @@ vec3 rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 
         if(density > 0.0) // Useful to prevent lighting calculations for zero density points
         {
-            accumDensity += density * (1 / 8.0);
-
-            
             // Lighting calculations with cone sampling
-            // DL += 0.005;
-            // float densityAlongLight = DL;
             float densityAlongLight = 0.0;
 
-            
             int lightSamples = 6;
             for(int i = 0; i < lightSamples; i++)
             {
                 // Add the current step offset to the sample position
                 vec3 lightPos = pos + (stepSize * noise_kernel[i] * float(i));
-                // vec3 lightPos = pos + (stepSize * lightDir * float(i));
+                
+                // float currLightDensity = sampleCloudDensity(lightPos, weather_data);
+
+                vec3 sampleLightPos = (EARTH_RADIUS * 0.5 * normalize(lightPos - EARTH_CENTER)) + EARTH_CENTER;
+                // float currLightDensity = -sampleCloudDensity(sampleLightPos, weather_data);// * 2.0 + 1.0;
 
 
+                 float currLightDensity = sampleCloudDensity(lightPos, weather_data);
 
-                float currLightDensity = 0.1 * sampleCloudDensity(lightPos / 30000.0, weather_data);
-
+                // BUG: CURRLIGHTDENSITY IS ALWAYS NEGATIVE
                 if(currLightDensity > 0.0)
                 {
-                	densityAlongLight += currLightDensity;
+                	densityAlongLight += currLightDensity;// * 0.25; //if using sampleLightPos
                 }
             }
 			
-            
 
             float attenuation_factor = 0.25;
             float influence_factor = 0.7;
             float beersLaw = BeerLambertModified(densityAlongLight, attenuation_factor, influence_factor);
 
             // Eventually use GetLightEnergy(height_fraction, densityAlongLight, ...) for second param
-            // transmittance = 1.0;//densityAlongLight;// mix(transmittance, HG_light * beersLaw, (1.0 - densityAlongLight));
-            // transmittance = beersLaw;//accumDensity;//beersLaw;// mix(transmittance, HG_light * beersLaw, (1.0 - densityAlongLight));
+            transmittance = densityAlongLight;//mix(transmittance, HG_light * beersLaw, (1.0 - accumDensity));
 
-            transmittance = mix(transmittance, HG_light * beersLaw, (1.0 - densityAlongLight));
-
-            colorPerSample = vec3(transmittance * 0.025);
+            accumDensity += density * (1.0 / 8.0);
+            colorPerSample = vec3(transmittance * 0.05);
             returnColor += colorPerSample;
-
-        } //end if
+        } //end if density > 0.0
 
         
         if(accumDensity >= 1.0) 
         {
-        	// transmittance = 0.0;
             accumDensity = 1.0;
             break;
         } //end if
@@ -823,7 +838,7 @@ void main()
 
 
     if (dot( vec3(0, 1, 0), ray.direction ) < 0.0 )
-    {
+    { 
         //kill threads because we shouldnt see stuff below the horizon
 
         // Change the Color From blue to something based on the atmosphere color
@@ -841,11 +856,8 @@ void main()
     // Ray March
     float transmittance = 1.0;
     float accumDensity = 0.0;
-
-    float densityalonglight = 0.0;
-
     vec3 raymarchResult = rayMarch(ray, weather_data, atmospherInnerIsect.point, atmospherOuterIsect.point, 
-            atmospherInnerIsect.t, atmospherOuterIsect.t, accumDensity, transmittance, densityalonglight);
+            						atmospherInnerIsect.t, atmospherOuterIsect.t, accumDensity, transmittance);
 
     // Henyey-Greenstein for debug view
     vec3 currRayDir = ray.direction;
@@ -889,13 +901,14 @@ void main()
 #elif BACKGROUND_SKY
     finalColor = vec4(backgroundCol, 1.0);
 #elif TRANSMITTANCE
-  //   if(transmittance > 1.0)
-  //   {
-  //   	finalColor = vec4(1.0, 0.0, 0.0, 1.0);
-  //   }
-  //   else if(transmittance < 1.0)
-		// finalColor = vec4(0.0, 1.0, 0.0, 1.0);
-
+    // if(transmittance > 0.0)
+    // {
+    // 	finalColor = vec4(1.0, 0.0, 0.0, 1.0);
+    // }
+    // else
+    // {
+    // 	finalColor = vec4(0.5, 0.5, 0.5, 1.0);
+    // }
     finalColor = vec4(transmittance);
 #elif RAYMARCH_RESULT
     finalColor = vec4(raymarchResult, 1.0);
