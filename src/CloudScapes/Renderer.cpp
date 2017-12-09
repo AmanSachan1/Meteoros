@@ -1,5 +1,5 @@
 #include "Renderer.h"
-
+//VK_FORMAT_R32G32B32A32_SFLOAT
 Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height)
 	: device(device), 
 	logicalDevice(device->GetVkDevice()),
@@ -1517,10 +1517,10 @@ VkFormat Renderer::FindDepthFormat()
 void Renderer::CreateComputeResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 	//Stores the results of the previous Frame
-	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//Create the textures that will be passed to the compute shader to create clouds
@@ -1530,10 +1530,10 @@ void Renderer::CreateComputeResources()
 void Renderer::RecreateComputeResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 	//Stores the results of the previous Frame
-	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
 
@@ -1578,7 +1578,7 @@ void Renderer::CreateCloudResources()
 void Renderer::CreatePostProcessResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	godRaysCreationDataTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
 
