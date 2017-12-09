@@ -1,7 +1,7 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout (set = 0, binding = 0, rgba8) uniform image2D currentFrameResultImage;
+layout (set = 0, binding = 0, rgba32f) uniform image2D currentFrameResultImage;
 layout (set = 0, binding = 1) uniform sampler2D godRayCreationDataSampler;
 
 layout (set = 1, binding = 0) uniform CameraUBO
@@ -32,8 +32,8 @@ layout(location = 0) in vec2 in_uv;
 
 //References: - https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch13.html
 //			  -	https://github.com/Erkaman/glsl-godrays
-void main() 
-{	
+void main()
+{
 	ivec2 dim = imageSize(currentFrameResultImage); //texture(currentFrameResultImage, fragTexCoord).rgb;
 	ivec2 pixelPos = ivec2(floor(dim.x * in_uv.x), floor(dim.y * in_uv.y));
 	vec2 uv = in_uv;
@@ -62,6 +62,9 @@ void main()
 	{
 		numSamples = int(float(numSamples)*(sunAngle_totalexcess/PI));
 	}	
+
+	////////////////?????????????????????????
+	//TODO: Use gradient when sun off screen
 
 	vec4 sunPos_ndc = camera.proj * camera.view * sunLocation; 	// Sun Pos in NDC space
 

@@ -5,13 +5,13 @@
 
 #define WORKGROUP_SIZE 32
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
-layout (set = 0, binding = 0, rgba8) uniform writeonly image2D currentFrameResultImage;
-layout (set = 0, binding = 1, rgba8) uniform image2D previousFrameResultImage;
+layout (set = 0, binding = 0, rgba32f) uniform writeonly image2D currentFrameResultImage;
+layout (set = 0, binding = 1, rgba32f) uniform image2D previousFrameResultImage;
 layout (set = 0, binding = 2) uniform sampler3D cloudBaseShapeSampler;
 layout (set = 0, binding = 3) uniform sampler3D cloudDetailsHighFreqSampler; // Dont use alpha channel
 layout (set = 0, binding = 4) uniform sampler2D curlNoiseSampler; // Don't use alpha channel
 layout (set = 0, binding = 5) uniform sampler2D weatherMapSampler; // Don't use alpha channel
-layout (set = 0, binding = 6, rgba8) uniform image2D godRaysCreationDataImage;
+layout (set = 0, binding = 6, rgba32f) uniform image2D godRaysCreationDataImage;
 
 layout (set = 1, binding = 0) uniform CameraUBO
 {
@@ -83,6 +83,7 @@ struct Intersection {
 #define EARTH_CENTER vec3(0, 0, -EARTH_RADIUS)
 #define ATMOSPHERE_RADIUS_INNER EARTH_RADIUS + 7500.0 //paper suggests values of 15000-35000m above
 #define ATMOSPHERE_RADIUS_OUTER EARTH_RADIUS + 20000.0
+#define ATMOSPHERE_THICKNESS ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER
 
 #define IN_STRATUS_MIN_MAX vec2(0.0, 0.3)
 #define IN_CUMULUS_MIN_MAX vec2(0.01, 0.45)
@@ -96,10 +97,16 @@ struct Intersection {
 #define MIE_CONST vec3( 1.839991851443397, 2.779802391966052, 4.079047954386109)
 #define RAYLEIGH_TOTAL vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5)
 
+// Global Wind Defines
+#define WIND_DIRECTION vec3(1.0,0.0,0.0)
+#define CLOUD_SPEED 0.0//0.05
+#define CLOUD_TOP_OFFSET 5.0//500.0 // this offset pushes the tops of the clouds along this wind direction by this many units
+
 // #define LightVec normalize(vec3(1.0,1.0,1.0));
 #define SUN_LOCATION vec3(0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO: make it a uniform so we have an animated sky
 #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, EARTH_RADIUS, -EARTH_RADIUS * 10.0)
 #define SUN_COLOR vec3(1.0, 1.0, 1.0)
+#define SUN_INTENSITY 5.0
 
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
@@ -277,78 +284,6 @@ float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phas
 	Adapted from open source of zz85 on Github, math from Preetham Model, initially implemented by Simon Wallner and Martin Upitis
 */
 
-/*
-float perez(float t, float g, float a, float b, float c, float d, float e)
-{
-	(1.0 + a * exp(b / (0.004 + abs(cos(t))))) * (1 + c * exp(d * g) + e * cos(g) * cos(g));
-}
-
-vec3 preethamSky(float turbidity, vec3 sunDirection)
-{
-	float cosgamma = Dx * sunDirection[0] + Dy * sunDirection[1] + Dz * sunDirection[2];
-	gamma = Acos(cosgamma);				// { angle from sun to this point in sky }
-	theta = Acos(Dz);					// { angle from zenith to this point in sky }
-	thetas = Acos(sunDirection[2]);		// { angle from zenith to sun }
-	turb = bound(1.2, A1, 6.0);			// { clamp the bounds of turbidity }
-
-	//{ zenith brightness, chromaticity }
-	yyzTest = (4.0453*turb - 4.971)*tan((0.4444-turb/120.)*(3.1415927-2*thetas)) - 0.2155*turb + 2.4192;
-	yyz = if (yyzTest, yyzTest, 0.0);
-	xz = 0.25886 + 0.00394*turb + thetas*(0.06052 - 0.03202*turb*(1.-0.065272*turb) + thetas*(-0.21196 + 0.06377*turb*(1.-0.058805*turb) + thetas*(0.11693 - 0.02903*turb*(1.-0.057182*turb))));
-	yz = 0.26688 + 0.00516*turb + thetas*(0.0667 - 0.04153*turb*(1.-0.07633*turb) + thetas*(-0.26756 + 0.0897*turb*(1.-0.068004*turb) + thetas*(0.15346 - 0.04214*turb*(1.-0.065259*turb))));
-
-	//{ distribution coefficients for luminance, chromaticity; functions of turbidity }
-	ayy = 0.1787*turb - 1.463;
-	byy = -0.3554*turb + 0.4275;
-	cyy = -0.0227*turb + 5.3251;
-	dyy = 0.1206*turb - 2.5771;
-	eyy = -0.067*turb + 0.3703;
-
-	ax = -0.0193*turb - 0.2593;
-	bx = -0.0665*turb + 0.0008;
-	cx = -0.0004*turb + 0.2125;
-	dx = -0.0641*turb - 0.8989;
-	ex = -0.0033*turb + 0.0452;
-
-	ay = -0.0167*turb - 0.2608;
-	by = -0.095*turb + 0.0092;
-	cy = -0.0079*turb + 0.2102;
-	dy = -0.0441*turb - 1.6537;
-	ey = -0.0109*turb + 0.0529;
-
-	//{ point values for luminance, chromaticity }
-	yyptemp = yyz * perez(theta, gamma, ayy, byy, cyy, dyy, eyy) / perez(0., thetas, ayy, byy, cyy, dyy, eyy);
-	xp = xz * perez(theta, gamma, ax, bx, cx, dx, ex) / perez(0., thetas, ax, bx, cx, dx, ex);
-	yp = yz * perez(theta, gamma, ay, by, cy, dy, ey) / perez(0., thetas, ay, by, cy, dy, ey);
-
-	//{ hack to allow stars to shine through haze at dusk and dawn }
-	//{yyp = yyptemp;}
-	yyp = yyptemp * if(A4-0.05, 1.0, exp(20.*(A4-0.05)));
-
-	//{ output brightness }
-	skybr = yyp;
-
-	//{ output radiance }
-
-	//{ first, tristimulus values (are these CIE XYZ?)}
-	x = yyp*xp/yp;
-	y = yyp;
-	z = yyp*if(1.-xp-yp, 1-xp-yp, 0.)/yp;
-	//{z = yyp*(1.-xp-yp)/yp;}
-
-	//{ convert CIE XYZ to RGB with D65 from http://www.poynton.com/PDFs/Guided_tour.pdf ?}
-	//{ do not apply gamma, as we are in linear units }
-	//{skyr = 3.240479*x - 1.537150*y - 0.498535*z;
-	//skyg = -0.969256*x + 1.875992*y + 0.041556*z;
-	//skyb = 0.055648*x - 0.204043*y + 1.057311*z;}
-
-	//{ convert using CIE M^-1 matrix from http://www.brucelindbloom.com/Eqn_RGB_XYZ_Matrix.html }
-	skyr = 2.3706743*x - 0.9000405*y - 0.4706338*z;
-	skyg = -0.513885*x + 1.4253036*y + 0.0885814*z;
-	skyb = 0.0052982*x - 0.0146949*y + 1.0093968*z;
-}
-*/
-
 float rayleighPhase(float cosTheta) 
 {
     return THREE_OVER_SIXTEEN_PI * (1.0 + cosTheta * cosTheta);
@@ -375,11 +310,12 @@ float calcSunIntensity()
 	return EE * max(0.0, 1.0 - pow(E, -((SHADOW_CUTOFF - acos(zenithAngleCos)) / SHADOW_STEEPNESS)));
 }
 
-vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir) {
+vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir) 
+{
     vec3 color = vec3(0);
 
     sunDir = normalize(sunDir); 
-    float sunE = calcSunIntensity(); 
+    float sunE = SUN_INTENSITY*calcSunIntensity(); 
     vec3 BetaR = calcSkyBetaR();   
     vec3 BetaM = calcSkyBetaV(); 
 
@@ -546,9 +482,20 @@ float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
 		   weight_c * cumulonimbus);
 }
 
-vec3 getProjectedSamplePoint(in vec3 point)
+vec3 getProjectedPoint_Sphere(in vec3 point)
 {
 	return 0.5 * EARTH_RADIUS * normalize(point - EARTH_CENTER) + EARTH_CENTER;
+}
+
+float getRelativeHeightInAtmosphere(in vec3 pos, in vec3 projectedPos)
+{
+    return clamp( length(pos - projectedPos) / ATMOSPHERE_THICKNESS, 0.0, 1.0);
+}
+
+vec3 getRelativePositionInAtmosphere(in vec3 pos)
+{
+    return vec3( ( pos - vec3(ATMOSPHERE_RADIUS_INNER) )/
+                 ( ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER ) );
 }
 
 float sampleCloudDensity(vec3 point, vec3 weather_data)
@@ -615,6 +562,92 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	return final_cloud;
 }
 
+vec3 skewSamplePointWithWind(in vec3 point, inout float height_fraction, in vec3 weather_data)
+{
+    // Find inCloudMinMax
+    vec2 inCloudMinMax;
+    if(weather_data.b == 0) {
+        inCloudMinMax = IN_STRATUS_MIN_MAX;
+    }
+    else if(weather_data.b == 1) {
+        inCloudMinMax = IN_CUMULUS_MIN_MAX;
+    }
+    else if(weather_data.b == 0.5) {
+        inCloudMinMax = IN_CUMULONIMBUS_MIN_MAX;
+    }
+
+    height_fraction = getHeightFractionForPoint(point, inCloudMinMax);
+    
+    //skew in wind direction
+    point += height_fraction*WIND_DIRECTION*CLOUD_TOP_OFFSET;
+    //Animate clouds in wind direction and add a small upward bias to the wind direction
+    point += (WIND_DIRECTION + vec3(0.0,0.1,0.0))*CLOUD_SPEED*time.y;
+    return point;
+}
+
+float sampleLowFrequency(vec3 point)
+{
+    //Read in the low-frequency Perlin-Worley noises and Worley noises
+    vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point);
+
+    //Build an FBM out of the low-frequency Worley Noises that are used to add detail to the Low-frequency Perlin Worley noise
+    float lowFrequencyFBM = (lowFrequencyNoises.g * 0.625) + 
+                            (lowFrequencyNoises.b * 0.25)  + 
+                            (lowFrequencyNoises.a * 0.125);
+
+    // Define the base cloud shape by dilating it with the low-frequency FBM
+    float baseCloud = remap( lowFrequencyNoises.r, -(1.0 - lowFrequencyFBM), 1.0, 0.0, 1.0 );
+    return baseCloud;
+}
+
+float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float height_fraction, vec3 weather_data)
+{
+    //Get the density-height gradient
+    float densityHeightGradient = getDensityHeightGradientForPoint(point, weather_data);
+
+    //Apply Height function to the base cloud shape
+    //baseCloud *= densityHeightGradient;
+
+    // Cloud coverage is stored in weather data’s red channel .
+    float cloud_coverage = 0.5;// weather_data.r;
+
+    // Use remap to apply the cloud coverage attribute.
+    float base_cloud_with_coverage = remap ( baseCloud, cloud_coverage , 1.0 , 0.0 , 1.0);
+
+    // To ensure that the density increases with coverage in an aesthetically pleasing manner
+    // Multiply the result by the cloud coverage attribute so that smaller clouds are lighter 
+    // and more aesthetically pleasing
+    base_cloud_with_coverage *= cloud_coverage;
+
+    // Add turbulence to the bottome of the clouds
+    vec4 curlNoise = texture(curlNoiseSampler, point.xy);
+    point.xy += curlNoise.xy * (1.0-height_fraction);
+
+    // Sample High Frequency Noises
+    vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);
+
+    // Build High Frequency FBM
+    float high_freq_FBM = (highFrequencyNoise.r * 0.625) + 
+                          (highFrequencyNoise.g * 0.25)  +
+                          (highFrequencyNoise.b * 0.125); 
+
+    float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 10.0, 0.0, 1.0));
+
+    //Erode the base shape of the cloud with the distorted high frequency worley noises
+    float final_cloud = remap(base_cloud_with_coverage, high_freq_modifier * 0.2, 1.0, 0.0, 1.0);
+
+    return final_cloud;
+}
+
+//Use coverageSignal from weather map to determine if clouds should exist here; if they should return a low density 
+// float baseCloudTest(in vec3 pos)
+// {
+//     float density;
+
+//     vec3 currentProj = getProjectedShellPoint(pos, EARTH_CENTER);
+
+// }
+
 void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos, 
 			float start_t, float end_t, inout float accumDensity, inout float transmittance)
 {
@@ -622,38 +655,37 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 	float stepSize = (end_t - start_t) / maxSteps;
 
     vec3 pos;
-    float density;
+    vec3 samplePoint;
+    float cloud_test = 0.0;
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
+        if(accumDensity >= 1.0) 
+        {
+            accumDensity = 1.0;
+            break;
+        } //end if
+
+
 		pos = ray.origin + t * ray.direction;
+        
+        samplePoint = getRelativePositionInAtmosphere(pos);
 
-		// TEST: Adjust the position to represent spherical-ness of world
-		//vec3 correctedPos = normalize(pos - EARTH_CENTER) * atmosphereRadiusInner;
-		//density = sampleCloudDensity(correctedPos / 20000.0, weather_data)*0.5;
+        float samplePoint_heightFraction;
+        vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, samplePoint_heightFraction, weather_data);
+		float baseDensity = sampleLowFrequency(skewedSamplePoint);
 
-		vec3 samplePoint = vec3(pos.x, pos.y, abs(pos.z));			//normalize(pos - vec3(0, 0, -earthRadius)) * atmosphereRadiusInner;//pos;//(pos-startPos);///endPos;
-		samplePoint /= 30000.0;										//fixed value found by tweaking don't change or else you will see the tiled texture and notice the repition
-		
-		//vec3 currentProj = getProjectedSamplePoint(samplePoint);
-		//float relHeight = getRelativeHeight(currentPos, currentProj, atmosphereThickness);
-		density = sampleCloudDensity(samplePoint, weather_data);
-
-		if(density > 0.0) // Useful to prevent lighting calculations for zero density points
+		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
+            //Erode Base cloud shape with higher frequency noise (more expensive and so done when we know for sure we are inside the cloud)
+            float density = erodeCloudWithHighFrequency(baseDensity, skewedSamplePoint, samplePoint_heightFraction, weather_data);
+
 			accumDensity += density * (1 / 8.0);
 
 			// Do Lighting calculations with cone sampling
 			float densityAlongLight = 0.0;
-
-
 		} //end if
-		
-		if(accumDensity >= 1.0) 
-		{
-			accumDensity = 1.0;
-			break;
-		} //end if
+
 
 	} //end raymarcher for loop
 }// end raymarch function
@@ -716,7 +748,8 @@ void main()
 	vec4 curlNoise = texture( curlNoiseSampler, uv );
 	finalColor = vec4(curlNoise);
 #elif DENSITY_SLICES
-	float density = sampleCloudDensity( vec3(uv, sin(time.y)), weather_data );
+    float baseDensity = sampleLowFrequency( vec3(uv, sin(time.y)) );
+    float density = erodeCloudWithHighFrequency(baseDensity, vec3(uv, sin(time.y)) , weather_data);
 	finalColor = normalize( vec4(vec3(density), 1.0) );
 #elif CLOUDS_ALL_NOISES
 	finalColor = vec4( vec3(accumDensity), 1.0 );

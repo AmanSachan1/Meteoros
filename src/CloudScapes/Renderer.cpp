@@ -1,5 +1,5 @@
 #include "Renderer.h"
-
+//VK_FORMAT_R32G32B32A32_SFLOAT
 Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height)
 	: device(device), 
 	logicalDevice(device->GetVkDevice()),
@@ -533,7 +533,7 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 		VulkanInitializers::pipelineRasterizationStateCreateInfo( VK_POLYGON_MODE_FILL, VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE, 0);
 
 	VkPipelineColorBlendAttachmentState blendAttachmentState =
-		VulkanInitializers::pipelineColorBlendAttachmentState( 0xf, VK_FALSE);
+		VulkanInitializers::pipelineColorBlendAttachmentState( 0x0, VK_FALSE);
 
 	VkPipelineColorBlendStateCreateInfo colorBlendState =
 		VulkanInitializers::pipelineColorBlendStateCreateInfo( 1, &blendAttachmentState);
@@ -576,6 +576,7 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	// -------- Create Base PostProcess pipeline Info ---------
 	VkGraphicsPipelineCreateInfo postProcessPipelineCreateInfo =
 		VulkanInitializers::graphicsPipelineCreateInfo( postProcess_GodRays_PipelineLayout, renderPass, 0);
+
 	postProcessPipelineCreateInfo.pVertexInputState = &emptyVertexInputState;; //defined above
 	postProcessPipelineCreateInfo.pInputAssemblyState = &inputAssemblyState; //defined above
 	postProcessPipelineCreateInfo.pRasterizationState = &rasterizationState; //defined above
@@ -592,23 +593,15 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	//Create a pipeline cache so multiple pieplines cane be created from the same pipeline creation Info
 	VulkanInitializers::createPipelineCache(logicalDevice, postProcessPipeLineCache);
 
+	VkShaderModule generic_vertShaderModule = 
+		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GenericVertShader.vert.spv", logicalDevice);
 	// -------- God Rays pipeline -----------------------------------------
-	VkShaderModule godRays_vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.vert.spv", logicalDevice);
-	VkShaderModule godRays_fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.frag.spv", logicalDevice);
+	VkShaderModule godRays_fragShaderModule = 
+		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.frag.spv", logicalDevice);
 
 	// Assign each shader module to the appropriate stage in the pipeline
-	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, godRays_vertShaderModule);
+	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, generic_vertShaderModule);
 	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, godRays_fragShaderModule);
-
-	// Additive blending --> needed for radial blur that is used in god rays
-	//blendAttachmentState.colorWriteMask = 0xF;
-	//blendAttachmentState.blendEnable = VK_TRUE;
-	//blendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-	//blendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	//blendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	//blendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-	//blendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	//blendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
 
 	postProcessPipelineCreateInfo.layout = postProcess_GodRays_PipelineLayout;
 
@@ -616,22 +609,22 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 		throw std::runtime_error("Failed to create post process pipeline");
 	}
 
-	vkDestroyShaderModule(device->GetVkDevice(), godRays_vertShaderModule, nullptr);
 	vkDestroyShaderModule(device->GetVkDevice(), godRays_fragShaderModule, nullptr);
-
-	// Set Blend State to false as it isnt used in any other post process
-	//blendAttachmentState.blendEnable = VK_FALSE;
 
 	// -------- Anti Aliasing  pipeline -----------------------------------------
 
 	// -------- Final Pass pipeline -----------------------------------------
 	// Does Compositing and Tone Mapping
 
-	VkShaderModule finalPass_vertShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_FinalPass.vert.spv", logicalDevice);
-	VkShaderModule finalPass_fragShaderModule = ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_FinalPass.frag.spv", logicalDevice);
+	// BlendAttachmentState in addition to defining the blend state also defines if the shaders can write to the framebuffer with the color write mask
+	// Color Write Mask Reference: https://www.khronos.org/registry/vulkan/specs/1.0/man/html/VkColorComponentFlagBits.html
+	blendAttachmentState = VulkanInitializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
+
+	VkShaderModule finalPass_fragShaderModule = 
+		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_FinalPass.frag.spv", logicalDevice);
 
 	// Assign each shader module to the appropriate stage in the pipeline
-	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, finalPass_vertShaderModule);
+	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, generic_vertShaderModule);
 	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, finalPass_fragShaderModule);
 
 	// Empty vertex input state
@@ -641,8 +634,8 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 		throw std::runtime_error("Failed to create post process pipeline");
 	}
 
-	vkDestroyShaderModule(device->GetVkDevice(), finalPass_vertShaderModule, nullptr);
 	vkDestroyShaderModule(device->GetVkDevice(), finalPass_fragShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), generic_vertShaderModule, nullptr);
 }
 
 //----------------------------------------------
@@ -1524,10 +1517,10 @@ VkFormat Renderer::FindDepthFormat()
 void Renderer::CreateComputeResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 	//Stores the results of the previous Frame
-	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//Create the textures that will be passed to the compute shader to create clouds
@@ -1537,10 +1530,10 @@ void Renderer::CreateComputeResources()
 void Renderer::RecreateComputeResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 	//Stores the results of the previous Frame
-	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
 
@@ -1585,7 +1578,7 @@ void Renderer::CreateCloudResources()
 void Renderer::CreatePostProcessResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_UNORM);
+	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	godRaysCreationDataTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
 
