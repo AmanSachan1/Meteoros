@@ -231,15 +231,10 @@ float HGCombined(float cos_angle, float eccentricity, float silver_intensity, fl
         - Reduce its influence so to not overpower the result. 
         - density_along_light_ray comes from cone sampling 
 */
-float BeersLaw(float density_along_light_ray)
-{
-	return exp(-density_along_light_ray);
-}
-
 float BeerLambertCombined(float density_along_light_ray, float attenuation_reduction_factor, float influence_reduction_factor)
 {
-    return max( BeersLaw(density_along_light_ray) , 
-    			BeersLaw(density_along_light_ray * attenuation_reduction_factor) * influence_reduction_factor );
+    return max( exp(density_along_light_ray) , 
+    			exp(density_along_light_ray * attenuation_reduction_factor) * influence_reduction_factor );
 }
 
 /*
@@ -252,19 +247,44 @@ float BeerLambertCombined(float density_along_light_ray, float attenuation_reduc
 float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phase_probability, float cos_angle, float step_size, float brightness)
 {
     // Attenuation – difference from slides – reduce the secondary component when we look toward the sun.
-    float primary_attenuation = BeersLaw(dl);
-    float secondary_attenuation = BeersLaw(dl * 0.25) * 0.7;
+    float primary_attenuation = exp(dl);
+    float secondary_attenuation = exp(dl * 0.25) * 0.7;
 
-    // float attenuation_probability = max( remap( cos_angle, 0.7, 1.0, secondary_intensity_curve, secondary_intensity_curve * 0.25) , primary_intensity_curve);
-    float attenuation_probability = max( remap( cos_angle, 0.7, 1.0, secondary_attenuation, secondary_attenuation * 0.25) , primary_attenuation);
+    // NOTE: in the slides, seconary_attenuation was "secondary_intensity_curve", and primary_attenuation was "primary_intensity_curve". UNSURE IF SAME
+    // FIRST INSTANCE
+    float attenuation_probability = max( 
+    									remap(cos_angle, 0.7, 1.0, secondary_attenuation, secondary_attenuation * 0.25), 
+    									primary_attenuation);
+    // --------------------------------------------------------------------------------------------------------------------
+    // SECOND INSTANCE
+    float beerLambertModified = BeerLambertModified(dl, 0.25, 0.7);
+    // float attenuation_probability = mix(primary_attenuation, beerLambertModified, -cos_angle * 0.5 + 0.5);
     
-    // In-scattering – one difference from presentation slides – we also reduce this effect once light has attenuated to make it directional.
-    // float depth_probability = lerp( 0.05 + pow( ds_loded, remap( height_fraction, 0.3, 0.85, 0.5, 2.0 )), 1.0, saturate( dl / step_size));
-    // float vertical_probability = pow( remap( height_fraction, 0.07, 0.14, 0.1, 1.0 ), 0.8 );
-    // float in_scatter_probability = depth_probability * vertical_probability;
 
-    // float light_energy = attenuation_probability * in_scatter_probability * phase_probability * brightness;
-    float light_energy = attenuation_probability * phase_probability * brightness;
+    // In-scattering – one difference from presentation slides – we also reduce this effect once light has attenuated to make it directional.
+
+    // FIRST INSTANCE
+    float depth_probability = mix( 0.05 + pow( ds_loded, remap( height_fraction, 0.3, 0.85, 0.5, 2.0 )), 1.0, clamp( dl / step_size, 0.0, 1.0));
+    
+    // --------------------------------------------------------------------------------------------------------------------
+    // SECOND INSTANCE
+    // float depth_probability = mix(0.05 + pow(ds_loded, clamp(
+    // 														remap(height_fraction, 0.3, 0.85, 0.5, 2.0), 
+    // 														0.6, 2.0)), 
+    // 							1.0, 
+    // 							clamp(dl / step_size, 0.0, 1.0));
+
+
+
+
+    float vertical_probability = pow(clamp(
+    										remap(height_fraction, 0.07, 0.14, 0.1, 1.0 ), 
+    										0.1, 1.0), 
+    								0.8 );
+    
+    float in_scatter_probability = depth_probability * vertical_probability;
+
+    float light_energy = attenuation_probability * in_scatter_probability * phase_probability * brightness;
 
     return light_energy;
 }
@@ -315,7 +335,7 @@ vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir)
     vec3 color = vec3(0);
 
     sunDir = normalize(sunDir); 
-    float sunE = SUN_INTENSITY*calcSunIntensity(); 
+    float sunE = SUN_INTENSITY * calcSunIntensity(); 
     vec3 BetaR = calcSkyBetaR();   
     vec3 BetaM = calcSkyBetaV(); 
 
@@ -446,12 +466,12 @@ float getHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
 float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
 {
 	// Get height fraction
-	// float height_fraction = ;
-	// float height_fraction = getHeightFractionForPoint(p, vec2(0.0, 1.0));
+	// NOTE --> MIGHT NEED TO CLAMP THIS
 	float height_fraction = (length(point - EARTH_CENTER) - ATMOSPHERE_RADIUS_INNER) / (ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER);
+	
 	//Refer: 2017 pdf of slides 29/108
 	//CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
-	float stratus = 	 clamp( remap(height_fraction, 0, 0.1, 0.0, 1.0) * remap(height_fraction, 0.2, 0.3, 1.0, 0.0), 0.0, 1.0 );
+	float stratus = 	 clamp( remap(height_fraction, 0, 0.1, 0.0, 1.0) 	* remap(height_fraction, 0.2, 0.3, 1.0, 0.0), 0.0, 1.0 );
 	float cumulus = 	 clamp( remap(height_fraction, 0.01, 0.3, 0.0, 1.0) * remap(height_fraction, 0.3, 0.45, 1.0, 0.0), 0.0, 1.0 );
 	float cumulonimbus = clamp( remap(height_fraction, 0.0, 0.25, 0.0, 1.0) * remap(height_fraction, 0.6, 0.95, 1.0, 0.0), 0.0, 1.0 );
 
@@ -465,21 +485,31 @@ float getDensityHeightGradientForPoint(vec3 point, vec3 weather_data)
 		weight_b = 0.0;
 		weight_c = 0.0;
 	}
-	else if(weather_data.b == 1) {
-		weight_a = 0.0;
-		weight_b = 0.1;
-		weight_c = 0.0;
-	}
 	else if(weather_data.b == 0.5) {
 		weight_a = 0.0;
 		weight_b = 0.0;
 		weight_c = 0.1;
 	}
+	else if(weather_data.b == 1) {
+		weight_a = 0.0;
+		weight_b = 0.1;
+		weight_c = 0.0;
+	}
 	
 	 //Return a blended and weighted value
-	return 0.000015*(weight_a * stratus + 
-		   weight_b * cumulus + 
-		   weight_c * cumulonimbus);
+	return 0.000015 * (weight_a * stratus + 
+		   				weight_b * cumulus + 
+		   				weight_c * cumulonimbus);
+
+
+    // ================================================
+    // float cloudType = weather_data.b;
+    // float mix1 = mix(stratus, cumulus, clamp(cloudType * 2.0, 0.0, 1.0));
+    // float mix2 = mix(cumulus, stratus, clamp((cloudType - 0.5) * 2.0, 0.0, 1.0));
+    // // float mix1 = mix(stratus, cumulus, cloudType);
+    // // float mix2 = mix(cumulus, stratus, cloudType);
+    // return mix(mix1, mix2, cloudType);
+    // ================================================
 }
 
 vec3 getProjectedPoint_Sphere(in vec3 point)
@@ -494,7 +524,7 @@ float getRelativeHeightInAtmosphere(in vec3 pos, in vec3 projectedPos)
 
 vec3 getRelativePositionInAtmosphere(in vec3 pos)
 {
-    return vec3( ( pos - vec3(ATMOSPHERE_RADIUS_INNER) )/
+    return vec3( ( pos - vec3(ATMOSPHERE_RADIUS_INNER - EARTH_RADIUS) )/
                  ( ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER ) );
 }
 
@@ -515,7 +545,7 @@ float sampleCloudDensity(vec3 point, vec3 weather_data)
 	float densityHeightGradient = getDensityHeightGradientForPoint(point, weather_data);
 
 	//Apply Height function to the base cloud shape
-	//baseCloud *= densityHeightGradient;
+	baseCloud *= densityHeightGradient;
 
 	// Cloud coverage is stored in weather data’s red channel .
 	float cloud_coverage = 0.5;// weather_data.r;
@@ -656,7 +686,50 @@ void rayMarch(Ray ray, vec3 weather_data, vec3 startPos, vec3 endPos,
 
     vec3 pos;
     vec3 samplePoint;
-    float cloud_test = 0.0;
+
+    // Lighting data -------------------------------------------------------------------
+    // Henyey-Greenstein
+    float cos_angle = dot(normalize(ray.direction), lightDir);
+    float eccentricity = 0.6;
+    float silver_intensity = 0.7;
+    float silver_spread = 0.1;
+    float HG_light = HGModified(cos_angle, eccentricity, silver_intensity, silver_spread);
+
+    // Random unit vectors for your cone sample.
+    // These are positioned to be facing the sun 
+    // Create random samples within a unit cone facing world up (y direction)
+    // Construct TBN matrix towards light
+    // Then rotate unit cone towards the sun using TBN
+
+    vec3 maxCompUnitVector;
+    if(abs(lightDir[0]) > abs(lightDir[1]) && abs(lightDir[0]) > abs(lightDir[2]))
+    {
+        maxCompUnitVector = vec3(abs(lightDir[0]), 0.0, 0.0);
+    }
+    else if(abs(lightDir[1]) > abs(lightDir[0]) && abs(lightDir[1]) > abs(lightDir[2]))
+    {
+        maxCompUnitVector = vec3(0.0, abs(lightDir[1]), 0.0);
+    }
+    else
+    {
+        maxCompUnitVector = vec3(0.0, 0.0, abs(lightDir[2]));
+    }
+    
+    vec3 zComponent = cross(lightDir, maxCompUnitVector);
+    vec3 xComponent = cross(zComponent, lightDir);
+    mat3 sunRotMatrix = mat3(xComponent, lightDir, zComponent);
+
+    vec3 noise_kernel[] = 
+    {
+        sunRotMatrix * vec3(0.1, 0.25, -0.15),
+        sunRotMatrix * vec3(0.2, 0.5, 0.2),
+        sunRotMatrix * vec3(-0.2, 0.1, -0.1),
+        sunRotMatrix * vec3(-0.05, 0.75, 0.05),
+        sunRotMatrix * vec3(-0.1, 1.0, 0.0),
+        sunRotMatrix * vec3(0.0, 3.0, 0.0),     // One sample should be at distance 3x cone length
+    };
+    // Lighting data -------------------------------------------------------------------
+
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
