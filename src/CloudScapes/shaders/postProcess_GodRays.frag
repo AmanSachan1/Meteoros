@@ -32,8 +32,8 @@ layout(location = 0) in vec2 in_uv;
 
 //References: - https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch13.html
 //			  -	https://github.com/Erkaman/glsl-godrays
-void main() 
-{	
+void main()
+{
 	ivec2 dim = imageSize(currentFrameResultImage); //texture(currentFrameResultImage, fragTexCoord).rgb;
 	ivec2 pixelPos = ivec2(floor(dim.x * in_uv.x), floor(dim.y * in_uv.y));
 	vec2 uv = in_uv;
@@ -62,6 +62,9 @@ void main()
 	{
 		numSamples = int(float(numSamples)*(sunAngle_totalexcess/PI));
 	}	
+
+	////////////////?????????????????????????
+	//TODO: Use gradient when sun off screen
 
 	vec4 sunPos_ndc = camera.proj * camera.view * sunLocation; 	// Sun Pos in NDC space
 
