@@ -74,15 +74,16 @@ struct Intersection {
 //Global Defines for Colors
 #define BLACK vec3(0,0,0)
 #define WHITE vec3(1,1,1)
+#define RED vec3(1,0,0)
 
 // Global Define for Noise FBM
 #define NUM_FBM_OCTAVES 7
 
 //Global Defines for Earth and Cloud Layers 
 #define EARTH_RADIUS 6371000.0 // earth's actual radius in km = 6371
-#define ATMOSPHERE_RADIUS_INNER EARTH_RADIUS + 7500.0 //paper suggests values of 15000-35000m above
-#define ATMOSPHERE_RADIUS_OUTER EARTH_RADIUS + 20000.0
-#define ATMOSPHERE_THICKNESS ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER
+#define ATMOSPHERE_RADIUS_INNER (EARTH_RADIUS + 7500.0) //paper suggests values of 15000-35000m above
+#define ATMOSPHERE_RADIUS_OUTER (EARTH_RADIUS + 20000.0)
+#define ATMOSPHERE_THICKNESS (ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER)
 
 #define IN_STRATUS_MIN_MAX vec2(0.0, 0.3)
 #define IN_CUMULUS_MIN_MAX vec2(0.01, 0.45)
@@ -98,8 +99,8 @@ struct Intersection {
 
 // Global Wind Defines
 #define WIND_DIRECTION vec3(1.0,0.0,0.0)
-#define CLOUD_SPEED 0.0//0.05
-#define CLOUD_TOP_OFFSET 5.0//500.0 // this offset pushes the tops of the clouds along this wind direction by this many units
+#define CLOUD_SPEED 0.05
+#define CLOUD_TOP_OFFSET 5.0// this offset pushes the tops of the clouds along this wind direction by this many units
 
 // #define LightVec normalize(vec3(1.0,1.0,1.0));
 #define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO: make it a uniform so we have an animated sky
@@ -110,24 +111,6 @@ struct Intersection {
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
 //--------------------------------------------------------
-
-float bias(float b, float t)
-{
-	return pow(t, log(b) / log(0.5f));
-}
-
-float gain(float g, float t)
-{
-	if(t < 0.5) 
-	{
-		return bias(1.0 - g, 2.0 * t) / 2.0;
-	}
-	
-	else 
-	{
-		return 1.0 - bias(1.0 - g, 2.0 - 2.0 * t) / 2.0;
-	}
-}
 
 // Maps values from one range to another
 float remap(float value, float original_min, float original_max, float new_min, float new_max)
@@ -458,13 +441,16 @@ Intersection raySphereIntersection(in vec3 rO, in vec3 rD, in vec3 sphereCenter,
 
 float getHeightFractionForPoint(vec3 inPos, vec2 inCloudMinMax)
 {
-	float height_fraction = (inPos.z - inCloudMinMax.x) / (inCloudMinMax.y - inCloudMinMax.x);
+	float height_fraction = (inPos.y - inCloudMinMax.x) / (inCloudMinMax.y - inCloudMinMax.x);
 	return clamp(height_fraction, 0.0, 1.0);
 }
 
 // float getDensityHeightGradientForPoint(float height_fraction, vec3 weather_data) 
 float getDensityHeightGradientForPoint(vec3 point, in vec3 earthCenter, vec3 weather_data)
 {
+	// 2t --> cloudType
+    // 2t-1
+    // t
 	// Get height <fraction></fraction>
 	// NOTE --> MIGHT NEED TO CLAMP THIS
 	float height_fraction = (length(point - earthCenter) - ATMOSPHERE_RADIUS_INNER) / (ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER);
@@ -512,104 +498,43 @@ float getDensityHeightGradientForPoint(vec3 point, in vec3 earthCenter, vec3 wea
     // ================================================
 }
 
-vec3 getProjectedPoint_Sphere(in vec3 point, in vec3 earthCenter)
+vec3 getProjectedPointOnInnerSphere(in vec3 point, in vec3 earthCenter)
 {
-	return ATMOSPHERE_RADIUS_INNER * normalize(point - earthCenter) + earthCenter; //correct for sure
+	return ATMOSPHERE_RADIUS_INNER * normalize(point - earthCenter) + earthCenter;
 }
 
-float getRelativeHeightInAtmosphere(in vec3 pos, in vec3 projectedPos)
+float getRelativeHeightInAtmosphere(in vec3 point, in vec3 earthCenter, in vec3 startPosOnInnerShell, in vec3 rayDir, in vec3 eye)
 {
-    return clamp( length(pos - projectedPos) / ATMOSPHERE_THICKNESS, 0.0, 1.0);
+	float lengthOfRayfromCamera = length(point - eye);
+	float lengthOfRayToInnerShell = length(startPosOnInnerShell - eye);
+	vec3 pointToEarthDir = normalize(point - earthCenter);
+	//assuming RayDir is normalised
+	float cosTheta = dot(rayDir, pointToEarthDir);
+
+	// //factor to affect ray height projection the more alligned with the horizon it is
+	// //Could do actual math but it seems expensive with all of its trig so instead try binning and approximations
+	// float horizonScaleFactor = cosTheta;
+
+	// //remove the thing below if you want clouds to fade out as the ray dir goes below the horizon
+	// // if( horizonScaleFactor < 0.06 )
+	// // {
+	// // 	horizonScaleFactor = 0.06;
+	// // }
+
+	float numerator = abs(cosTheta * (lengthOfRayfromCamera - lengthOfRayToInnerShell));
+	return numerator/ATMOSPHERE_THICKNESS;
+	// return clamp( length(point.y - projectedPos.y) / ATMOSPHERE_THICKNESS, 0.0, 1.0);
 }
 
 vec3 getRelativePositionInAtmosphere(in vec3 pos, in vec3 earthCenter)
 {
-    return vec3( ( pos - vec3(earthCenter.x, ATMOSPHERE_RADIUS_INNER - EARTH_RADIUS, earthCenter.z) )/
-                 ( ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER ) );
+    return vec3( ( pos - vec3(earthCenter.x, ATMOSPHERE_RADIUS_INNER - EARTH_RADIUS, earthCenter.z) )/ ATMOSPHERE_THICKNESS );
 }
-
-// float sampleCloudDensity(vec3 point, vec3 weather_data)
-// {
-// 	//Read in the low-frequency Perlin-Worley noises and Worley noises
-// 	vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point);
-
-// 	//Build an FBM out of the low-frequency Worley Noises that are used to add detail to the Low-frequency Perlin Worley noise
-// 	float lowFrequencyFBM = (lowFrequencyNoises.g * 0.625) + 
-// 							(lowFrequencyNoises.b * 0.25)  + 
-// 							(lowFrequencyNoises.a * 0.125);
-
-// 	// Define the base cloud shape by dilating it with the low-frequency FBM
-// 	float baseCloud = remap( lowFrequencyNoises.r, -(1.0 - lowFrequencyFBM), 1.0, 0.0, 1.0 );
-
-// 	//Get the density-height gradient
-// 	float densityHeightGradient = getDensityHeightGradientForPoint(point, weather_data);
-
-// 	//Apply Height function to the base cloud shape
-// 	baseCloud *= densityHeightGradient;
-
-// 	// Cloud coverage is stored in weather data’s red channel .
-// 	float cloud_coverage = 0.5;// weather_data.r;
-
-// 	// Use remap to apply the cloud coverage attribute.
-// 	float base_cloud_with_coverage = remap ( baseCloud, cloud_coverage , 1.0 , 0.0 , 1.0);
-
-// 	// To ensure that the density increases with coverage in an aesthetically pleasing manner
-// 	// Multiply the result by the cloud coverage attribute so that smaller clouds are lighter 
-// 	// and more aesthetically pleasing
-// 	base_cloud_with_coverage *= cloud_coverage;
-
-// 	// Find inCloudMinMax
-// 	vec2 inCloudMinMax;
-// 	if(weather_data.b == 0) {
-// 		inCloudMinMax = IN_STRATUS_MIN_MAX;
-// 	}
-// 	else if(weather_data.b == 1) {
-// 		inCloudMinMax = IN_CUMULUS_MIN_MAX;
-// 	}
-// 	else if(weather_data.b == 0.5) {
-// 		inCloudMinMax = IN_CUMULONIMBUS_MIN_MAX;
-// 	}
-
-// 	float height_fraction = getHeightFractionForPoint(point, inCloudMinMax);
-
-// 	// Add turbulence to the bottome of the clouds
-// 	vec4 curlNoise = texture(curlNoiseSampler, point.xy);
-// 	point.xy += curlNoise.xy * (1.0-height_fraction);
-
-// 	// Sample High Frequency Noises
-// 	vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);
-
-// 	// Build High Frequency FBM
-// 	float high_freq_FBM = (highFrequencyNoise.r * 0.625) + 
-// 						  (highFrequencyNoise.g * 0.25)  +
-// 						  (highFrequencyNoise.b * 0.125); 
-
-// 	float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 10.0, 0.0, 1.0));
-
-// 	//Erode the base shape of the cloud with the distorted high frequency worley noises
-// 	float final_cloud = remap(base_cloud_with_coverage, high_freq_modifier * 0.2, 1.0, 0.0, 1.0);
-
-// 	return final_cloud;
-// }
 
 vec3 skewSamplePointWithWind(in vec3 point, inout float height_fraction, in vec3 weather_data)
 {
-    // Find inCloudMinMax
-    vec2 inCloudMinMax;
-    if(weather_data.b == 0) {
-        inCloudMinMax = IN_STRATUS_MIN_MAX;
-    }
-    else if(weather_data.b == 1) {
-        inCloudMinMax = IN_CUMULUS_MIN_MAX;
-    }
-    else if(weather_data.b == 0.5) {
-        inCloudMinMax = IN_CUMULONIMBUS_MIN_MAX;
-    }
-
-    height_fraction = getHeightFractionForPoint(point, inCloudMinMax);
-    
     //skew in wind direction
-    point += height_fraction*WIND_DIRECTION*CLOUD_TOP_OFFSET;
+    point += height_fraction*WIND_DIRECTION*CLOUD_TOP_OFFSET*0.009;
     //Animate clouds in wind direction and add a small upward bias to the wind direction
     point += (WIND_DIRECTION + vec3(0.0,0.1,0.0))*CLOUD_SPEED*time.y;
     return point;
@@ -624,6 +549,7 @@ float sampleLowFrequency(vec3 point, in vec3 earthCenter, in vec3 weather_data)
     float lowFrequencyFBM = (lowFrequencyNoises.g * 0.625) + 
                             (lowFrequencyNoises.b * 0.25)  + 
                             (lowFrequencyNoises.a * 0.125);
+    lowFrequencyFBM = clamp(abs(lowFrequencyFBM), 0.0, 1.0);                      
 
     // Define the base cloud shape by dilating it with the low-frequency FBM
     float baseCloud = remap( lowFrequencyNoises.r, -(1.0 - lowFrequencyFBM), 1.0, 0.0, 1.0 );
@@ -635,7 +561,8 @@ float sampleLowFrequency(vec3 point, in vec3 earthCenter, in vec3 weather_data)
     //baseCloud *= densityHeightGradient;
 
     // Cloud coverage is stored in weather data’s red channel .
-    float cloud_coverage = 0.5;// weather_data.r;
+    //WHAT EVEN???? --> increasing cloud coverage apparently reduces base_cloud_with_coverage
+    float cloud_coverage = 0.6;// weather_data.r;
 
     // Use remap to apply the cloud coverage attribute.
     float base_cloud_with_coverage = remap ( baseCloud, cloud_coverage , 1.0 , 0.0 , 1.0);
@@ -651,8 +578,8 @@ float sampleLowFrequency(vec3 point, in vec3 earthCenter, in vec3 weather_data)
 float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float height_fraction, vec3 weather_data)
 {
     // Add turbulence to the bottom of the clouds
-    // vec4 curlNoise = texture(curlNoiseSampler, point.xy);
-    // point.xy += curlNoise.xy * (1.0-height_fraction);
+    vec4 curlNoise = texture(curlNoiseSampler, point.xy);
+    point.xy += curlNoise.xy * (1.0-height_fraction);
 
     // Sample High Frequency Noises
     vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);
@@ -661,6 +588,7 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float he
     float high_freq_FBM = (highFrequencyNoise.r * 0.625) + 
                           (highFrequencyNoise.g * 0.25)  +
                           (highFrequencyNoise.b * 0.125); 
+	high_freq_FBM = clamp(abs(high_freq_FBM), 0.0, 1.0);
 
     float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 10.0, 0.0, 1.0));
 
@@ -670,98 +598,90 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float he
     return final_cloud;
 }
 
-//Use coverageSignal from weather map to determine if clouds should exist here; if they should return a low density 
-// float baseCloudTest(in vec3 pos)
-// {
-//     float density;
-
-//     vec3 currentProj = getProjectedShellPoint(pos, earthCenter);
-
-// }
-
-vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in float start_t, in float end_t, inout float accumDensity, inout float transmittance)
+vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in vec3 startPos, in float start_t, in float end_t, inout float accumDensity, inout float transmittance)
 {
+	//TODO the above causes faint circular lines snooth it out
 	float _dot = dot(abs(ray.direction), vec3(0.0,1.0,0.0));
 	float maxSteps = floor(mix(52.0, 84.0, 1.0-_dot));
-	//TODO the above causes faint circular lines snooth it out
-
 	float stepSize = (end_t - start_t) / maxSteps;
 
     vec3 pos;
     vec3 samplePoint;
+    float relativeHeight;
 
     // Lighting data -------------------------------------------------------------------
-    // Henyey-Greenstein
-    vec3 lightDir = normalize(SUN_LOCATION-ray.origin);
-    float cos_angle = dot(normalize(ray.direction), lightDir);
-    float eccentricity = 0.6;//0.6;
-    float silver_intensity = 0.7;
-    float silver_spread = 0.1;
-    float HG_light = HGModified(cos_angle, eccentricity, silver_intensity, silver_spread);
+	    // Henyey-Greenstein
+	    vec3 lightDir = normalize(SUN_LOCATION-ray.origin);
+	    float cos_angle = dot(normalize(ray.direction), lightDir);
+	    float eccentricity = 0.6;//0.6;
+	    float silver_intensity = 0.7;
+	    float silver_spread = 0.1;
+	    float HG_light = HGModified(cos_angle, eccentricity, silver_intensity, silver_spread);
 
-    // Random unit vectors for your cone sample.
-    // These are positioned to be facing the sun 
-    // Create random samples within a unit cone facing world up (y direction)
-    // Construct TBN matrix towards light
-    // Then rotate unit cone towards the sun using TBN
+	    // Random unit vectors for your cone sample.
+	    // These are positioned to be facing the sun 
+	    // Create random samples within a unit cone facing world up (y direction)
+	    // Construct TBN matrix towards light
+	    // Then rotate unit cone towards the sun using TBN
 
-    vec3 maxCompUnitVector;
-    if(abs(lightDir[0]) > abs(lightDir[1]) && abs(lightDir[0]) > abs(lightDir[2]))
-    {
-        maxCompUnitVector = vec3(abs(lightDir[0]), 0.0, 0.0);
-    }
-    else if(abs(lightDir[1]) > abs(lightDir[0]) && abs(lightDir[1]) > abs(lightDir[2]))
-    {
-        maxCompUnitVector = vec3(0.0, abs(lightDir[1]), 0.0);
-    }
-    else
-    {
-        maxCompUnitVector = vec3(0.0, 0.0, abs(lightDir[2]));
-    }
-    
-    vec3 zComponent = cross(lightDir, maxCompUnitVector);
-    vec3 xComponent = cross(zComponent, lightDir);
-    mat3 sunRotMatrix = mat3(xComponent, lightDir, zComponent);
+	    vec3 maxCompUnitVector;
+	    if(abs(lightDir[0]) > abs(lightDir[1]) && abs(lightDir[0]) > abs(lightDir[2]))
+	    {
+	        maxCompUnitVector = vec3(abs(lightDir[0]), 0.0, 0.0);
+	    }
+	    else if(abs(lightDir[1]) > abs(lightDir[0]) && abs(lightDir[1]) > abs(lightDir[2]))
+	    {
+	        maxCompUnitVector = vec3(0.0, abs(lightDir[1]), 0.0);
+	    }
+	    else
+	    {
+	        maxCompUnitVector = vec3(0.0, 0.0, abs(lightDir[2]));
+	    }
+	    
+	    vec3 zComponent = cross(lightDir, maxCompUnitVector);
+	    vec3 xComponent = cross(zComponent, lightDir);
+	    mat3 sunRotMatrix = mat3(xComponent, lightDir, zComponent);
 
-    vec3 noise_kernel[] = 
-    {
-        sunRotMatrix * vec3(0.1, 0.25, -0.15),
-        sunRotMatrix * vec3(0.2, 0.5, 0.2),
-        sunRotMatrix * vec3(-0.2, 0.1, -0.1),
-        sunRotMatrix * vec3(-0.05, 0.75, 0.05),
-        sunRotMatrix * vec3(-0.1, 1.0, 0.0),
-        sunRotMatrix * vec3(0.0, 3.0, 0.0),     // One sample should be at distance 3x cone length
-    };
+	    vec3 noise_kernel[] = 
+	    {
+	        sunRotMatrix * vec3(0.1, 0.25, -0.15),
+	        sunRotMatrix * vec3(0.2, 0.5, 0.2),
+	        sunRotMatrix * vec3(-0.2, 0.1, -0.1),
+	        sunRotMatrix * vec3(-0.05, 0.75, 0.05),
+	        sunRotMatrix * vec3(-0.1, 1.0, 0.0),
+	        sunRotMatrix * vec3(0.0, 3.0, 0.0),     // One sample should be at distance 3x cone length
+	    };
     // Lighting data -------------------------------------------------------------------
-    //return end_t-start_t;
-    float count = 0.0;
+    int count = 0;
     vec3 returnColor = vec3(0.0);
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
+		if(count>80)
+		{
+			break;
+		}
+		count++;
 		vec3 colorPerSample = vec3(0.0);
-		count += 1.0;
-
-        if(accumDensity >= 1.0) 
-        {
-            accumDensity = 1.0;
-            break;
-        } //end if
 
 		pos = ray.origin + t * ray.direction;
-        
+
+		// vec3 projectedSamplePoint = getProjectedPointOnInnerSphere(pos, earthCenter);
+		relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
+		// relativeHeight = 0.1;
+
         samplePoint = getRelativePositionInAtmosphere(pos, earthCenter);
-        samplePoint /= 3.0f; //controls the frequency of how we are sampling the noise texture
+        samplePoint /= 7.0f; //controls the frequency of how we are sampling the noise texture
 
         float samplePoint_heightFraction;
-        //vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, samplePoint_heightFraction, weather_data);
-		float baseDensity = sampleLowFrequency(samplePoint, earthCenter, weather_data)*0.1;
+        vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight, weather_data);
+		float baseDensity = sampleLowFrequency(skewedSamplePoint, earthCenter, weather_data)*0.1;
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
             //Erode Base cloud shape with higher frequency noise (more expensive and so done when we know for sure we are inside the cloud)
             float density = baseDensity;//erodeCloudWithHighFrequency(baseDensity, samplePoint, samplePoint_heightFraction, weather_data);
-
+            // break;
 			accumDensity += density;
 
 			// Do Lighting calculations with cone sampling
@@ -792,13 +712,18 @@ vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in float start_t,
             // Eventually use GetLightEnergy(height_fraction, densityAlongLight, ...) for second param
             transmittance = mix(transmittance, HG_light * beersLaw, (1.0 - accumDensity));//densityAlongLight;//
 
-            accumDensity += density * (1.0 / 8.0);
             colorPerSample = vec3(transmittance * 0.05);//vec3(beersLaw);//
             returnColor += colorPerSample;
 		} //end if
 
+		if(accumDensity >= 1.0) 
+		{
+            accumDensity = 1.0;
+            break;
+        } //end if
+
 	} //end raymarcher for loop
-	return returnColor;//count/84.0;
+	return vec3(relativeHeight);//returnColor;
 }// end raymarch function
 
 void main() 
@@ -814,14 +739,13 @@ void main()
 
     // Get sky background color from Preetham Sun/Sky Model
     vec3 backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin); //day time
-    backgroundCol = vec3(0.0,0.0,0.0);
     // vec3 backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin); //sunset
 
 	if (dot( vec3(0, 1, 0), ray.direction ) < 0.0 )
 	{
 		//kill threads because we shouldnt see clouds below the horizon
 		imageStore( godRaysCreationDataImage, ivec2(gl_GlobalInvocationID.xy), vec4(BLACK, 1.0) );
-		imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol, 1.0) );
+		imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(RED, 1.0) );
 		return;
 	}
 
@@ -835,7 +759,7 @@ void main()
 	float transmittance = 1.0;
     float accumDensity = 0.0;
     vec3 weather_data = vec3(1.0,1.0,1.0);//texture(weatherMapSampler, uv).rgb;
-	vec3 rayMarchResult = rayMarch(ray, weather_data, earthCenter, atmosphereInnerIsect.t, atmosphereOuterIsect.t, accumDensity, transmittance);
+	vec3 rayMarchResult = rayMarch(ray, weather_data, earthCenter, atmosphereInnerIsect.point, atmosphereInnerIsect.t, atmosphereOuterIsect.t, accumDensity, transmittance);
 
 	// opacity fades to prevent hard cutoff at horizon blend in with 
     //accumDensity *= smoothstep(0, 1, min(1, remap(ray.direction.y, 0, 0.05, 0, 1)));
@@ -844,7 +768,9 @@ void main()
     
 	// vec4 finalColor = vec4(abs(ray.direction),1.0);
     
-    vec4 finalColor = vec4(rayMarchResult,1.0);
+    vec4 finalColor = vec4(vec3(accumDensity),1.0);
+
+    // vec4 finalColor = vec4(rayMarchResult,1.0);
 
 
     ///TEST LIGHTING
