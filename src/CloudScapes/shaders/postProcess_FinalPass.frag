@@ -16,7 +16,7 @@ layout(location = 0) out vec4 outColor;
 #define E 0.02
 #define F 0.30
 #define INVGAMMA 1.0/2.2
-#define EXPOSURE 1.0
+#define EXPOSURE 0.7
 
 vec3 Uncharted2Tonemap(vec3 x)
 {
@@ -38,10 +38,10 @@ void main()
 {
    vec3 in_color = texture(preFinalImageSampler, in_uv).rgb;
 
-   float whitepoint = 50.0f; //changes the point at which something becomes pure white --> not a hundred precent 
+   float whitepoint = 100.0f; //changes the point at which something becomes pure white --> not a hundred precent 
    //sure how it scales though I think the white point is the value that is mapped to 1.0 in the regular RGB space.
    vec3 toneMapped_color = tonemap(in_color, whitepoint);
 
-   //outColor = vec4(toneMapped_color, 1.0);
-   outColor = vec4(in_color, 1.0);
+   outColor = vec4(toneMapped_color, 1.0);
+   // outColor = vec4(in_color, 1.0);
 }
