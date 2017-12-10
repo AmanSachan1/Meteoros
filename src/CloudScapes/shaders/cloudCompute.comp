@@ -5,6 +5,12 @@
 
 #define WORKGROUP_SIZE 32
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
+
+//TODO: Ping-pong storage Images:
+//record 2 command buffers and then in the drawFrame function called onUpdate in the main function execute one and then the other;
+//Note this requires 3 different descriptor sets; one in which things that dont ping pong and the other 2 have the 2 storage images to be ping-ponged are stored but in different orders;
+//maybe just do it in 2 descriptor sets cause technically they just store pointers and so it shouldnt be terrible in memory
+
 layout (set = 0, binding = 0, rgba32f) uniform writeonly image2D currentFrameResultImage;
 layout (set = 0, binding = 1, rgba32f) uniform image2D previousFrameResultImage;
 layout (set = 0, binding = 2) uniform sampler3D cloudBaseShapeSampler;
@@ -367,15 +373,15 @@ Ray castRay( vec2 screenPoint, vec3 eye )
 	Ray r;
 
     // Extract camera information from uniform
-    vec3 camRight = normalize(vec3( camera.view[0][0], 
+	vec3 camRight = normalize(vec3( camera.view[0][0], 
 				    				camera.view[1][0], 
 				    				camera.view[2][0] ));
-    vec3 camUp =    normalize(vec3( camera.view[0][1], 
+	vec3 camUp =    normalize(vec3( camera.view[0][1], 
 				    				camera.view[1][1], 
 				    				camera.view[2][1] ));
-    vec3 camLook =  -normalize(vec3(camera.view[0][2], 
-    			    				camera.view[1][2], 
-    			    				camera.view[2][2] ));
+	vec3 camLook =  -normalize(vec3(camera.view[0][2], 
+				    				camera.view[1][2], 
+				    				camera.view[2][2] ));
 
     // ScreenPoint is in NDC space
 
@@ -498,11 +504,6 @@ float getDensityHeightGradientForPoint(vec3 point, in vec3 earthCenter, vec3 wea
     // ================================================
 }
 
-vec3 getProjectedPointOnInnerSphere(in vec3 point, in vec3 earthCenter)
-{
-	return ATMOSPHERE_RADIUS_INNER * normalize(point - earthCenter) + earthCenter;
-}
-
 float getRelativeHeightInAtmosphere(in vec3 point, in vec3 earthCenter, in vec3 startPosOnInnerShell, in vec3 rayDir, in vec3 eye)
 {
 	float lengthOfRayfromCamera = length(point - eye);
@@ -575,7 +576,7 @@ float sampleLowFrequency(vec3 point, in vec3 earthCenter, in vec3 weather_data)
     return base_cloud_with_coverage;
 }
 
-float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float height_fraction, vec3 weather_data)
+float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 point, in float height_fraction, vec3 weather_data)
 {
     // Add turbulence to the bottom of the clouds
     vec4 curlNoise = texture(curlNoiseSampler, point.xy);
@@ -584,16 +585,27 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float he
     // Sample High Frequency Noises
     vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);
 
+    float removeCloudsFactor = 1.0;
+
+    if(rayDir.y < 0.005)
+    {
+    	removeCloudsFactor = 2.0;
+    }
+
     // Build High Frequency FBM
     float high_freq_FBM = (highFrequencyNoise.r * 0.625) + 
                           (highFrequencyNoise.g * 0.25)  +
                           (highFrequencyNoise.b * 0.125); 
 	high_freq_FBM = clamp(abs(high_freq_FBM), 0.0, 1.0);
 
+	float subtractionNoise = abs((highFrequencyNoise.r - high_freq_FBM)*0.1);
+	float final_cloud = max( 0.0, baseCloud - subtractionNoise*removeCloudsFactor*0.01);
+	return final_cloud;
+
     float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 10.0, 0.0, 1.0));
 
     //Erode the base shape of the cloud with the distorted high frequency worley noises
-    float final_cloud = remap(baseCloud, high_freq_modifier * 0.2, 1.0, 0.0, 1.0);
+    final_cloud = remap(baseCloud, high_freq_modifier * 0.2, 1.0, 0.0, 1.0);
 
     return final_cloud;
 }
@@ -605,9 +617,12 @@ vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in vec3 startPos,
 	float maxSteps = floor(mix(52.0, 84.0, 1.0-_dot));
 	float stepSize = (end_t - start_t) / maxSteps;
 
+	vec3 camForward =  -normalize(vec3( camera.view[0][2], 
+				    					camera.view[1][2], 
+				    					camera.view[2][2] ));
+
     vec3 pos;
     vec3 samplePoint;
-    float relativeHeight;
 
     // Lighting data -------------------------------------------------------------------
 	    // Henyey-Greenstein
@@ -652,35 +667,31 @@ vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in vec3 startPos,
 	        sunRotMatrix * vec3(0.0, 3.0, 0.0),     // One sample should be at distance 3x cone length
 	    };
     // Lighting data -------------------------------------------------------------------
-    int count = 0;
+    // int count = 0;
     vec3 returnColor = vec3(0.0);
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
-		if(count>80)
-		{
-			break;
-		}
-		count++;
+		// if(count>80)
+		// {
+		// 	break;
+		// }
+		// count++;
 		vec3 colorPerSample = vec3(0.0);
 
 		pos = ray.origin + t * ray.direction;
 
-		// vec3 projectedSamplePoint = getProjectedPointOnInnerSphere(pos, earthCenter);
-		relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
-		// relativeHeight = 0.1;
-
         samplePoint = getRelativePositionInAtmosphere(pos, earthCenter);
         samplePoint /= 7.0f; //controls the frequency of how we are sampling the noise texture
 
-        float samplePoint_heightFraction;
+		float relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight, weather_data);
 		float baseDensity = sampleLowFrequency(skewedSamplePoint, earthCenter, weather_data)*0.1;
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
             //Erode Base cloud shape with higher frequency noise (more expensive and so done when we know for sure we are inside the cloud)
-            float density = baseDensity;//erodeCloudWithHighFrequency(baseDensity, samplePoint, samplePoint_heightFraction, weather_data);
+            float density = erodeCloudWithHighFrequency(baseDensity, ray.direction, skewedSamplePoint, relativeHeight, weather_data);
             // break;
 			accumDensity += density;
 
@@ -723,7 +734,7 @@ vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in vec3 startPos,
         } //end if
 
 	} //end raymarcher for loop
-	return vec3(relativeHeight);//returnColor;
+	return returnColor;
 }// end raymarch function
 
 void main() 
