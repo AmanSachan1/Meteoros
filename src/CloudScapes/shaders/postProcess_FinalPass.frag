@@ -15,8 +15,8 @@ layout(location = 0) out vec4 outColor;
 #define D 0.20
 #define E 0.02
 #define F 0.30
-#define INVGAMMA 1.0/2.2
-#define EXPOSURE 0.7
+#define INVGAMMA (1.0 / 2.2)
+#define EXPOSURE 3.5
 
 vec3 Uncharted2Tonemap(vec3 x)
 {
