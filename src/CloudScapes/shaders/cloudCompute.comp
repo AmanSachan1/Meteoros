@@ -53,6 +53,7 @@ struct Intersection {
 
 //Global Defines for Debug Views
 #define LIGHTING 0
+#define BEERS_TEST 0
 #define BACKGROUND_SKY 0
 
 #define CLOUDS_ALL_NOISES 0
@@ -62,6 +63,7 @@ struct Intersection {
 #define TEXTURE_HIGH_FREQ 0
 #define TEXTURE_LOW_FREQ 0
 #define HEIGHT_GRADIENT 0
+#define T_TESTS 0
 
 //Global Defines for math constants
 #define PI 3.14159265
@@ -72,17 +74,17 @@ struct Intersection {
 #define E 2.718281828459
 
 //Global Defines for Colors
-#define BLACK vec3(0,0,0)
-#define WHITE vec3(1,1,1)
+#define BLACK vec3(0, 0, 0)
+#define WHITE vec3(1, 1, 1)
 
 // Global Define for Noise FBM
 #define NUM_FBM_OCTAVES 7
 
 //Global Defines for Earth and Cloud Layers 
 #define EARTH_RADIUS 6371000.0 // earth's actual radius in km = 6371
-#define ATMOSPHERE_RADIUS_INNER EARTH_RADIUS + 7500.0 //paper suggests values of 15000-35000m above
-#define ATMOSPHERE_RADIUS_OUTER EARTH_RADIUS + 20000.0
-#define ATMOSPHERE_THICKNESS ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER
+#define ATMOSPHERE_RADIUS_INNER (EARTH_RADIUS + 7500.0) //paper suggests values of 15000-35000m above
+#define ATMOSPHERE_RADIUS_OUTER (EARTH_RADIUS + 20000.0)
+#define ATMOSPHERE_THICKNESS (ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER)
 
 #define IN_STRATUS_MIN_MAX vec2(0.0, 0.3)
 #define IN_CUMULUS_MIN_MAX vec2(0.01, 0.45)
@@ -93,19 +95,18 @@ struct Intersection {
 #define SHADOW_CUTOFF 1.6110731557
 #define SHADOW_STEEPNESS 1.5
 #define SUN_ANGULAR_COS 0.999956676946448443553574619906976478926848692873900859324
-#define MIE_CONST vec3( 1.839991851443397, 2.779802391966052, 4.079047954386109)
+#define MIE_CONST vec3(1.839991851443397, 2.779802391966052, 4.079047954386109)
 #define RAYLEIGH_TOTAL vec3(5.804542996261093E-6, 1.3562911419845635E-5, 3.0265902468824876E-5)
 
 // Global Wind Defines
-#define WIND_DIRECTION vec3(1.0,0.0,0.0)
+#define WIND_DIRECTION vec3(1.0, 0.0, 0.0)
 #define CLOUD_SPEED 0.0//0.05
 #define CLOUD_TOP_OFFSET 5.0//500.0 // this offset pushes the tops of the clouds along this wind direction by this many units
 
-// #define LightVec normalize(vec3(1.0,1.0,1.0));
-#define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO: make it a uniform so we have an animated sky
+#define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + (EARTH_RADIUS * 0.5), -EARTH_RADIUS * 1.5) //TODO: make it a uniform so we have an animated sky
 #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, EARTH_RADIUS, -EARTH_RADIUS * 10.0)
 #define SUN_COLOR vec3(1.0, 1.0, 1.0)
-#define SUN_INTENSITY 5.0
+#define SUN_INTENSITY 5.0//5.0
 
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
@@ -467,7 +468,7 @@ float getDensityHeightGradientForPoint(vec3 point, in vec3 earthCenter, vec3 wea
 {
 	// Get height <fraction></fraction>
 	// NOTE --> MIGHT NEED TO CLAMP THIS
-	float height_fraction = (length(point - earthCenter) - ATMOSPHERE_RADIUS_INNER) / (ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER);
+	float height_fraction = (length(point - earthCenter) - ATMOSPHERE_RADIUS_INNER) / ATMOSPHERE_THICKNESS;
 	
 	//Refer: 2017 pdf of slides 29/108
 	//CloudTypes --> stratus = 1; stratocumulus = 2; cumulus = 3;
@@ -524,8 +525,7 @@ float getRelativeHeightInAtmosphere(in vec3 pos, in vec3 projectedPos)
 
 vec3 getRelativePositionInAtmosphere(in vec3 pos, in vec3 earthCenter)
 {
-    return vec3( ( pos - vec3(earthCenter.x, ATMOSPHERE_RADIUS_INNER - EARTH_RADIUS, earthCenter.z) )/
-                 ( ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER ) );
+    return vec3( ( pos - vec3(earthCenter.x, ATMOSPHERE_RADIUS_INNER - EARTH_RADIUS, earthCenter.z) ) / ATMOSPHERE_THICKNESS);
 }
 
 // float sampleCloudDensity(vec3 point, vec3 weather_data)
@@ -632,13 +632,13 @@ float sampleLowFrequency(vec3 point, in vec3 earthCenter, in vec3 weather_data)
     float densityHeightGradient = getDensityHeightGradientForPoint(point, earthCenter, weather_data);
 
     //Apply Height function to the base cloud shape
-    //baseCloud *= densityHeightGradient;
+    // baseCloud *= densityHeightGradient;
 
     // Cloud coverage is stored in weather data’s red channel .
     float cloud_coverage = 0.5;// weather_data.r;
 
     // Use remap to apply the cloud coverage attribute.
-    float base_cloud_with_coverage = remap ( baseCloud, cloud_coverage , 1.0 , 0.0 , 1.0);
+    float base_cloud_with_coverage = remap (baseCloud, cloud_coverage , 1.0 , 0.0 , 1.0);
 
     // To ensure that the density increases with coverage in an aesthetically pleasing manner
     // Multiply the result by the cloud coverage attribute so that smaller clouds are lighter 
@@ -651,8 +651,8 @@ float sampleLowFrequency(vec3 point, in vec3 earthCenter, in vec3 weather_data)
 float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float height_fraction, vec3 weather_data)
 {
     // Add turbulence to the bottom of the clouds
-    // vec4 curlNoise = texture(curlNoiseSampler, point.xy);
-    // point.xy += curlNoise.xy * (1.0-height_fraction);
+    vec4 curlNoise = texture(curlNoiseSampler, point.xy);
+    point.xy += curlNoise.xy * (1.0-height_fraction);
 
     // Sample High Frequency Noises
     vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);
@@ -682,7 +682,7 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 point, in float he
 vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in float start_t, in float end_t, inout float accumDensity, inout float transmittance)
 {
 	float _dot = dot(abs(ray.direction), vec3(0.0,1.0,0.0));
-	float maxSteps = floor(mix(52.0, 84.0, 1.0-_dot));
+	float maxSteps = floor(mix(52.0, 84.0, 1.0 - _dot));
 	//TODO the above causes faint circular lines snooth it out
 
 	float stepSize = (end_t - start_t) / maxSteps;
@@ -692,13 +692,14 @@ vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in float start_t,
 
     // Lighting data -------------------------------------------------------------------
     // Henyey-Greenstein
-    vec3 lightDir = normalize(SUN_LOCATION-ray.origin);
+    vec3 lightDir = normalize(SUN_LOCATION - ray.origin);
     float cos_angle = dot(normalize(ray.direction), lightDir);
-    float eccentricity = 0.6;//0.6;
+    float eccentricity = 0.6;
     float silver_intensity = 0.7;
     float silver_spread = 0.1;
     float HG_light = HGModified(cos_angle, eccentricity, silver_intensity, silver_spread);
 
+    // Cone sampling 
     // Random unit vectors for your cone sample.
     // These are positioned to be facing the sun 
     // Create random samples within a unit cone facing world up (y direction)
@@ -732,15 +733,13 @@ vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in float start_t,
         sunRotMatrix * vec3(-0.1, 1.0, 0.0),
         sunRotMatrix * vec3(0.0, 3.0, 0.0),     // One sample should be at distance 3x cone length
     };
-    // Lighting data -------------------------------------------------------------------
-    //return end_t-start_t;
-    float count = 0.0;
+
     vec3 returnColor = vec3(0.0);
+    float baseDensity;
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
 		vec3 colorPerSample = vec3(0.0);
-		count += 1.0;
 
         if(accumDensity >= 1.0) 
         {
@@ -751,54 +750,49 @@ vec3 rayMarch(Ray ray, in vec3 weather_data, vec3 earthCenter, in float start_t,
 		pos = ray.origin + t * ray.direction;
         
         samplePoint = getRelativePositionInAtmosphere(pos, earthCenter);
-        samplePoint /= 3.0f; //controls the frequency of how we are sampling the noise texture
+        samplePoint /= 8.0f; //controls the frequency of how we are sampling the noise texture
 
         float samplePoint_heightFraction;
         //vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, samplePoint_heightFraction, weather_data);
-		float baseDensity = sampleLowFrequency(samplePoint, earthCenter, weather_data)*0.1;
+		baseDensity = sampleLowFrequency(samplePoint, earthCenter, weather_data);// * 0.1;
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
             //Erode Base cloud shape with higher frequency noise (more expensive and so done when we know for sure we are inside the cloud)
-            float density = baseDensity;//erodeCloudWithHighFrequency(baseDensity, samplePoint, samplePoint_heightFraction, weather_data);
-
-			accumDensity += density;
+            //float density = baseDensity;//erodeCloudWithHighFrequency(baseDensity, samplePoint, samplePoint_heightFraction, weather_data);
 
 			// Do Lighting calculations with cone sampling
 			float densityAlongLight = 0.0;
 			int light_samples = 6;
-
-			for(int i=0; i<light_samples; i++)
+			for(int i = 0; i < light_samples; ++i)
 			{
 				// Add the current step offset to the sample position
                 vec3 lightPos = pos + (stepSize * noise_kernel[i] * float(i));
-
                	vec3 sampleLightPos =  getRelativePositionInAtmosphere(lightPos, earthCenter);
-
-                float currLightDensity = sampleLowFrequency(sampleLightPos, earthCenter, weather_data)*0.2;
-                //Add back high frequency later
-
-                // BUG: CURRLIGHTDENSITY IS ALWAYS NEGATIVE
+                float currLightDensity = sampleLowFrequency(sampleLightPos, earthCenter, weather_data);
+                
                 if(currLightDensity > 0.0)
                 {
-                	densityAlongLight += currLightDensity;// * 0.25; //if using sampleLightPos
+                	// TODO: Add back high frequency later
+                	densityAlongLight += currLightDensity;
                 }
-			}
+			}// end lighting loop
 
 			float attenuation_factor = 0.25;
             float influence_factor = 0.7;
-            float beersLaw = BeerLambertModified(densityAlongLight, attenuation_factor, influence_factor);
+            float beersLaw = BeerLambertModified(-densityAlongLight, attenuation_factor, influence_factor);
+            beersLaw = mix(exp(-densityAlongLight), beersLaw, cos_angle * -0.5 + 0.5); // Changes from [-1,1] to [0,1] range
 
-            // Eventually use GetLightEnergy(height_fraction, densityAlongLight, ...) for second param
-            transmittance = mix(transmittance, HG_light * beersLaw, (1.0 - accumDensity));//densityAlongLight;//
-
-            accumDensity += density * (1.0 / 8.0);
-            colorPerSample = vec3(transmittance * 0.05);//vec3(beersLaw);//
+            // Eventually use GetLightEnergy for second param
+            transmittance = mix(transmittance, HG_light * beersLaw, (1.0 - accumDensity));
+            colorPerSample = vec3(transmittance * 0.05);
             returnColor += colorPerSample;
+
+            accumDensity += baseDensity * 0.1;
 		} //end if
 
 	} //end raymarcher for loop
-	return returnColor;//count/84.0;
+	return returnColor;
 }// end raymarch function
 
 void main() 
@@ -812,10 +806,12 @@ void main()
 	vec3 eyePos = -camera.eye.xyz;
 	Ray ray = castRay(screenPoint, eyePos);
 
+
     // Get sky background color from Preetham Sun/Sky Model
     vec3 backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin); //day time
-    backgroundCol = vec3(0.0,0.0,0.0);
     // vec3 backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin); //sunset
+    // backgroundCol = vec3(0.0,0.0,0.0);	// TEST
+
 
 	if (dot( vec3(0, 1, 0), ray.direction ) < 0.0 )
 	{
@@ -834,31 +830,31 @@ void main()
 	// Ray March
 	float transmittance = 1.0;
     float accumDensity = 0.0;
-    vec3 weather_data = vec3(1.0,1.0,1.0);//texture(weatherMapSampler, uv).rgb;
+    vec3 weather_data = vec3(1.0, 1.0, 1.0);//texture(weatherMapSampler, uv).rgb;
 	vec3 rayMarchResult = rayMarch(ray, weather_data, earthCenter, atmosphereInnerIsect.t, atmosphereOuterIsect.t, accumDensity, transmittance);
 
-	// opacity fades to prevent hard cutoff at horizon blend in with 
-    //accumDensity *= smoothstep(0, 1, min(1, remap(ray.direction.y, 0, 0.05, 0, 1)));
+	// Opacity fades to prevent hard cutoff at horizon blend in with 
+    accumDensity *= smoothstep(0, 1, min(1, remap(ray.direction.y, 0, 0.05, 0, 1)));
 
-    //vec4 finalColor = vec4(mix(backgroundCol, vec3(clamp(transmittance, 0.0, 1.0)), accumDensity), 1.0);
-    
-	// vec4 finalColor = vec4(abs(ray.direction),1.0);
-    
-    vec4 finalColor = vec4(rayMarchResult,1.0);
-
-
-    ///TEST LIGHTING
-    // vec3 lightDir = normalize(SUN_LOCATION-ray.origin);
-    // float cos_angle = dot(normalize(ray.direction), lightDir);
-    // float eccentricity = 0.6;
-    // float silver_intensity = 0.7;
-    // float silver_spread = 0.1;
-    // float HG_light = HGModified(cos_angle, eccentricity, silver_intensity, silver_spread);
-
-    // finalColor = vec4(vec3(HG_light), 1.0);
+    // HOW DO I DO AMBIENT LIGHT?
+    // vec3 ambientLight = vec3(0.02);
+    // vec3 combinedLight = ambientLight * rayMarchResult;
+    //vec4 finalColor = vec4(mix(backgroundCol, vec3(clamp(transmittance, 0.0, 1.0)), accumDensity), 1.0);	// I THINK THIS IS WRONG
+    vec4 finalColor = vec4(mix(backgroundCol, rayMarchResult, accumDensity), 1.0);
 
 
-    
+
+
+
+    //TEST LIGHTING -----------------------------------------
+    vec3 lightDir = normalize(SUN_LOCATION-ray.origin);
+    float cos_angle = dot(normalize(ray.direction), lightDir);
+    float eccentricity = 0.6;
+    float silver_intensity = 0.7;
+    float silver_spread = 0.1;
+    float HG_light = HGModified(cos_angle, eccentricity, silver_intensity, silver_spread);
+    // ------------------------------------------------------
+
     //godrays
     float lightIntensity = length(backgroundCol)/length(WHITE);
     vec4 greyScaleColor = lightColor;
@@ -884,9 +880,27 @@ void main()
 #elif CLOUDS_ALL_NOISES
 	finalColor = vec4( vec3(accumDensity), 1.0 );
 #elif LIGHTING
-	finalColor = vec4(vec3(hg_light), 1.0);
+	finalColor = vec4(vec3(HG_light), 1.0);
 #elif BACKGROUND_SKY
 	finalColor = vec4(backgroundCol, 1.0);
+#elif T_TESTS
+	if(atmosphereInnerIsect.valid == false)	
+	{
+		// Renders red if innerIsect not valid
+		finalColor = vec4(1.0, 0.0, 0.0, 1.0);
+	}
+	if(atmosphereOuterIsect.valid == false)	
+	{
+		// Renders green if outerIsect not valid
+		finalColor = vec4(0.0, 1.0, 0.0, 1.0);
+	}
+	else									
+	{
+		// Renders blue if both isects valid
+		finalColor = vec4(0.0, 0.0, 1.0, 1.0);
+	}
+#elif BEERS_TEST
+	finalColor = vec4(rayMarchResult, 1.0);
 #endif
 	
 	//Pass the color off to the cloud pipeline's frag shader
