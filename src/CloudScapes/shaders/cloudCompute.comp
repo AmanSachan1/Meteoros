@@ -370,12 +370,12 @@ float calcSunIntensity()
 	return EE * max(0.0, 1.0 - pow(E, -((SHADOW_CUTOFF - acos(zenithAngleCos)) / SHADOW_STEEPNESS)));
 }
 
-vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir) 
+vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir, float sunIntensity) 
 {
     vec3 color = vec3(0);
 
     sunDir = normalize(sunDir); 
-    float sunE = SUN_INTENSITY * calcSunIntensity(); 
+    float sunE = sunIntensity * calcSunIntensity(); 
     vec3 BetaR = calcSkyBetaR();   
     vec3 BetaM = calcSkyBetaV(); 
 
@@ -418,7 +418,7 @@ vec3 getAtmosphereColorPhysical(vec3 dir, vec3 sunDir)
 //					CLOUD SAMPLING
 //--------------------------------------------------------
 
-float getDensityHeightGradientForPoint(vec3 point, in float relativeHeight, in vec3 earthCenter, float cloudType)
+float getDensityHeightGradientForPoint(in float relativeHeight, in float cloudType)
 {
     relativeHeight = clamp(relativeHeight, 0.0, 1.0);
 
@@ -440,7 +440,7 @@ vec3 skewSamplePointWithWind(in vec3 point, inout float height_fraction)
     return point;
 }
 
-float sampleLowFrequency(vec3 point, in float relativeHeight, in vec3 earthCenter)
+float sampleLowFrequency(vec3 point, in vec3 unskewedSamplePoint, in float relativeHeight, in vec3 earthCenter)
 {
     //Read in the low-frequency Perlin-Worley noises and Worley noises
     vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point);
@@ -454,15 +454,16 @@ float sampleLowFrequency(vec3 point, in float relativeHeight, in vec3 earthCente
     // Define the base cloud shape by dilating it with the low-frequency FBM
     float baseCloud = remap( lowFrequencyNoises.r, -(1.0 - lowFrequencyFBM), 1.0, 0.0, 1.0 );
     
+    // TODO: Use weater map for cloud types and blend between them and their densities
     // ------------------ only screws it up; but needed for blending cloud types -----------------------
     //Get the density-height gradient
-    vec2 weatherSamplePoint = point.xz/100.0f;
+    vec2 weatherSamplePoint = unskewedSamplePoint.xz/50000.0f;
     vec3 weather_data = texture(weatherMapSampler, weatherSamplePoint).rgb;
     float cloudType = weather_data.g;
-    float densityHeightGradient = getDensityHeightGradientForPoint(point, relativeHeight, earthCenter, weather_data.g);
+    float densityHeightGradient = getDensityHeightGradientForPoint(relativeHeight, weather_data.g);
 
     //Apply Height function to the base cloud shape
-    // baseCloud *= densityHeightGradient*0.8;
+    baseCloud *= densityHeightGradient*0.8;
     // -------------------------------------------------------------------------------------------------
 
     // Cloud coverage is stored in weather data’s red channel .
@@ -477,7 +478,7 @@ float sampleLowFrequency(vec3 point, in float relativeHeight, in vec3 earthCente
     // and more aesthetically pleasing
     base_cloud_with_coverage *= cloud_coverage;
 
-    return base_cloud_with_coverage;//base_cloud_with_coverage;
+    return base_cloud_with_coverage;
 }
 
 float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 point, in float height_fraction)
@@ -490,11 +491,12 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
     vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);
 
     float removeCloudsFactor = 1.0;
-    if(rayDir.y < 0.035)
-    {
-    	float factor = remap(rayDir.y, 0.0, 0.035, 1.0, 0.0);
-    	removeCloudsFactor = factor * 20.0;
-    }
+    //Uncomment below for another fade out of clouds below a certain angle of the ray dir
+    // if(rayDir.y < 0.035)
+    // {
+    // 	float factor = remap(rayDir.y + 0.005, 0.005, 0.035, 1.0, 0.0);
+    // 	removeCloudsFactor = factor * 5.0;
+    // }
 
     // Build High Frequency FBM
     float high_freq_FBM = (highFrequencyNoise.r * 0.625) + 
@@ -504,7 +506,7 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
 
 	//Erode the base shape of the cloud with the distorted high frequency worley noises
 	float subtractionNoise = abs((highFrequencyNoise.r - high_freq_FBM)*0.1);
-	float final_cloud = max( 0.0, baseCloud - subtractionNoise*removeCloudsFactor*0.1);
+	float final_cloud = max( 0.0, baseCloud - subtractionNoise*removeCloudsFactor*0.7);
 	return final_cloud;
 }
 
@@ -565,16 +567,10 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
     // Lighting data -------------------------------------------------------------------
     // int count = 0;
     vec3 returnColor = vec3(0.0);
-    float relativeHeight;
     float baseDensity;
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
-		// if(count>80)
-		// {
-		// 	break;
-		// }
-		// count++;
 		vec3 colorPerSample = vec3(0.0);
 
 		pos = ray.origin + t * ray.direction;
@@ -582,9 +578,9 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
         samplePoint = getRelativePositionInAtmosphere(pos, earthCenter);
         samplePoint /= 8.0f; //controls the frequency of how we are sampling the noise texture
 
-		relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
+		float relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight);
-		baseDensity = sampleLowFrequency(skewedSamplePoint, relativeHeight, earthCenter)*0.1; //helps for early termination of rays
+		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter)*0.2; //helps for early termination of rays
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
@@ -603,7 +599,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
                	vec3 sampleLightPos =  getRelativePositionInAtmosphere(lightPos, earthCenter);
 
-                float currLightDensity = sampleLowFrequency(sampleLightPos, relativeHeight, earthCenter)*0.2;
+                float currLightDensity = sampleLowFrequency(sampleLightPos, sampleLightPos, relativeHeight, earthCenter)*0.2;
                 //Add back high frequency later
 
                 // BUG: CURRLIGHTDENSITY IS ALWAYS NEGATIVE
@@ -631,7 +627,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
         } //end if
 
 	} //end raymarcher for loop
-	return vec3(baseDensity);//returnColor
+	return returnColor;
 }// end raymarch function
 
 void main() 
@@ -639,21 +635,30 @@ void main()
     ivec2 dim = imageSize(currentFrameResultImage);
 	vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
 
-	// Cast a ray
 	uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
 	vec3 eyePos = -camera.eye.xyz;
 	Ray ray = castRay(uv, eyePos);
 
-    // Get sky background color from Preetham Sun/Sky Model
-    vec3 backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin); //day time
-    // vec3 backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin); //sunset
+	float sunIntensity = SUN_INTENSITY;
+	vec3 backgroundCol = BLACK;
 
-	if (dot( vec3(0, 1, 0), ray.direction ) < 0.0 )
+	if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.0 )
 	{
 		//kill threads because we shouldnt see clouds below the horizon
+		//magic numbers to make the colors look good after a tone map
+		vec3 colorNearHorizon = vec3(0.0, 0.16, 0.51) * 3.0; //dark ocean blue
+		vec3 color2 = vec3(0.0, 0.73, 0.95) * 4.0; //light ocean blue
+		backgroundCol = mix(colorNearHorizon, color2, -ray.direction.y);
+
 		imageStore( godRaysCreationDataImage, ivec2(gl_GlobalInvocationID.xy), vec4(BLACK, 1.0) );
-		imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(RED, 1.0) );
+		imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol, 1.0) );
 		return;
+	}
+	else
+	{
+		// Get sky background color from Preetham Sun/Sky Model
+		// backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin, sunIntensity); //day time
+		backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin, sunIntensity); //sunset
 	}
 
 	// Find the start and end points of the ray march
@@ -670,10 +675,7 @@ void main()
 	// Blend and fade out clouds into the horizon
     accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.0, 0.015, 0.0, 1.0)));
 
-    //vec4 finalColor = vec4(mix(backgroundCol, vec3(clamp(transmittance, 0.0, 1.0)), accumDensity), 1.0);
-    
-    vec4 finalColor = vec4(vec3(accumDensity),1.0);
-// vec4 finalColor = vec4(vec3(rayMarchResult),1.0);
+    vec4 finalColor = vec4(mix(backgroundCol, vec3(accumDensity), accumDensity), 1.0);
 
     //godrays
     float lightIntensity = length(backgroundCol)/length(WHITE);

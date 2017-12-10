@@ -123,7 +123,7 @@ namespace
 
 int main(int argc, char** argv) 
 {
-    static constexpr char* applicationName = "CIS 565: Final Project -- Vertical Multiple Dusks";
+    static constexpr char* applicationName = "Meteoros";
     InitializeWindow(window_width, window_height, applicationName);
 
     unsigned int glfwExtensionCount = 0;

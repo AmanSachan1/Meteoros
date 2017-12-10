@@ -1,5 +1,5 @@
 #include "Renderer.h"
-//VK_FORMAT_R32G32B32A32_SFLOAT
+
 Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height)
 	: device(device),
 	logicalDevice(device->GetVkDevice()),
@@ -879,22 +879,24 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//------------------------
 		//--- Graphics Pipeline---
 		//------------------------
+		
+		// Uncomment for models :D --> except we can only load small obj's at the moment
+		
+		//// Bind the graphics pipeline
+		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-		// Bind the graphics pipeline
-		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		//// Bind graphics descriptor set
+		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
+		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
 
-		// Bind graphics descriptor set
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
-		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
+		//// Bind the vertex and index buffers
+		//VkDeviceSize geomOffsets[] = { 0 };
+		//const VkBuffer geomVertices = scene->GetModels()[0]->getVertexBuffer();
+		//vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
+		//vkCmdBindIndexBuffer(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-		// Bind the vertex and index buffers
-		VkDeviceSize geomOffsets[] = { 0 };
-		const VkBuffer geomVertices = scene->GetModels()[0]->getVertexBuffer();
-		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
-		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-		// Draw indexed triangle
-		vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
+		//// Draw indexed triangle
+		//vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
 
 		//-----------------------------
 		//--- PostProcess Pipelines ---
