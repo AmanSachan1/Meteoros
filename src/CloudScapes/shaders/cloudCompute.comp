@@ -99,7 +99,7 @@ struct Intersection {
 
 // Global Wind Defines
 #define WIND_DIRECTION vec3(1.0,0.0,0.0)
-#define CLOUD_SPEED 0.05
+#define CLOUD_SPEED (0.01*1.7)
 #define CLOUD_TOP_OFFSET 5.0// this offset pushes the tops of the clouds along this wind direction by this many units
 
 // #define LightVec normalize(vec3(1.0,1.0,1.0));
@@ -580,7 +580,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
 		float relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight);
-		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter)*0.2; //helps for early termination of rays
+		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter); //helps for early termination of rays
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
@@ -599,8 +599,8 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
                	vec3 sampleLightPos =  getRelativePositionInAtmosphere(lightPos, earthCenter);
 
-                float currLightDensity = sampleLowFrequency(sampleLightPos, sampleLightPos, relativeHeight, earthCenter)*0.2;
-                //Add back high frequency later
+                float currBaseLightDensity = sampleLowFrequency(sampleLightPos, sampleLightPos, relativeHeight, earthCenter);
+                float currLightDensity = erodeCloudWithHighFrequency(currBaseLightDensity, ray.direction, skewedSamplePoint, relativeHeight);
 
                 // BUG: CURRLIGHTDENSITY IS ALWAYS NEGATIVE
                 if(currLightDensity > 0.0)
@@ -675,7 +675,7 @@ void main()
 	// Blend and fade out clouds into the horizon
     accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.0, 0.015, 0.0, 1.0)));
 
-    vec4 finalColor = vec4(mix(backgroundCol, vec3(accumDensity), accumDensity), 1.0);
+    vec4 finalColor = vec4(mix(backgroundCol, 7.0 * vec3 (accumDensity), accumDensity), 1.0);
 
     //godrays
     float lightIntensity = length(backgroundCol)/length(WHITE);
