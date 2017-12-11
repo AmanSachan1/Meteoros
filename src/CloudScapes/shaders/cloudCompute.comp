@@ -557,7 +557,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 	float maxSteps = floor(mix(52.0, 84.0, 1.0 - _dot));
 
 	// MANIPULATE ME 
-	float stepSize = ((end_t - start_t) / maxSteps) * 0.35;// * 0.25; // * 0.1;    // Make step size smaller to remove banding
+	float stepSize = ((end_t - start_t) / maxSteps) * 0.5;// * 0.25; // * 0.1;    // Make step size smaller to remove banding
 
     vec3 pos;
     vec3 samplePoint;
@@ -622,7 +622,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight);
 
         // MANIPULATE ME 
-        float baseDensityFactor = 0.15;//0.5; //* 0.75; //* 0.2; // increase this to get more dense cloud centers 
+        float baseDensityFactor = 0.25;//0.5; //* 0.75; //* 0.2; // increase this to get more dense cloud centers 
 		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter) * baseDensityFactor; //helps for early termination of rays
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
@@ -704,7 +704,7 @@ void main()
 	{
 		//kill threads because we shouldnt see clouds below the horizon
 		//magic numbers to make the colors look good after a tone map
-		vec3 colorNearHorizon = vec3(0.0, 0.16, 0.51) * 1.0; //dark ocean blue
+		vec3 colorNearHorizon = vec3(0.0, 0.16, 0.51) * 2.0; //dark ocean blue
 		vec3 color2 = vec3(0.0, 0.73, 0.95) * 0.5; //light ocean blue
 		backgroundCol = mix(colorNearHorizon, color2, -ray.direction.y);
 
@@ -731,7 +731,7 @@ void main()
 	vec3 rayMarchResult = rayMarch(ray, earthCenter, atmosphereInnerIsect.point, atmosphereInnerIsect.t, atmosphereOuterIsect.t, accumDensity, transmittance);
 
 	// Blend and fade out clouds into the horizon (CHANGE THIRD PARAM IN REMAP)
-    accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.0, 0.09, 0.0, 1.0))); 
+    accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.0, 0.1, 0.0, 1.0))); 
     
     // Get the final color
     // vec4 finalColor = vec4(mix(backgroundCol, 7.0 * vec3 (accumDensity), accumDensity), 1.0);
