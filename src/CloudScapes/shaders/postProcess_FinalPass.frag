@@ -16,7 +16,15 @@ layout(location = 0) out vec4 outColor;
 #define E 0.02
 #define F 0.30
 #define INVGAMMA (1.0 / 2.2)
-#define EXPOSURE 1.7
+#define EXPOSURE 3.7
+
+
+
+//column based
+mat3 sobel_x = mat3(vec3(-1.0, -2.0, -1.0), vec3(0.0), vec3(1.0, 2.0, 1.0));
+mat3 sobel_y = mat3(vec3(-1.0, 0.0, 1.0), vec3(-2.0, 0.0, 2.0), vec3(-1.0, 0.0, 1.0));
+
+
 
 vec3 Uncharted2Tonemap(vec3 x)
 {
@@ -37,6 +45,39 @@ vec3 tonemap(vec3 x, float whiteBalance)
 void main() 
 {
    vec3 in_color = texture(preFinalImageSampler, in_uv).rgb;
+
+
+   // // SOBEL FILTERING
+   // float offset = 0.001;
+
+   // // Neighbors
+   // vec2 _a = vec2(in_uv.x - offset, in_uv.y - offset);
+   // vec2 _b = vec2(in_uv.x, in_uv.y - offset);
+   // vec2 _c = vec2(in_uv.x + offset, in_uv.y - offset);
+
+   // vec2 _d = vec2(in_uv.x - offset, in_uv.y);
+   // vec2 _e = vec2(in_uv.x, in_uv.y);
+   // vec2 _f = vec2(in_uv.x + offset, in_uv.y);
+
+   // vec2 _g = vec2(in_uv.x - offset, in_uv.y + offset);
+   // vec2 _h = vec2(in_uv.x, in_uv.y + offset);
+   // vec2 _i = vec2(in_uv.x + offset, in_uv.y + offset);
+
+
+   // vec4 pixel_x = (sobel_x[0][0] * vec4(texture(preFinalImageSampler, _a))) + (sobel_x[0][1] * vec4(texture(preFinalImageSampler, _b))) + (sobel_x[0][2] * vec4(texture(preFinalImageSampler, _c))) +
+   //                (sobel_x[1][0] * vec4(texture(preFinalImageSampler, _d))) + (sobel_x[1][1] * vec4(texture(preFinalImageSampler, _e))) + (sobel_x[1][2] * vec4(texture(preFinalImageSampler, _f))) +
+   //                (sobel_x[2][0] * vec4(texture(preFinalImageSampler, _g))) + (sobel_x[2][1] * vec4(texture(preFinalImageSampler, _h))) + (sobel_x[2][2] * vec4(texture(preFinalImageSampler, _i)));
+
+
+   // vec4 pixel_y = (sobel_y[0][0] * vec4(texture(preFinalImageSampler, _a))) + (sobel_y[0][1] * vec4(texture(preFinalImageSampler, _b))) + (sobel_y[0][2] * vec4(texture(preFinalImageSampler, _c))) +
+   //                (sobel_y[1][0] * vec4(texture(preFinalImageSampler, _d))) + (sobel_y[1][1] * vec4(texture(preFinalImageSampler, _e))) + (sobel_y[1][2] * vec4(texture(preFinalImageSampler, _f))) +
+   //                (sobel_y[2][0] * vec4(texture(preFinalImageSampler, _g))) + (sobel_y[2][1] * vec4(texture(preFinalImageSampler, _h))) + (sobel_y[2][2] * vec4(texture(preFinalImageSampler, _i)));
+
+
+   // vec4 _result = sqrt((pixel_x * pixel_x) + (pixel_y * pixel_y));
+
+   // float gray = dot(in_color, vec3(0.299, 0.587, 0.114));
+   // in_color = vec3(gray) * vec3(_result[0], _result[1], _result[2]);
 
    float whitepoint = 100.0f; //changes the point at which something becomes pure white --> not a hundred precent 
    //sure how it scales though I think the white point is the value that is mapped to 1.0 in the regular RGB space.
