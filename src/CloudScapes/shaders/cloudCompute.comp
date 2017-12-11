@@ -309,18 +309,18 @@ float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phas
     // In-scattering – one difference from presentation slides – we also reduce this effect once light has attenuated to make it directional.
 
     // FIRST INSTANCE
-    float depth_probability = mix( 0.05 + pow(ds_loded, 
-                                              remap(height_fraction, 0.3, 0.85, 0.5, 2.0))
-                                 , 1.0, clamp( dl / step_size, 0.0, 1.0));
+    // float depth_probability = mix( 0.05 + pow(ds_loded, 
+    //                                           remap(height_fraction, 0.3, 0.85, 0.5, 2.0))
+    //                              , 1.0, clamp( dl / step_size, 0.0, 1.0));
     
     // --------------------------------------------------------------------------------------------------------------------
 
     // SECOND INSTANCE
-    // float depth_probability = mix(0.05 + pow(ds_loded, clamp(
-    // 														remap(height_fraction, 0.3, 0.85, 0.5, 2.0), 
-    // 														0.6, 2.0)), 
-    // 							1.0, 
-    // 							clamp(dl / step_size, 0.0, 1.0));
+    float depth_probability = mix(0.05 + pow(ds_loded, clamp(
+    														remap(height_fraction, 0.3, 0.85, 0.5, 2.0), 
+    														0.6, 2.0)), 
+    							1.0, 
+    							clamp(dl / step_size, 0.0, 1.0));
 
 
     float vertical_probability = pow(clamp(
@@ -472,10 +472,10 @@ float sampleLowFrequency(vec3 point, in vec3 unskewedSamplePoint, in float relat
     // TODO: Use weater map for cloud types and blend between them and their densities
     // ------------------ only screws it up; but needed for blending cloud types -----------------------
     //Get the density-height gradient
-    vec2 weatherSamplePoint = unskewedSamplePoint.xz;// / 50.0;// / 50.0;//50000.0f;
-    vec3 weather_data = texture(weatherMapSampler, weatherSamplePoint).rgb;
-    float cloudType = weather_data.g;
-    float densityHeightGradient = getDensityHeightGradientForPoint(relativeHeight, weather_data.g);
+    // vec2 weatherSamplePoint = unskewedSamplePoint.xz;// / 50.0;// / 50.0;//50000.0f;
+    // vec3 weather_data = texture(weatherMapSampler, weatherSamplePoint).rgb;
+    // float cloudType = weather_data.g;
+    // float densityHeightGradient = getDensityHeightGradientForPoint(relativeHeight, weather_data.g);
 
     //Apply Height function to the base cloud shape
     // baseCloud *= densityHeightGradient * 0.9;// * 0.8;
@@ -524,18 +524,16 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
 	// float subtractionNoise = abs((highFrequencyNoise.r - high_freq_FBM));// * 0.1);// * 0.5); // * 0.1);
     float subtractionNoise = max(0.0, (highFrequencyNoise.r - high_freq_FBM) * 0.1);// * 0.5); // * 0.1);
 
-	float final_cloud = max( 0.0, baseCloud - subtractionNoise * removeCloudsFactor * 0.7);
+	float final_cloud = max( 0.0, baseCloud - subtractionNoise * removeCloudsFactor);// * 0.7);
 	return final_cloud;
 }
 
 vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in float end_t, inout float accumDensity, inout float transmittance)
 {
 	//TODO the above causes faint circular lines smooth it out
-	float _dot = dot(abs(ray.direction), vec3(0.0,1.0,0.0));
-	float maxSteps = floor(mix(52.0, 84.0, 1.0-_dot));
-	float stepSize = ((end_t - start_t) / maxSteps) * 0.25; // * 0.1;    // Make step size smaller to remove banding
-
-	vec3 camForward =  -normalize(vec3( camera.view[0][2], camera.view[1][2], camera.view[2][2] ));
+	float _dot = dot(abs(ray.direction), vec3(0.0, 1.0, 0.0));
+	float maxSteps = floor(mix(52.0, 84.0, 1.0 - _dot));
+	float stepSize = ((end_t - start_t) / maxSteps) * 0.25;// * 0.5; // * 0.1;    // Make step size smaller to remove banding
 
     vec3 pos;
     vec3 samplePoint;
@@ -598,12 +596,12 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
 		float relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight);
-		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter);// * 0.25; //helps for early termination of rays
+		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter) * 0.2; //helps for early termination of rays
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
             //Erode Base cloud shape with higher frequency noise (more expensive and so done when we know for sure we are inside the cloud)
-            float highFreqDensity = erodeCloudWithHighFrequency(0.01 * baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
+            float highFreqDensity = erodeCloudWithHighFrequency(0.2 * baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
 			accumDensity += highFreqDensity;
 
             // accumDensity += baseDensity;
