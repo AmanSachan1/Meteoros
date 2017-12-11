@@ -332,7 +332,7 @@ float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phas
 
 
     // THIRD INSTANCE ------> LOOKS ESSENTIALLY SAME AS SECOND INSTANCE
-    float depth_probability = 0.05 + pow(ds_loded, clamp(remap(height_fraction, 0.3, 0.85, 0.5, 2.0), 0.5, 2.0));
+    float depth_probability = 0.05 + pow(ds_loded, clamp(remap(height_fraction * 0.5, 0.3, 0.85, 0.5, 2.0), 0.5, 2.0));
     float vertical_probability = pow(clamp(remap(height_fraction, 0.07, 0.34, 0.1, 1.0), 0.1, 1.0), 0.8);
 
 
