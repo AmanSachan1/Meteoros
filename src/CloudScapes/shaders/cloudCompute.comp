@@ -108,9 +108,11 @@ struct Intersection {
 #define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER * 0.9, -ATMOSPHERE_RADIUS_OUTER * 0.9)
 
 
-#define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, EARTH_RADIUS, -EARTH_RADIUS * 10.0)
+#define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, EARTH_RADIUS * 2.0, -EARTH_RADIUS * 10.0)
+// #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER * 0.9, -ATMOSPHERE_RADIUS_OUTER * 0.9)
+
 #define SUN_COLOR vec3(1.0, 1.0, 1.0)
-#define SUN_INTENSITY 2.0;//2.5;//5.0
+#define SUN_INTENSITY 1.0;//2.5;//5.0
 
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
@@ -706,7 +708,7 @@ void main()
 		//magic numbers to make the colors look good after a tone map
 		vec3 colorNearHorizon = vec3(0.0, 0.16, 0.51) * 0.4; //dark ocean blue
 		vec3 color2 = vec3(0.0, 0.73, 0.95) * 0.5; //light ocean blue
-		backgroundCol = mix(colorNearHorizon, color2, -ray.direction.y * 1.5);
+		backgroundCol = mix(colorNearHorizon, color2, -ray.direction.y * 5.5);
 
 		imageStore( godRaysCreationDataImage, ivec2(gl_GlobalInvocationID.xy), vec4(BLACK, 1.0) );
 		imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol, 1.0) );
@@ -730,6 +732,8 @@ void main()
     float accumDensity = 0.0;
 	vec3 rayMarchResult = rayMarch(ray, earthCenter, atmosphereInnerIsect.point, atmosphereInnerIsect.t, atmosphereOuterIsect.t, accumDensity, transmittance);
 
+	float godRaysAccumDensity = accumDensity;//min(0.2, accumDensity);
+
 	// Blend and fade out clouds into the horizon (CHANGE THIRD PARAM IN REMAP)
     accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.0, 0.15, 0.0, 1.0))); 
     
@@ -737,10 +741,19 @@ void main()
     // vec4 finalColor = vec4(mix(backgroundCol, 7.0 * vec3 (accumDensity), accumDensity), 1.0);
     vec4 finalColor = vec4(mix(backgroundCol, rayMarchResult, accumDensity), 1.0);
 
-    // Godrays
-    float lightIntensity = length(backgroundCol)/length(WHITE);
-    vec4 greyScaleColor = lightColor;
-    greyScaleColor.a = mix(0.0, lightIntensity, 1.0 - accumDensity);
+    // // Godrays
+    // float lightIntensity = length(backgroundCol)/length(WHITE);
+    // vec4 greyScaleColor = vec4(1.0);//lightColor;
+    // // greyScaleColor.a = mix(0.0, lightIntensity, 1.0 - accumDensity);
+    // greyScaleColor.a = mix(0.0, 0.01, 1.0 - accumDensity);
+
+	vec4 greyScaleColor = 25.0 * min(vec4(0.05), vec4(1.0 - godRaysAccumDensity));
+	// vec4 greyScaleColor = 10.0 * vec4(1.0 - godRaysAccumDensity);
+	if(ray.direction.y < 0.05)
+	{
+		greyScaleColor *= max( 5.0, ray.direction.y);
+		// greyScaleColor *= max(0.05, ray.direction.y);
+	}
 
 
     // //TEST LIGHTING -----------------------------------------

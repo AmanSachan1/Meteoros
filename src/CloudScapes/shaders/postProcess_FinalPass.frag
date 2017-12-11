@@ -16,7 +16,7 @@ layout(location = 0) out vec4 outColor;
 #define E 0.02
 #define F 0.30
 #define INVGAMMA (1.0 / 2.2)
-#define EXPOSURE 2.7
+#define EXPOSURE 2.5
 
 
 
