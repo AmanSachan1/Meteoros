@@ -57,7 +57,7 @@ void godRayLoop(in vec2 sampleUV, inout vec4 sampleValue, inout float illuminati
 void main()
 {
 	ivec2 dim = imageSize(currentFrameResultImage); //texture(currentFrameResultImage, fragTexCoord).rgb;
-	ivec2 pixelPos = ivec2(floor(dim.x * in_uv.x), floor(dim.y * in_uv.y));
+	ivec2 pixelPos = clamp(ivec2(round(float(dim.x) * in_uv.x), round(float(dim.y) * in_uv.y)), ivec2(0.0), ivec2(dim.x - 1, dim.y - 1));
 	vec2 uv = in_uv;
 
 	int numSamples = MAX_SAMPLES;
@@ -127,8 +127,14 @@ void main()
 		}
 	}
 
-	vec4 god_ray_color =  vec4( accumColor*EXPOSURE, 1.0 ) * blendFactor; //texture(godRayCreationDataSampler, uv);//
+	vec4 god_ray_color =  vec4( accumColor * EXPOSURE, 1.0 ) * blendFactor; //texture(godRayCreationDataSampler, uv);//
 	vec4 originalpixelColor = imageLoad( currentFrameResultImage, pixelPos );
+
+	// if(length(god_ray_color) < 0.001) {
+	// 	god_ray_color = vec4(1, 0, 0, 1);
+	// }
+	// vec4 final_color = vec4(originalpixelColor.aaa, 1);///*originalpixelColor + */god_ray_color;
+
 	vec4 final_color = originalpixelColor + god_ray_color;
 
 	imageStore( currentFrameResultImage, pixelPos, final_color );
