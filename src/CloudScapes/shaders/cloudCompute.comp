@@ -102,11 +102,15 @@ struct Intersection {
 #define CLOUD_SPEED (0.005) //*1.7
 #define CLOUD_TOP_OFFSET 5.0// this offset pushes the tops of the clouds along this wind direction by this many units
 
+
 // #define LightVec normalize(vec3(1.0,1.0,1.0));
-#define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO:change it through uniform for an animated sky
+// #define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO:change it through uniform for an animated sky'
+#define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER * 0.9, -ATMOSPHERE_RADIUS_OUTER * 0.9)
+
+
 #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, EARTH_RADIUS, -EARTH_RADIUS * 10.0)
 #define SUN_COLOR vec3(1.0, 1.0, 1.0)
-#define SUN_INTENSITY 2.5;//5.0
+#define SUN_INTENSITY 1.0;//2.5;//5.0
 
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
@@ -433,7 +437,9 @@ float getDensityHeightGradientForPoint(in float relativeHeight, in float cloudTy
     float stratocumulus = max(0.0, remap(relativeHeight, 0.0, 0.25, 0.0, 1.0) * remap(relativeHeight,  0.3, 0.65, 1.0, 0.0)); 
     float stratus = max(0.0, remap(relativeHeight, 0, 0.1, 0.0, 1.0) * remap(relativeHeight, 0.2, 0.3, 1.0, 0.0)); 
 
-    float a = mix(stratus, stratocumulus, max(clamp(cloudType * 2.0, 0.0, 1.0), 0.65));
+    // float a = mix(stratus, stratocumulus, max(clamp(cloudType * 2.0, 0.0, 1.0), 0.65));
+    float a = mix(stratus, stratocumulus, clamp(cloudType * 2.0, 0.0, 1.0));
+
     float b = mix(stratocumulus, stratus, clamp((cloudType - 0.5) * 2.0, 0.0, 1.0));
     return mix(a, b, cloudType);
 }
@@ -441,9 +447,10 @@ float getDensityHeightGradientForPoint(in float relativeHeight, in float cloudTy
 vec3 skewSamplePointWithWind(in vec3 point, inout float height_fraction)
 {
     //skew in wind direction
-    point += height_fraction*WIND_DIRECTION*CLOUD_TOP_OFFSET*0.009;
+    point += height_fraction * WIND_DIRECTION * CLOUD_TOP_OFFSET * 0.009;
+    
     //Animate clouds in wind direction and add a small upward bias to the wind direction
-    point += (WIND_DIRECTION + vec3(0.0,0.1,0.0))*CLOUD_SPEED*time.y;
+    point += (WIND_DIRECTION + vec3(0.0, 0.1, 0.0)) * CLOUD_SPEED * time.y;
     return point;
 }
 
@@ -456,6 +463,7 @@ float sampleLowFrequency(vec3 point, in vec3 unskewedSamplePoint, in float relat
     float lowFrequencyFBM = (lowFrequencyNoises.g * 0.625) + 
                             (lowFrequencyNoises.b * 0.25)  + 
                             (lowFrequencyNoises.a * 0.125);
+    
     lowFrequencyFBM = clamp(abs(lowFrequencyFBM), 0.0, 1.0);                      
 
     // Define the base cloud shape by dilating it with the low-frequency FBM
@@ -464,13 +472,13 @@ float sampleLowFrequency(vec3 point, in vec3 unskewedSamplePoint, in float relat
     // TODO: Use weater map for cloud types and blend between them and their densities
     // ------------------ only screws it up; but needed for blending cloud types -----------------------
     //Get the density-height gradient
-    vec2 weatherSamplePoint = unskewedSamplePoint.xz/50000.0f;
+    vec2 weatherSamplePoint = unskewedSamplePoint.xz;// / 50.0;// / 50.0;//50000.0f;
     vec3 weather_data = texture(weatherMapSampler, weatherSamplePoint).rgb;
     float cloudType = weather_data.g;
     float densityHeightGradient = getDensityHeightGradientForPoint(relativeHeight, weather_data.g);
 
     //Apply Height function to the base cloud shape
-    baseCloud *= densityHeightGradient*0.8;
+    // baseCloud *= densityHeightGradient * 0.9;// * 0.8;
     // -------------------------------------------------------------------------------------------------
 
     // Cloud coverage is stored in weather data’s red channel .
@@ -513,8 +521,10 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
 	high_freq_FBM = clamp(abs(high_freq_FBM), 0.0, 1.0);
 
 	//Erode the base shape of the cloud with the distorted high frequency worley noises
-	float subtractionNoise = abs((highFrequencyNoise.r - high_freq_FBM));// * 0.5); // * 0.1);
-	float final_cloud = max( 0.0, baseCloud - subtractionNoise * removeCloudsFactor);// * 0.7);
+	// float subtractionNoise = abs((highFrequencyNoise.r - high_freq_FBM));// * 0.1);// * 0.5); // * 0.1);
+    float subtractionNoise = max(0.0, (highFrequencyNoise.r - high_freq_FBM) * 0.1);// * 0.5); // * 0.1);
+
+	float final_cloud = max( 0.0, baseCloud - subtractionNoise * removeCloudsFactor * 0.7);
 	return final_cloud;
 }
 
@@ -523,7 +533,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 	//TODO the above causes faint circular lines smooth it out
 	float _dot = dot(abs(ray.direction), vec3(0.0,1.0,0.0));
 	float maxSteps = floor(mix(52.0, 84.0, 1.0-_dot));
-	float stepSize = ((end_t - start_t) / maxSteps)  * 0.1;    // Make step size smaller to remove banding
+	float stepSize = ((end_t - start_t) / maxSteps) * 0.25; // * 0.1;    // Make step size smaller to remove banding
 
 	vec3 camForward =  -normalize(vec3( camera.view[0][2], camera.view[1][2], camera.view[2][2] ));
 
@@ -588,12 +598,12 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
 		float relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight);
-		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter) * 0.25; //helps for early termination of rays
+		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter);// * 0.25; //helps for early termination of rays
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
             //Erode Base cloud shape with higher frequency noise (more expensive and so done when we know for sure we are inside the cloud)
-            float highFreqDensity = erodeCloudWithHighFrequency(baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
+            float highFreqDensity = erodeCloudWithHighFrequency(0.01 * baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
 			accumDensity += highFreqDensity;
 
             // accumDensity += baseDensity;
