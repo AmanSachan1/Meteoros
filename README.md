@@ -1,9 +1,9 @@
 # Meteoros
 This project is a real-time cloudscape renderer in Vulkan that was made as the final project for the University of Pennsylvania course, CIS 565: GPU Programming and Architecture. It is based on the theory and implementation as described in the following SIGGRAPH 2015 and 2017 presentations: 
 
-* **2015** The Real-time Volumetric Cloudscapes of Horizon Zero Dawn
+* [2015](https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn) The Real-time Volumetric Cloudscapes of Horizon Zero Dawn
 
-* **2017** Nubis: Authoring Realtime Volumetric Cloudscapes with the Decima Engine 
+* [2017](https://www.guerrilla-games.com/read/nubis-authoring-real-time-volumetric-cloudscapes-with-the-decima-engine) Nubis: Authoring Realtime Volumetric Cloudscapes with the Decima Engine 
 
 Contributors:
 1. Meghana Seshadri - M.S.E. Computer Graphics and Game Technology, UPenn
