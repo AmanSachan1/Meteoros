@@ -332,11 +332,14 @@ float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phas
 
 
     // THIRD INSTANCE ------> LOOKS ESSENTIALLY SAME AS SECOND INSTANCE
+
+    // MANIPULATE ME 
     float depth_probability = 0.05 + pow(ds_loded, clamp(remap(height_fraction * 0.5, 0.3, 0.85, 0.5, 2.0), 0.5, 2.0));
-    float vertical_probability = pow(clamp(remap(height_fraction, 0.07, 0.34, 0.1, 1.0), 0.1, 1.0), 0.8);
+
+    float vertical_probability = pow(clamp(remap(height_fraction * 1.5, 0.07, 0.34, 0.1, 1.0), 0.1, 1.0), 0.8);
 
 
-    
+    // MANIPULATE ME 
     float in_scatter_probability = depth_probability * vertical_probability;
     // float light_energy = attenuation_probability * in_scatter_probability * phase_probability * brightness;						// ORIGINAL (LIGHTEST)
     float light_energy = attenuation_probability * primary_attenuation * in_scatter_probability * phase_probability * brightness;	// MEDIUM
@@ -461,7 +464,7 @@ vec3 skewSamplePointWithWind(in vec3 point, inout float height_fraction)
 float sampleLowFrequency(vec3 point, in vec3 unskewedSamplePoint, in float relativeHeight, in vec3 earthCenter)
 {
     //Read in the low-frequency Perlin-Worley noises and Worley noises
-    vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point * 0.8);
+    vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point);// * 0.8);	// MANIPULATE ME 
 
     //Build an FBM out of the low-frequency Worley Noises that are used to add detail to the Low-frequency Perlin Worley noise
     float lowFrequencyFBM = (lowFrequencyNoises.g * 0.625) + 
@@ -508,7 +511,7 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
     point.xy += curlNoise.xy * (1.0 - height_fraction) * 0.5;
 
     // Sample High Frequency Noises
-    vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point * 0.8);
+    vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);// * 0.8);	// MANIPULATE ME 
 
     float removeCloudsFactor = 1.0;
     // //Uncomment below for another fade out of clouds below a certain angle of the ray dir
@@ -530,11 +533,13 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
 
 	//Erode the base shape of the cloud with the distorted high frequency worley noises
 
+  	// DONT SUBTRACT. ALWAYS REMAP
 	// float subtractionNoise = abs((highFrequencyNoise.r - high_freq_FBM));// * 0.1);// * 0.5); // * 0.1);
     // float subtractionNoise = max(0.0, (highFrequencyNoise.r - high_freq_FBM) * 0.01);// * 0.5);// too wispy // * 0.1);
 	// float final_cloud = max( 0.0, baseCloud - subtractionNoise * removeCloudsFactor);// * 0.7);
 
 
+	// MANIPULATE ME 
 	// float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 10.0, 0.0, 1.0));
 	float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 2.0, 0.0, 1.0));
 	// float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 0.0001, 0.0, 1.0));
@@ -550,6 +555,8 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 	//TODO the above causes faint circular lines smooth it out
 	float _dot = dot(abs(ray.direction), vec3(0.0, 1.0, 0.0));
 	float maxSteps = floor(mix(52.0, 84.0, 1.0 - _dot));
+
+	// MANIPULATE ME 
 	float stepSize = ((end_t - start_t) / maxSteps) * 0.25;// * 0.25; // * 0.1;    // Make step size smaller to remove banding
 
     vec3 pos;
@@ -614,6 +621,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 		float relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight);
 
+        // MANIPULATE ME 
         float baseDensityFactor = 0.25;//0.5; //* 0.75; //* 0.2; // increase this to get more dense cloud centers 
 		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter) * baseDensityFactor; //helps for early termination of rays
 
@@ -623,6 +631,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
             // float highFreqDensity = erodeCloudWithHighFrequency(0.5 * baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
             float highFreqDensity = erodeCloudWithHighFrequency(baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
 
+            // MANIPULATE ME 
 			accumDensity += highFreqDensity * 0.5;
             // accumDensity += baseDensity;
 
@@ -636,13 +645,14 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
                 vec3 lightPos = pos + (stepSize * noise_kernel[i] * float(i));
                	vec3 sampleLightPos =  getRelativePositionInAtmosphere(lightPos, earthCenter);
 
-                float currBaseLightDensity = sampleLowFrequency(sampleLightPos, sampleLightPos, relativeHeight, earthCenter);// * 1.5;
+               	// MANIPULATE ME 
+                float currBaseLightDensity = sampleLowFrequency(sampleLightPos, sampleLightPos, relativeHeight, earthCenter);
                 // float currLightDensity = erodeCloudWithHighFrequency(currBaseLightDensity, ray.direction, skewedSamplePoint, relativeHeight);
 
                 // if(currLightDensity > 0.0)
                 if(currBaseLightDensity > 0.0)
                 {
-                	float currLightDensity = erodeCloudWithHighFrequency(currBaseLightDensity, ray.direction, skewedSamplePoint, relativeHeight);
+                	float currLightDensity = erodeCloudWithHighFrequency(0.5 * currBaseLightDensity, ray.direction, skewedSamplePoint, relativeHeight);
                 	densityAlongLight += currLightDensity;
 
                     // densityAlongLight += currBaseLightDensity;
@@ -658,7 +668,8 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
    //          colorPerSample = vec3(totalLightEnergy);
 
             // ------------------------------------------------------------------------------------------------------------------
-            float brightness = 5.0;//1.0; // 2.0; //4.0;
+            // MANIPULATE ME 
+            float brightness = 4.0;//1.0; // 2.0; //4.0;
             float totalLightEnergy = GetLightEnergy(relativeHeight, densityAlongLight, baseDensity, HG_light, cos_angle, stepSize, brightness);
             transmittance = mix(transmittance, totalLightEnergy, (1.0 - accumDensity)); 
             colorPerSample = vec3(transmittance);// * 0.05);
