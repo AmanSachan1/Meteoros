@@ -12,11 +12,12 @@ using namespace std::chrono;
 struct Time 
 {
 	glm::vec2 _time = glm::vec2(0.0f, 0.0f); //stores delta time and total time packed as a vec2 so vulkan offsetting doesnt become an issue later
+	int frameCount = 1;
 };
 
 struct SunAndSky
 {
-	glm::vec4 sunLocation = glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+	glm::vec4 sunLocation = glm::vec4(0.0, 1.0, -10.0, 0.0f);
 	glm::vec4 sunDirection = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
 	glm::vec4 lightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
 	float sunIntensity = 1.0;

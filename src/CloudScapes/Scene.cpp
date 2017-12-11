@@ -1,5 +1,7 @@
 #include "Scene.h"
 
+#define PI_BY_2 1.57f
+
 Scene::Scene(VulkanDevice* device) : device(device) 
 {
 	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(Time), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, timeBuffer, timeBufferMemory);
@@ -74,6 +76,7 @@ void Scene::UpdateTime()
 
 	time._time.x = nextDeltaTime.count();
 	time._time.y += time._time.x;
+	time.frameCount += 1;
 
 	memcpy(time_mappedData, &time, sizeof(Time));
 }
@@ -88,6 +91,14 @@ VkBuffer Scene::GetSunAndSkyBuffer() const
 }
 void Scene::UpdateSunAndSky()
 {
+	//glm::vec3 rotationAxis = glm::vec3(1, 0, 0);
+	//float angle = time.frameCount*0.001f;
+	//glm::mat4 rotMat = glm::mat4(1.0f);
+	//rotMat = glm::rotate(rotMat, angle, rotationAxis);
+	//sunAndSky.sunLocation = rotMat * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+	sunAndSky.sunDirection = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
+	sunAndSky.lightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	sunAndSky.sunIntensity = 5.0;
 	memcpy(sunAndSky_mappedData, &sunAndSky, sizeof(SunAndSky));
 }
 

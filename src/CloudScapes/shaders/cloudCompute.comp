@@ -30,6 +30,7 @@ layout (set = 1, binding = 0) uniform CameraUBO
 layout (set = 2, binding = 0) uniform TimeUBO
 {
     vec2 time; //stores delat time and total time
+	int frameCount;
 };
 
 layout (set = 3, binding = 0) uniform SunAndSkyUBO
@@ -38,7 +39,7 @@ layout (set = 3, binding = 0) uniform SunAndSkyUBO
 	vec4 sunDirection;
 	vec4 lightColor;
 	float sunIntensity;
-};
+} sunAndSky;
 
 layout (set = 4, binding = 0) uniform KeyPressQueryUBO
 {
@@ -658,7 +659,7 @@ void main()
 	{
 		// Get sky background color from Preetham Sun/Sky Model
 		// backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin, sunIntensity); //day time
-		backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin, sunIntensity); //sunset
+		backgroundCol = getAtmosphereColorPhysical(ray.direction, vec3(sunAndSky.sunLocation) - ray.origin, sunIntensity); //sunset
 	}
 
 	// Find the start and end points of the ray march
@@ -669,18 +670,21 @@ void main()
 
 	// Ray March
 	float transmittance = 1.0;
-    float accumDensity = 0.0;
+	float accumDensity = 0.0;
 	vec3 rayMarchResult = rayMarch(ray, earthCenter, atmosphereInnerIsect.point, atmosphereInnerIsect.t, atmosphereOuterIsect.t, accumDensity, transmittance);
 
+	float godRaysAccumDensity = accumDensity;
 	// Blend and fade out clouds into the horizon
-    accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.0, 0.015, 0.0, 1.0)));
+	accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.0, 0.015, 0.0, 1.0)));
 
-    vec4 finalColor = vec4(mix(backgroundCol, 7.0 * vec3 (accumDensity), accumDensity), 1.0);
+	vec4 finalColor = vec4(mix(backgroundCol, 7.0 * vec3 (accumDensity), accumDensity), 1.0);
 
-    //godrays
-    float lightIntensity = length(backgroundCol)/length(WHITE);
-    vec4 greyScaleColor = lightColor;
-    greyScaleColor.a = mix(0.0, lightIntensity, 1.0-accumDensity);
+	//godrays
+	vec4 greyScaleColor = 10.0*vec4(1.0-godRaysAccumDensity);
+	if(ray.direction.y < 0.05)
+	{
+		greyScaleColor *= max( 0.05, ray.direction.y);
+	}
 
 // Begin debug renders
 #if HEIGHT_GRADIENT
