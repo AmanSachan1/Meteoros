@@ -31,14 +31,84 @@ Note: Replace the path to glslangValidator.exe with the path to where you instal
 ## Detailed Description
 
 
-### Graphics Pipeline
+### Implementation Overview 
+
+#### Modeling
+
+Read in 3D textures for low and high frequency noise. The low frequency noise forms the base shape of the clouds, and the high frequency noise erodes the edges of the clouds to form them into finer shapes.
+
+Low frequency texture = perlin-worley + 3 worley's
+
+Perlin-Worley
+![](/images/perlinworleyNoise.png)
+
+Worley 1
+![](/images/worleyNoiseLayer1.png)
+
+Worley 2
+![](/images/worleyNoiseLayer2.png)
+
+Worley 3
+![](/images/worleyNoiseLayer3.png)
+
+
+High frequency = 3 worley's at higher frequencies
+![](/images/highFrequencyDetail.png)
+
+
+Curl Noise is used to simulate wind and other motion effects on the clouds. Sample along with the high frequency clouds.
+
+![](/images/curlNoise.png)
+
+
+![](/images/cloudmodelling.png)
+![](/images/erodeclouds.png)
+![](/images/modellingClouds.png)
+![](/images/modellingClouds1.png)
+
+
+
+#### Lighting
+
+The lighting model consists of 3 different probabilities:
+
+* Beer-Lambert
+* Henyey-Greenstein
+* In-scattering
+
+![](/images/FinalLightingModel.png)
+
+
+1. Beers Law
+
+![](/images/beerslaw.png)
+![](/images/beerspowderlaw.png)
+
+
+2. Henyey-Greenstein
+
+![](/images/beerspowderlaw.png)
+
+
+3. In-Scattering
+
+![](/images/beerspowderlaw.png)
+
+
+#### Rendering 
+
+
+#### Optimizations
+
+![](/images/sampleoptimisation.png)
+
+
+#### Vulkan
+
+Describe the Vulkan graphics and compute pipeline set up here.
+
+##### Graphics Pipeline
 ![](/images/SimplifiedPipeline.png)
-
-
-
-## Implementation Notes
-
-- We did not add checks to make sure some features are supported by the GPU before using them, such as anisotropic filtering.
 
 
 ## Performance Analysis 
@@ -46,9 +116,31 @@ Note: Replace the path to glslangValidator.exe with the path to where you instal
 Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070(laptop GPU) 8074MB (Personal Machine: Customized MSI GT62VR 7RE)
 
 
-## Resources
+## Resources, Upcoming Features, Other Notes
+
+### Resources
 - [Curl Noise Textures](http://bitsquid.blogspot.com/2016/07/volumetric-clouds.html)
 - [Image Loading Library](https://github.com/nothings/stb)
 - [Obj Loading Library](https://github.com/syoyo/tinyobjloader)
 - [Setting Up Compute Shader that writes to a texture that is sampled by the fragment shader]( https://github.com/SaschaWillems/Vulkan/tree/master/examples/raytracing)
 - [Why to include stb in .cpp file](https://stackoverflow.com/questions/43348798/double-inclusion-and-headers-only-library-stbi-image)
+- FBM Procedural Noise Joe Klinger 
+- Preetham Sun/Sky model from and Project Marshmallow 
+
+### Upcoming Featurse
+- Fully functional reprojection optimization 
+
+### Notes
+- We did not add checks to make sure some features are supported by the GPU before using them, such as anisotropic filtering.
+
+
+## Bloopers
+
+* Tone Mapping Madness
+
+![](/images/READMEImages/meg01.gif)
+
+
+* Sobel's "edgy" clouds
+
+![](/images/READMEImages/meg02.gif)
