@@ -12,21 +12,21 @@ layout (set = 1, binding = 0) uniform CameraUBO
 	vec2 tanFovBy2;
 } camera;
 
-// layout (set = 2, binding = 0) uniform SunAndSkyUBO
-// {
-// 	vec4 sunLocation;
-// 	vec4 sunDirection;
-// 	vec4 lightColor;
-// 	float sunIntensity;
-// };
+layout (set = 2, binding = 0) uniform SunAndSkyUBO
+{
+	vec4 sunLocation;
+	vec4 sunDirection;
+	vec4 lightColor;
+	float sunIntensity;
+} sunAndSky;
 
 layout(location = 0) in vec2 in_uv;
 
 #define MAX_SAMPLES 100
 #define ATMOSPHERE_DENSITY 1.0f
-#define WEIGHT_FOR_SAMPLE 0.0005
+#define WEIGHT_FOR_SAMPLE 0.001
 #define DECAY 1.0
-#define EXPOSURE 0.4
+#define EXPOSURE 1.0
 
 #define BLACK vec3(0,0,0)
 #define WHITE vec3(1,1,1)
@@ -61,7 +61,8 @@ void main()
 	vec2 uv = in_uv;
 
 	int numSamples = MAX_SAMPLES;
-	vec3 sunLocation = vec3(0.0, 1.0, 0.0);
+	// vec3 sunLocation = vec3(0.0, 1.0, 0.0)*max(0.2, (1.0-sunAndSky.sunLocation.y)); //move with sun location god rays
+	vec3 sunLocation = vec3(0.0, 1.0, 0.0); //static god rays
 
 	vec3 cam_to_sun = normalize(sunLocation.xyz - camera.eye.xyz);
 	vec3 camForward =  -normalize(vec3(camera.view[0][2], camera.view[1][2], camera.view[2][2] ));
@@ -82,29 +83,6 @@ void main()
 
 	bool flag_sunOutsideCamFrustum = uv_OutsideCamFrustum(sunPos_ss);
 
-//-----------------------------------------------------------------------------------------------------
-	// float sunAngleY = abs(tan( (cam_to_sun.y-camForward.y) )); //would divide by z but z = 1
-	// float sunAngleX = abs(tan( (cam_to_sun.x-camForward.x) )); //would divide by z but z = 1
-
-	// float sunAngle_totalexcess = 0.0f;
-	// bool flag_sunOutsideFrustum = false;
-	// // If Sun lies outside the camera frustum reduce num samples
-	// if(sunAngleY > camera.tanFovBy2.y)
-	// {
-	// 	sunAngle_totalexcess += sunAngleY-camera.tanFovBy2.y;
-	// }
-	// if(sunAngleX > camera.tanFovBy2.x)
-	// {
-	// 	sunAngle_totalexcess += sunAngleX-camera.tanFovBy2.x;
-	// }
-
-	// //reduce numSamples if sun outside frustum
-	// if(flag_sunOutsideFrustum)
-	// {
-	// 	numSamples = int(float(numSamples)*(sunAngle_totalexcess/PI));
-	// }	
-//-----------------------------------------------------------------------------------------------------
-	
 	vec3 accumColor = vec3(0.0f, 0.0f, 0.0f);
 	float illuminationDecay = 1.0f;
 	// Calculate the radial change in uv coords in a direction towards the light source, i.e the sun
@@ -112,30 +90,30 @@ void main()
 
 	// Take samples along the vector from the pixel to the light source;
 	//Use these samples to calculate an accumulated color
-	vec4 sampleValue;
+	vec4 sampleValue = sunAndSky.lightColor;
 	vec2 forwardInScreenSpace = vec2(0.0,1.0);
 
 	if(flag_sunOutsideCamFrustum)
 	{
-	// 	//This case causes more divergence so we want to handle it separately from the normal logic
-	// 	for (int i = 0; i < numSamples; i++)
-	// 	{
-	// 		if(uv_OutsideCamFrustum(uv))
-	// 		{
-	// 			//If sun is outside Camera Frustum; create a gradient that will be used as the color of the pixels outside the camera Frustum --> This assumes the 
-	// 			//godRay is completely unoccluded. ---> may want to scale down intensity in this
-	// 			float t = dot( uv-sunPos_ss, forwardInScreenSpace);
-	// 			vec3 fakePixel = mix(BLACK, WHITE, t);
-	// 			godRayLoop(uv, fakePixel, illuminationDecay, accumColor);
-	// 			uv -= delta_uv; // Step sample location along ray.
-	// 		}
-	// 		else
-	// 		{
-	// 			sampleColor = texture(godRayCreationDataSampler, uv).rgb; // Retrieve sample at new location.
-	// 			godRayLoop(uv, sampleColor, illuminationDecay, accumColor);
-	// 			uv -= delta_uv; // Step sample location along ray.
-	// 		}
-	// 	}
+		//This case causes more divergence so we want to handle it separately from the normal logic
+		for (int i = 0; i < numSamples; i++)
+		{
+			if(uv_OutsideCamFrustum(uv))
+			{
+				//If sun is outside Camera Frustum; create a gradient that will be used as the color of the pixels outside the camera Frustum --> This assumes the 
+				//godRay is completely unoccluded. ---> may want to scale down intensity in this
+				float t = dot( uv-sunPos_ss, forwardInScreenSpace);
+				vec4 fakePixel = vec4(mix(BLACK, sampleValue.xyz, t), 1.0);
+				godRayLoop(uv, fakePixel, illuminationDecay, accumColor);
+				uv -= delta_uv; // Step sample location along ray.
+			}
+			else
+			{
+				sampleValue.a = texture(godRayCreationDataSampler, uv).a; // Retrieve sample at new location.
+				godRayLoop(uv, sampleValue, illuminationDecay, accumColor);
+				uv -= delta_uv; // Step sample location along ray.
+			}
+		}
 		accumColor = vec3(0.0f, 0.0f, 0.0f);
 	}
 	else
@@ -143,12 +121,11 @@ void main()
 		//Do things normally if sun is in cam Frustum
 		for (int i = 0; i < numSamples; i++)
 		{
-			sampleValue = texture(godRayCreationDataSampler, uv); // Retrieve sample at new location.
+			sampleValue.a = texture(godRayCreationDataSampler, uv).a; // Retrieve sample at new location.
 			godRayLoop(uv, sampleValue, illuminationDecay, accumColor);
 			uv -= delta_uv; // Step sample location along ray.
 		}
 	}
-
 
 	vec4 god_ray_color =  vec4( accumColor*EXPOSURE, 1.0 ) * blendFactor; //texture(godRayCreationDataSampler, uv);//
 	vec4 originalpixelColor = imageLoad( currentFrameResultImage, pixelPos );

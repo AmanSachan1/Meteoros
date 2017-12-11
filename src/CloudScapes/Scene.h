@@ -43,6 +43,9 @@ private:
 	VkDeviceMemory sunAndSkyBufferMemory;
 	void* sunAndSky_mappedData;
 
+	glm::vec3 rotationAxis = glm::vec3(1, 0, 0);
+	glm::mat4 rotMat = glm::mat4(1.0f);
+
 	KeyPressQuery keyPressQuery;
 	VkBuffer keyPressQueryBuffer;
 	VkDeviceMemory keyPressQueryBufferMemory;

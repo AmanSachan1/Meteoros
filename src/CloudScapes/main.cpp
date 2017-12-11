@@ -169,7 +169,7 @@ int main(int argc, char** argv)
 		//Mouse inputs and window resize callbacks
 		glfwPollEvents();		
 		// Update Uniforms
-//		scene->UpdateTime();
+		scene->UpdateTime();
 		scene->UpdateSunAndSky();
 		scene->UpdateKeyPressQuery();
 		// Get Inputd frome the Keyboard

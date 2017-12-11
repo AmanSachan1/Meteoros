@@ -91,13 +91,12 @@ VkBuffer Scene::GetSunAndSkyBuffer() const
 }
 void Scene::UpdateSunAndSky()
 {
-	//glm::vec3 rotationAxis = glm::vec3(1, 0, 0);
-	//float angle = time.frameCount*0.001f;
-	//glm::mat4 rotMat = glm::mat4(1.0f);
+	//float angle = time.frameCount*0.000001f;
 	//rotMat = glm::rotate(rotMat, angle, rotationAxis);
-	//sunAndSky.sunLocation = rotMat * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
+
+	sunAndSky.sunLocation = rotMat * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
 	sunAndSky.sunDirection = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
-	sunAndSky.lightColor = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+	sunAndSky.lightColor = glm::vec4(1.0f, 1.0f, 0.57f, 1.0f);
 	sunAndSky.sunIntensity = 5.0;
 	memcpy(sunAndSky_mappedData, &sunAndSky, sizeof(SunAndSky));
 }
@@ -110,4 +109,3 @@ void Scene::UpdateKeyPressQuery()
 {
 	memcpy(keyPressQuery_mappedData, &keyPressQuery, sizeof(KeyPressQuery));
 }
-

@@ -659,7 +659,7 @@ void main()
 	{
 		// Get sky background color from Preetham Sun/Sky Model
 		// backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin, sunIntensity); //day time
-		backgroundCol = getAtmosphereColorPhysical(ray.direction, vec3(sunAndSky.sunLocation) - ray.origin, sunIntensity); //sunset
+		backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin, sunIntensity); //sunset
 	}
 
 	// Find the start and end points of the ray march
