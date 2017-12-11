@@ -1,0 +1,181 @@
+// Ray March Reference: https://www.shadertoy.com/view/4sjfzw
+
+#version 450
+#extension GL_ARB_separate_shader_objects : enable
+
+#define WORKGROUP_SIZE 32
+layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
+
+// Ping pong storage images
+layout (set = 0, binding = 0, rgba32f) uniform writeonly image2D currentFrameResultImage;
+layout (set = 0, binding = 1) uniform sampler2D previousFrameResultImage;
+
+layout (set = 1, binding = 0) uniform CameraUBO
+{
+    mat4 view;
+    mat4 proj;
+    vec4 eye;
+    vec2 tanFovBy2;
+} camera;
+
+layout (set = 2, binding = 0) uniform CameraOldUBO
+{
+    mat4 view;
+    mat4 proj;
+    vec4 eye;
+    vec2 tanFovBy2;
+} cameraOld;
+
+layout (set = 3, binding = 0) uniform TimeUBO
+{
+    vec2 time; //stores delat time and total time
+    int frameCount;
+};
+
+struct Ray {
+    vec3 origin;
+    vec3 direction;
+};
+
+struct Intersection {
+    vec3 normal;
+    vec3 point;
+    bool valid;
+    float t;
+};
+
+//Global Defines for math constants
+#define PI 3.14159265
+#define THREE_OVER_SIXTEEN_PI 0.05968310365946075
+#define ONE_OVER_FOUR_PI 0.07957747154594767
+#define E 2.718281828459
+
+//Global Defines for Colors
+#define BLACK vec3(0,0,0)
+#define WHITE vec3(1,1,1)
+#define RED vec3(1,0,0)
+
+//Global Defines for Earth and Cloud Layers 
+#define EARTH_RADIUS 6371000.0 // earth's actual radius in km = 6371
+#define ATMOSPHERE_RADIUS_INNER (EARTH_RADIUS + 7500.0) //paper suggests values of 15000-35000m above
+
+#define NUM_MOTION_BLUR_SAMPLES 20
+
+//--------------------------------------------------------
+//					TOOL BOX FUNCTIONS
+//--------------------------------------------------------
+
+// //Compute Ray for ray marching based on NDC point
+Ray castRay( in vec2 screenPoint, in vec3 eye, in mat4 view, in vec2 tanFovBy2 )
+{
+	Ray r;
+
+    // Extract camera information from uniform
+	vec3 camRight = normalize(vec3( view[0][0], 
+				    				view[1][0], 
+				    				view[2][0] ));
+	vec3 camUp =    normalize(vec3( view[0][1], 
+				    				view[1][1], 
+				    				view[2][1] ));
+	vec3 camLook =  -normalize(vec3(view[0][2], 
+				    				view[1][2], 
+				    				view[2][2] ));
+
+	// Compute ndc space point from screenspace point //[-1,1] to [0,1] range
+    vec2 NDC_Space_Point = screenPoint * 2.0 - 1.0; 
+
+    //convert to camera space
+    vec3 cam_x = NDC_Space_Point.x * tanFovBy2.x * camRight;
+    vec3 cam_y = NDC_Space_Point.y * tanFovBy2.y * camUp;
+    //convert to world space
+    vec3 ref = eye + camLook;
+    vec3 p = ref + cam_x + cam_y; //facing the screen
+
+    r.origin = eye;
+    r.direction = normalize(p - eye);
+
+    return r;
+}
+
+//Sphere Intersection Testing
+Intersection raySphereIntersection(in vec3 rO, in vec3 rD, in vec3 sphereCenter, in float sphereRadius)
+{
+    Intersection isect;
+    isect.valid = false;
+    isect.point = vec3(0.0);
+    isect.normal = vec3(0.0, 1.0, 0.0);
+
+    // Transform Ray such that the spheres move down, such that the camera is close to the sky dome
+    // Only change sphere origin because you can't translate a direction
+    rO -= sphereCenter;
+    rO /= sphereRadius;
+
+    float A = dot(rD, rD);
+    float B = 2.0*dot(rD, rO);
+    float C = dot(rO, rO) - 1.0; //uniform sphere
+    float discriminant = B*B - 4.0*A*C;
+
+    //If the discriminant is negative, then there is no real root
+    if(discriminant < 0.0)
+    {
+        return isect;
+    }
+
+    float t = (-B - sqrt(discriminant))/(2.0*A);
+    
+    if(t < 0.0) 
+    {
+        t = (-B + sqrt(discriminant))/(2.0*A);
+    }
+
+    if(t >= 0.0)
+    {
+        vec3 p = vec3(rO + t*rD);
+        isect.valid = true;
+        isect.normal = normalize(p);
+
+        p *= sphereRadius;
+        p += sphereCenter;
+
+        isect.point = p;
+        isect.t = length(p-rO);
+    }
+
+    return isect;
+}
+
+void main() 
+{
+    //3 options: - do a full resolution launch and calculate for every pixel and overwrite the value of one pixel with an actual raymarch
+    //           - do all the work for 15 reprojection pixel fills on one thread
+    //           - do full resolution but only work for 15 pixels and terminate early for the one that will be filled by raymarching
+    //The last one is the best but it is hard to determine which pixel to skip --> equate the pixel selected with the regular invocation ID --> to determine which to skip
+    ivec2 dim = imageSize(currentFrameResultImage);
+    vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
+    uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
+
+	vec3 eyePos = -camera.eye.xyz;
+	Ray ray = castRay(uv, eyePos, camera.view, camera.tanFovBy2);
+
+	// Hit the inner sphere with the ray you just found to get some basis world position along your current ray
+	vec3 earthCenter = eyePos;
+	earthCenter.y = -EARTH_RADIUS; //move earth below camera
+	Intersection atmosphereInnerIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, ATMOSPHERE_RADIUS_INNER);
+
+    //Convert the point you just found back into screenspace using the old camera, i.e. the camera for the previous frame
+    vec3 NDC_point_prevFrame = (cameraOld.proj * cameraOld.view * vec4(atmosphereInnerIsect.point, 1.0f)).xyz;
+    
+    if( NDC_point_prevFrame.x < -1.0 || NDC_point_prevFrame.x > 1.0 || 
+        NDC_point_prevFrame.y < -1.0 || NDC_point_prevFrame.y > 1.0)
+    {
+        return;
+    }
+
+    vec2 uv_prevFrame = vec2( ((NDC_point_prevFrame.x + 1.0f) * 0.5f), ((1.0f - NDC_point_prevFrame.y)*0.5f) );
+    ivec2 pixel_prevFrame = ivec2( int(floor((NDC_point_prevFrame.x + 1.0f) * dim.x * 0.5f)),
+                                   int(floor((1.0f - NDC_point_prevFrame.y) * dim.y * 0.5f)) );
+
+    vec3 prevFramePixelColor = texture( previousFrameResultImage, pixel_prevFrame ).xyz;
+
+    imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(prevFramePixelColor, 1.0) );
+}
