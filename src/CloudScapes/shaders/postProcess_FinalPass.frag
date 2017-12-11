@@ -83,6 +83,6 @@ void main()
    //sure how it scales though I think the white point is the value that is mapped to 1.0 in the regular RGB space.
    vec3 toneMapped_color = tonemap(in_color, whitepoint);
 
-   outColor = vec4(toneMapped_color, 1.0);
-   // outColor = vec4(in_color, 1.0);
+   // outColor = vec4(toneMapped_color, 1.0);
+   outColor = vec4(in_color, 1.0);
 }

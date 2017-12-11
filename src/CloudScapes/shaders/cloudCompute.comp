@@ -59,7 +59,7 @@ struct Intersection {
 
 //Global Defines for Debug Views
 #define BACKGROUND_SKY 0
-#define CLOUD_DENSITY 0
+#define CLOUD_DENSITY 1
 #define TEXTURE_CURL_NOISE 0
 #define TEXTURE_HIGH_FREQ 0
 #define TEXTURE_LOW_FREQ 0
@@ -99,7 +99,7 @@ struct Intersection {
 
 // Global Wind Defines
 #define WIND_DIRECTION vec3(1.0,0.0,0.0)
-#define CLOUD_SPEED (0.005) //*1.7
+#define CLOUD_SPEED (0.005)//*10.7)
 #define CLOUD_TOP_OFFSET 1.0// this offset pushes the tops of the clouds along this wind direction by this many units
 
 
@@ -110,7 +110,7 @@ struct Intersection {
 
 #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, EARTH_RADIUS, -EARTH_RADIUS * 10.0)
 #define SUN_COLOR vec3(1.0, 1.0, 1.0)
-#define SUN_INTENSITY 1.0;//2.5;//5.0
+#define SUN_INTENSITY 2.0;//2.5;//5.0
 
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
@@ -295,8 +295,8 @@ float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phas
 
     // NOTE: in the slides, seconary_attenuation was "secondary_intensity_curve", and primary_attenuation was "primary_intensity_curve". UNSURE IF SAME
     // FIRST INSTANCE
-    // float secondary_attenuation = exp(-dl * 0.25) * 0.7;
-    float secondary_attenuation = exp(-dl);
+    float secondary_attenuation = exp(-dl * 0.25) * 0.7;
+    // float secondary_attenuation = exp(-dl);
     float attenuation_probability = max( 
     									remap(cos_angle, 0.7, 1.0, secondary_attenuation, secondary_attenuation * 0.25), 
     									primary_attenuation);
@@ -317,29 +317,29 @@ float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phas
     
     // --------------------------------------------------------------------------------------------------------------------
 
-    // SECOND INSTANCE
-    float depth_probability = mix(0.05 + pow(ds_loded, clamp(
-    														remap(height_fraction, 0.3, 0.85, 0.5, 2.0), 
-    														0.6, 2.0)), 
-    							1.0, 
-    							clamp(dl / step_size, 0.0, 1.0));
+    // // SECOND INSTANCE
+    // float depth_probability = mix(0.05 + pow(ds_loded, clamp(
+    // 														remap(height_fraction, 0.3, 0.85, 0.5, 2.0), 
+    // 														0.6, 2.0)), 
+    // 							1.0, 
+    // 							clamp(dl / step_size, 0.0, 1.0));
 
 
-    float vertical_probability = pow(clamp(
-    										remap(height_fraction, 0.07, 0.14, 0.1, 1.0), 
-    										0.1, 1.0), 
-    								0.8 );
+    // float vertical_probability = pow(clamp(
+    // 										remap(height_fraction, 0.07, 0.14, 0.1, 1.0), 
+    // 										0.1, 1.0), 
+    // 								0.8 );
 
 
-    // // THIRD INSTANCE ------> LOOKS ESSENTIALLY SAME AS SECOND INSTANCE
-    // float depth_probability = 0.05 + pow(ds_loded, clamp(remap(height_fraction, 0.3, 0.85, 0.5, 2.0), 0.5, 2.0));
-    // float vertical_probability = pow(clamp(remap(height_fraction, 0.07, 0.34, 0.1, 1.0), 0.1, 1.0), 0.8);
+    // THIRD INSTANCE ------> LOOKS ESSENTIALLY SAME AS SECOND INSTANCE
+    float depth_probability = 0.05 + pow(ds_loded, clamp(remap(height_fraction, 0.3, 0.85, 0.5, 2.0), 0.5, 2.0));
+    float vertical_probability = pow(clamp(remap(height_fraction, 0.07, 0.34, 0.1, 1.0), 0.1, 1.0), 0.8);
 
 
     
     float in_scatter_probability = depth_probability * vertical_probability;
-    // float light_energy = attenuation_probability * in_scatter_probability * phase_probability * brightness;						// ORIGINAL (LIGHTEST)
-    float light_energy = attenuation_probability * primary_attenuation * in_scatter_probability * phase_probability * brightness;	// MEDIUM
+    float light_energy = attenuation_probability * in_scatter_probability * phase_probability * brightness;						// ORIGINAL (LIGHTEST)
+    // float light_energy = attenuation_probability * primary_attenuation * in_scatter_probability * phase_probability * brightness;	// MEDIUM
     // float light_energy = primary_attenuation * secondary_attenuation * in_scatter_probability * phase_probability * brightness;	// DARKEST
     return light_energy;
 }
@@ -461,7 +461,7 @@ vec3 skewSamplePointWithWind(in vec3 point, inout float height_fraction)
 float sampleLowFrequency(vec3 point, in vec3 unskewedSamplePoint, in float relativeHeight, in vec3 earthCenter)
 {
     //Read in the low-frequency Perlin-Worley noises and Worley noises
-    vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point);
+    vec4 lowFrequencyNoises = texture(cloudBaseShapeSampler, point);// * 0.8);
 
     //Build an FBM out of the low-frequency Worley Noises that are used to add detail to the Low-frequency Perlin Worley noise
     float lowFrequencyFBM = (lowFrequencyNoises.g * 0.625) + 
@@ -482,7 +482,7 @@ float sampleLowFrequency(vec3 point, in vec3 unskewedSamplePoint, in float relat
     // float densityHeightGradient = getDensityHeightGradientForPoint(relativeHeight, weather_data.g);
 
     // // Apply Height function to the base cloud shape
-    // baseCloud *= densityHeightGradient * 0.9;// * 0.8;
+    // baseCloud *= densityHeightGradient * 0.5;// * 0.8;
     // -------------------------------------------------------------------------------------------------
 
     // Cloud coverage is stored in weather data’s red channel .
@@ -507,7 +507,7 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
     point.xy += curlNoise.xy * (1.0 - height_fraction) * 0.5;
 
     // Sample High Frequency Noises
-    vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);// * 2.37);
+    vec4 highFrequencyNoise = texture(cloudDetailsHighFreqSampler, point);
 
     float removeCloudsFactor = 1.0;
     // //Uncomment below for another fade out of clouds below a certain angle of the ray dir
@@ -522,23 +522,24 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
                           (highFrequencyNoise.g * 0.25)  +
                           (highFrequencyNoise.b * 0.125); 
 
-	high_freq_FBM = clamp(abs(high_freq_FBM), 0.0, 1.0);
-  	// high_freq_FBM = clamp((high_freq_FBM), 0.0, 1.0);
-
+	// high_freq_FBM = clamp(abs(high_freq_FBM), 0.0, 1.0);
+  	high_freq_FBM = clamp((high_freq_FBM), 0.0, 1.0);
 
 
 
 	//Erode the base shape of the cloud with the distorted high frequency worley noises
-	// float subtractionNoise = abs((highFrequencyNoise.r - high_freq_FBM));// * 0.1);// * 0.5); // * 0.1);
-    float subtractionNoise = max(0.0, (highFrequencyNoise.r - high_freq_FBM) * 0.01);// * 0.5);// too wispy // * 0.1);
-	float final_cloud = max( 0.0, baseCloud - subtractionNoise * removeCloudsFactor);// * 0.7);
 
+	// float subtractionNoise = abs((highFrequencyNoise.r - high_freq_FBM));// * 0.1);// * 0.5); // * 0.1);
+    // float subtractionNoise = max(0.0, (highFrequencyNoise.r - high_freq_FBM) * 0.01);// * 0.5);// too wispy // * 0.1);
+	// float final_cloud = max( 0.0, baseCloud - subtractionNoise * removeCloudsFactor);// * 0.7);
 
 
 	// float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 10.0, 0.0, 1.0));
+	float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 2.0, 0.0, 1.0));
+	// float high_freq_modifier = mix(high_freq_FBM, 1.0 - high_freq_FBM, clamp(height_fraction * 0.01, 0.0, 1.0));		// decreases density of clouds by a lot
 
-    //Erode the base shape of the cloud with the distorted high frequency worley noises
-    // float final_cloud = remap(baseCloud, high_freq_modifier * 0.2, 1.0, 0.0, 1.0);
+    float final_cloud = remap(baseCloud, high_freq_modifier * 0.005, 1.0, 0.0, 1.0);
+    // float final_cloud = remap(baseCloud, high_freq_modifier * 0.0005, 1.0, 0.0, 1.0);
 
 	return final_cloud;
 }
@@ -548,7 +549,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 	//TODO the above causes faint circular lines smooth it out
 	float _dot = dot(abs(ray.direction), vec3(0.0, 1.0, 0.0));
 	float maxSteps = floor(mix(52.0, 84.0, 1.0 - _dot));
-	float stepSize = ((end_t - start_t) / maxSteps) * 0.5;// * 0.25; // * 0.5; // * 0.1;    // Make step size smaller to remove banding
+	float stepSize = ((end_t - start_t) / maxSteps) * 0.5;// * 0.25; // * 0.1;    // Make step size smaller to remove banding
 
     vec3 pos;
     vec3 samplePoint;
@@ -611,17 +612,17 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
 		float relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight);
-		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter) * 0.5;//* 0.75; //* 0.2; //helps for early termination of rays
-		// baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter);
+
+        float baseDensityFactor = 0.075; //* 0.75; //* 0.2; // increase this to get more dense cloud centers 
+		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter) * baseDensityFactor; //helps for early termination of rays
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
             //Erode Base cloud shape with higher frequency noise (more expensive and so done when we know for sure we are inside the cloud)
-            float highFreqDensity = erodeCloudWithHighFrequency(0.2 * baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
-            // float highFreqDensity = erodeCloudWithHighFrequency(baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
+            // float highFreqDensity = erodeCloudWithHighFrequency(0.2 * baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
+            float highFreqDensity = erodeCloudWithHighFrequency(baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
 
 			accumDensity += highFreqDensity;// * 0.85;
-
             // accumDensity += baseDensity;
 
 			// Do Lighting calculations with cone sampling
@@ -635,32 +636,33 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
                	vec3 sampleLightPos =  getRelativePositionInAtmosphere(lightPos, earthCenter);
 
                 float currBaseLightDensity = sampleLowFrequency(sampleLightPos, sampleLightPos, relativeHeight, earthCenter);
-                float currLightDensity = erodeCloudWithHighFrequency(currBaseLightDensity, ray.direction, skewedSamplePoint, relativeHeight);
+                // float currLightDensity = erodeCloudWithHighFrequency(currBaseLightDensity, ray.direction, skewedSamplePoint, relativeHeight);
 
-                if(currLightDensity > 0.0)
-                // if(currBaseLightDensity > 0.0)
+                // if(currLightDensity > 0.0)
+                if(currBaseLightDensity > 0.0)
                 {
+                	float currLightDensity = erodeCloudWithHighFrequency(currBaseLightDensity, ray.direction, skewedSamplePoint, relativeHeight);
                 	densityAlongLight += currLightDensity;
+
                     // densityAlongLight += currBaseLightDensity;
                 }
 			}
 
+			// // TEST LIGHTING
 			// float attenuation_factor = 0.25;
-            // float influence_factor = 0.7;
-            // float beersLaw = BeerLambertModified(-densityAlongLight, attenuation_factor, influence_factor);
-            // beersLaw = mix(exp(-densityAlongLight), beersLaw, cos_angle * -0.5 + 0.5); // Changes from [-1,1] to [0,1] range
-            // float totalLightEnergy = HG_light * beersLaw;
+   //          float influence_factor = 0.7;
+   //          float beersLaw = BeerLambertModified(-densityAlongLight, attenuation_factor, influence_factor);
+   //          beersLaw = mix(exp(-densityAlongLight), beersLaw, cos_angle * -0.5 + 0.5); // Changes from [-1,1] to [0,1] range
+   //          float totalLightEnergy = HG_light * beersLaw;
+   //          colorPerSample = vec3(totalLightEnergy);
+
             // ------------------------------------------------------------------------------------------------------------------
-            float brightness = 1.0; // 2.0; //4.0;
+            float brightness = 2.0;//1.0; // 2.0; //4.0;
             float totalLightEnergy = GetLightEnergy(relativeHeight, densityAlongLight, baseDensity, HG_light, cos_angle, stepSize, brightness);
-            
-
-
             transmittance = mix(transmittance, totalLightEnergy, (1.0 - accumDensity)); 
-            
-            // colorPerSample = vec3(beersLaw);
             colorPerSample = vec3(transmittance);// * 0.05);
             
+
             returnColor += colorPerSample;
 		} //end if
 
