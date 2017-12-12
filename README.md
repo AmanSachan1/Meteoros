@@ -99,7 +99,7 @@ The lighting model consists of 3 different probabilities:
 #### Rendering 
 
 
-#### Optimizations
+#### Optimizations and Post Processing 
 
 ![](/images/sampleoptimisation.png)
 
