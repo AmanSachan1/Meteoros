@@ -18,18 +18,25 @@ Contributors:
 2. Meghana Seshadri - M.S.E. Computer Graphics and Game Technology, UPenn
 
 Skip Forward to:
+
 [Instructions](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
 [Features](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
  - [Current](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
  - [Upcoming](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
 [Implementation Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
  - [Ray-Marching](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
  - [Modelling](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
  - [Lighting](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
  - [Rendering](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
 [Pipeline Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
 [Optimizations](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
 [Notes](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
 [Bloopers](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
 
 ## Instructions
