@@ -100,7 +100,7 @@
 
 
 
-Note: 
+**Note:** 
 
 While developing, you will want to keep validation layers enabled so that error checking is turned on. The project is set up such that when you are in debug mode, validation layers are enabled, and when you are in release mode, validation layers are disabled. After building the code, you should be able to run the project without any errors. Two windows will open -  one will either be blank or show errors if any (if you're running in debug mode), the other (pending no errors) will show the clouds with a sun and sky background above an ocean-like gradient.
 
