@@ -18,29 +18,41 @@ Contributors:
 2. Meghana Seshadri - M.S.E. Computer Graphics and Game Technology, UPenn
 
 Skip Forward to:
-1. [Instructions](https://github.com/Aman-Sachan-asach/Meteoros#Instructions)
-2. [Features](https://github.com/Aman-Sachan-asach/Meteoros#Features)
-	- [Current](https://github.com/Aman-Sachan-asach/Meteoros#Current)
-	- [Upcoming](https://github.com/Aman-Sachan-asach/Meteoros#Upcoming)
-3. [Implementation Overview](#Implementation)
-	- [Ray-Marching](https://github.com/Aman-Sachan-asach/Meteoros#Raymarching)
-	- [Modelling](https://github.com/Aman-Sachan-asach/Meteoros#Modeling)
-	- [Lighting](https://github.com/Aman-Sachan-asach/Meteoros#Lighting)
-	- [Rendering](https://github.com/Aman-Sachan-asach/Meteoros#Rendering)
-	- [Post-Processing](https://github.com/Aman-Sachan-asach/Meteoros#Post)
-4. [Pipeline Overview](https://github.com/Aman-Sachan-asach/Meteoros#Pipeline)
-5. [Optimizations](https://github.com/Aman-Sachan-asach/Meteoros#Optimizations)
-5. [Performance Analysis](https://github.com/Aman-Sachan-asach/Meteoros#Performance)
-6. [Notes](https://github.com/Aman-Sachan-asach/Meteoros#Notes)
-7. [Bloopers](https://github.com/Aman-Sachan-asach/Meteoros#Bloopers)
+1. [Instructions](#Instructions)
+2. [Features](#Features)
+	- [Current](#Current)
+	- [Upcoming](#Upcoming)
+3. [Pipeline Overview](#Pipeline)
+4. [Implementation Overview](#Implementation)
+	- [Ray-Marching](#Raymarching)
+	- [Modelling](#Modeling)
+	- [Lighting](#Lighting)
+	- [Rendering](#Rendering)
+	- [Post-Processing](#Post)
+5. [Optimizations](#Optimizations)
+5. [Performance Analysis](#Performance)
+6. [Resources and Notes](#ResourcesAndNotes)
+7. [Bloopers](#Bloopers)
 
 ## Instructions
 
 If you wish to run or develop on top of this program, please refer to the [INSTRUCTION.md](https://github.com/Aman-Sachan-asach/Meteoros/blob/master/INSTRUCTION.md) file.
 
 ## Features
+
 ### Current
-### Upcoming 
+
+### Upcoming
+- Fully functional reprojection optimization 
+
+### Pipeline Overview
+
+#### Vulkan
+
+Describe the Vulkan graphics and compute pipeline set up here.
+
+#### Graphics Pipeline
+![](/images/SimplifiedPipeline.png)
 
 ## Implementation Overview <a name="Implementation"></a>
 
@@ -109,26 +121,19 @@ The lighting model consists of 3 different probabilities:
 ### Rendering 
 
 
-### Optimizations and Post Processing <a name="Optimizations"></a>
+### Post-Processing <a name="Post"></a>
+
+## Optimizations
+
 
 ![](/images/sampleoptimisation.png)
 
-### Pipeline Overview
-
-#### Vulkan
-
-Describe the Vulkan graphics and compute pipeline set up here.
-
-#### Graphics Pipeline
-![](/images/SimplifiedPipeline.png)
-
-
-## Performance Analysis 
+## Performance Analysis <a name="Performance"></a>
 
 Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070(laptop GPU) 8074MB (Personal Machine: Customized MSI GT62VR 7RE)
 
 
-## Resources, Upcoming Features, Other Notes
+## Resources and Notes <a name="ResourcesAndNotes"></a>
 
 ### Resources
 - [Curl Noise Textures](http://bitsquid.blogspot.com/2016/07/volumetric-clouds.html)
@@ -139,8 +144,7 @@ Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070
 - FBM Procedural Noise Joe Klinger 
 - Preetham Sun/Sky model from and Project Marshmallow 
 
-### Upcoming Featurse
-- Fully functional reprojection optimization 
+
 
 ### Notes
 - We did not add checks to make sure some features are supported by the GPU before using them, such as anisotropic filtering.
