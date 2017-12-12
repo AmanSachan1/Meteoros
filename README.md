@@ -10,6 +10,9 @@ Contributors:
 2. Aman Sachan - M.S.E. Computer Graphics and Game Technology, UPenn
  
 
+![](/images/READMEImages/godrays.PNG)
+
+
 Please see a more detailed description of the algorithms and set up below in the [Detailed Description](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
 
 
@@ -50,26 +53,76 @@ Curl Noise is used to simulate wind and other motion effects on the clouds. Samp
 
 #### Lighting
 
-The lighting model consists of 3 different probabilities:
+The lighting model as described in the 2017 presentation is an attenuation based lighting model. This means that you start with full intensity, and then reduce it as combination of the following 3 probabilities: 
 
-* Beer-Lambert
-* Henyey-Greenstein
-* In-scattering
-
-![](/images/FinalLightingModel.png)
+1. Directional Scattering
+2. Absorption / Out-scattering 
+3. In-scattering
 
 
-1. Beers Law
+![](/images/READMEImages/lightingProbs.PNG)
+
+
+**Directional Scattering**
+
+This retains baseline forward scattering and produces silver lining effects. It is calculated using Henyey-Greenstein equation.
+
+The eccentricity value that generally works well for mid-day sunlight doesn't provide enough bright highlights around the sun during sunset. 
+
+![](/images/READMEImages/hg01.PNG)
+
+Change the eccentricity to have more forward scattering, hence bringing the highlights around the sun. Clouds 90 degrees away from the sun, however, become too dark.
+
+![](/images/READMEImages/hg02.PNG)
+
+To retain baseline forward scattering behavior and get the silver lining highlights, combine 2 HG functions, and factors to control the intensity of this effect as well as its spread away from the sun.
+
+![](/images/READMEImages/hg03.PNG)
+
+![](/images/READMEImages/hg04.PNG)
+
+
+
+**Absorption / Out-scattering** 
+
+This is the transmittance produced as a result of the Beer-Lambert equation. 
+
+Beer's Law only accounts for attenuation of light and not the emission of light that has in-scattered to the sample point, hence making clouds too dark. 
 
 ![](/images/beerslaw.png)
 
-
-2. Henyey-Greenstein
-
-![](/images/beerspowderlaw.png)
+![](/images/READMEImages/beer01.PNG)
 
 
-3. In-Scattering
+By combining 2 Beer-Lambert equations, the attenuation for the second one is reduced to push light further into the cloud.
+
+![](/images/READMEImages/beer02.PNG)
+
+
+
+**In-scattering**
+This produces the dark edges and bases to the clouds 
+
+In-scattering is when a light ray that has scattered in a cloud is combined with others on its way to the eye, essentially brightening the region of the cloud you are looking at. In order for this to occur, an area must have a lot of rays scattering into it, which only occurs where there is cloud material. This means that the deeper in the cloud, the more scattering contributors there are, and the amount of in-scattering on the edges of the clouds is lower, which makes them appear dark. Also, since there are no strong scattering sources below clouds, the bottoms of them will have less occurences of in-scattering as well. 
+
+Only attenuation and HG phase: 
+
+![](/images/READMEImages/in01.PNG)
+
+Sampling cloud at low level of density, and accounting for attenuation along in-scatter path. This appears dark because there is little to no in-scattering on the edges.
+
+![](/images/READMEImages/in02.PNG)
+
+Relax the effect over altitude and apply a bias to compensate. 
+
+![](/images/READMEImages/in03.PNG)
+
+Second component accounts for decrease in-scattering over height. 
+
+![](/images/READMEImages/in04.PNG)
+
+
+
 
 
 
@@ -121,4 +174,4 @@ Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070
 
 * Sobel's "edgy" clouds
 
-![](/images/READMEImages/meg02.gif)
+![](/images/READMEImages/sobeltest.PNG)
