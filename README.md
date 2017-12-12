@@ -18,20 +18,21 @@ Contributors:
 2. Meghana Seshadri - M.S.E. Computer Graphics and Game Technology, UPenn
 
 Skip Forward to:
-
-1. [Instructions](#Instructions)
-2. [Features](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-	- [Current](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-	- [Upcoming](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-3. [Implementation Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-	- [Ray-Marching](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-	- [Modelling](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-	- [Lighting](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-	- [Rendering](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-4. [Pipeline Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-5. [Optimizations](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-6. [Notes](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-7. [Bloopers](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+1. [Instructions](https://github.com/Aman-Sachan-asach/Meteoros#Instructions)
+2. [Features](https://github.com/Aman-Sachan-asach/Meteoros#Features)
+	- [Current](https://github.com/Aman-Sachan-asach/Meteoros#Current)
+	- [Upcoming](https://github.com/Aman-Sachan-asach/Meteoros#Upcoming)
+3. [Implementation Overview](https://github.com/Aman-Sachan-asach/Meteoros#Implementation )
+	- [Ray-Marching](https://github.com/Aman-Sachan-asach/Meteoros#Raymarching)
+	- [Modelling](https://github.com/Aman-Sachan-asach/Meteoros#Modeling)
+	- [Lighting](https://github.com/Aman-Sachan-asach/Meteoros#Lighting)
+	- [Rendering](https://github.com/Aman-Sachan-asach/Meteoros#Rendering)
+	- [Post-Processing](https://github.com/Aman-Sachan-asach/Meteoros#Post)
+4. [Pipeline Overview](https://github.com/Aman-Sachan-asach/Meteoros#Pipeline)
+5. [Optimizations](https://github.com/Aman-Sachan-asach/Meteoros#Optimizations)
+5. [Performance Analysis](https://github.com/Aman-Sachan-asach/Meteoros#Performance)
+6. [Notes](https://github.com/Aman-Sachan-asach/Meteoros#Notes)
+7. [Bloopers](https://github.com/Aman-Sachan-asach/Meteoros#Bloopers)
 
 ## Instructions
 
@@ -41,7 +42,9 @@ If you wish to run or develop on top of this program, please refer to the [INSTR
 ### Current
 ### Upcoming 
 
-## Implementation Overview 
+## Implementation Overview <a name="Implementation"></a>
+
+### Ray-Marching <a name="Raymarching"></a>
 
 ### Modeling
 
@@ -106,12 +109,13 @@ The lighting model consists of 3 different probabilities:
 ### Rendering 
 
 
-### Optimizations and Post Processing 
+### Optimizations and Post Processing <a name="Optimizations"></a>
 
 ![](/images/sampleoptimisation.png)
 
+### Pipeline Overview
 
-### Vulkan
+#### Vulkan
 
 Describe the Vulkan graphics and compute pipeline set up here.
 
