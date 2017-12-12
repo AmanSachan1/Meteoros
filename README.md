@@ -29,24 +29,10 @@ Read in 3D textures for low and high frequency noise. The low frequency noise fo
 
 Low frequency texture = perlin-worley + 3 worley's
 
-Perlin-Worley
-
-<img src="/images/perlinworleyNoise.png" width="973" height="925">
-
-
-Worley 1
-
-![](/images/worleyNoiseLayer1.png)
-
-
-Worley 2
-
-![](/images/worleyNoiseLayer2.png)
-
-
-Worley 3
-
-![](/images/worleyNoiseLayer3.png)
+<img src="/images/perlinworleyNoise.png" width="243.25" height="231.25">
+<img src="/images/worleyNoiseLayer1.png" width="243.25" height="231.25">
+<img src="/images/worleyNoiseLayer2.png" width="243.25" height="231.25">
+<img src="/images/worleyNoiseLayer3.png" width="243.25" height="231.25">
 
 
 High frequency = 3 worley's at higher frequencies
