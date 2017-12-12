@@ -28,8 +28,8 @@ Skip Forward to:
 	- [Post-Processing](#Post)
 5. [Optimizations](#Optimizations)
 5. [Performance Analysis](#Performance)
-6. [Resources](#Resources)
-7. [Notes](#Notes)
+6. [Notes](#Notes)
+7. [Resources](#Resources)
 8. [Bloopers](#Bloopers)
 
 ## Instructions
@@ -125,6 +125,8 @@ The lighting model consists of 3 different probabilities:
 
 Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070(laptop GPU) 8074MB (Personal Machine: Customized MSI GT62VR 7RE)
 
+## Notes
+- We did not add checks (which is highly recommended when developing Vulkan code for other users) to make sure some features are supported by the GPU before using them, such as anisotropic filtering and the image formats that the GPU supports.
 
 ## Resources
 
@@ -158,9 +160,6 @@ Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070
 #### Other Resources
 - FBM Procedural Noise Joe Klinger
 - Preetham Sun/Sky model from Project Marshmallow 
-
-## Notes
-- We did not add checks (which is highly recommended when developing Vulkan code for other users) to make sure some features are supported by the GPU before using them, such as anisotropic filtering and the image formats that the GPU supports.
 
 ## Bloopers
 
