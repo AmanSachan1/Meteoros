@@ -1,17 +1,17 @@
 # Meteoros
+This project is a real-time cloudscape renderer in Vulkan that was made as the final project for the University of Pennsylvania course, CIS 565: GPU Programming and Architecture. It is based on the theory and implementation as described in the following SIGGRAPH 2015 and 2017 presentations: 
 
-*polished version with more feaures to be released over winter break (before 2nd week of Jan)*
+* [2015](https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn) The Real-time Volumetric Cloudscapes of Horizon Zero Dawn
 
-## Overview
-
-This project is a real-time cloudscape renderer in Vulkan that was made as the final project for the University of Pennsylvania course, CIS 565: GPU Programming and Architecture. It is based on the cloud system NUBIS that was implemented for the Decima Engine by Guerrilla Games. The clouds were made for the game 'Horizon Zero Dawn' and were described in the following SIGGRAPH 2015 and 2017 presentations: 
-
-* 2015 [The Real-time Volumetric Cloudscapes of Horizon Zero Dawn](https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn)
-* 2017 [Nubis: Authoring Realtime Volumetric Cloudscapes with the Decima Engine](https://www.guerrilla-games.com/read/nubis-authoring-real-time-volumetric-cloudscapes-with-the-decima-engine)
+* [2017](https://www.guerrilla-games.com/read/nubis-authoring-real-time-volumetric-cloudscapes-with-the-decima-engine) Nubis: Authoring Realtime Volumetric Cloudscapes with the Decima Engine 
 
 Contributors:
-1. Aman Sachan - M.S.E. Computer Graphics and Game Technology, UPenn
-2. Meghana Seshadri - M.S.E. Computer Graphics and Game Technology, UPenn
+1. Meghana Seshadri - M.S.E. Computer Graphics and Game Technology, UPenn
+2. Aman Sachan - M.S.E. Computer Graphics and Game Technology, UPenn
+ 
+
+![](/images/READMEImages/godrays.PNG)
+
 
 Skip Forward to:
 1. [Instructions](#Instructions)
@@ -32,12 +32,10 @@ Skip Forward to:
 8. [Bloopers](#Bloopers)
 
 
-![](/images/READMEImages/godrays.PNG)
-
-
 ## Instructions
 
 If you wish to run or develop on top of this program, please refer to the [INSTRUCTION.md](https://github.com/Aman-Sachan-asach/Meteoros/blob/master/INSTRUCTION.md) file.
+
 
 ## Features
 
@@ -46,17 +44,19 @@ If you wish to run or develop on top of this program, please refer to the [INSTR
 ### Upcoming
 - Fully functional reprojection optimization 
 
-## Pipeline Overview <a name="Pipeline"></a>
+
+
+
+
+## Pipeline Overview
 
 ### Vulkan
+
 Describe the Vulkan graphics and compute pipeline set up here.
 
 ### Graphics Pipeline
 ![](/images/SimplifiedPipeline.png)
 
-## Implementation Overview <a name="Implementation"></a>
-
-### Ray-Marching <a name="Raymarching"></a>
 
 
 
@@ -120,6 +120,7 @@ To retain baseline forward scattering behavior and get the silver lining highlig
 ![](/images/READMEImages/hg04.PNG)
 
 
+
 #### Absorption / Out-scattering
 
 This is the transmittance produced as a result of the Beer-Lambert equation. 
@@ -142,7 +143,7 @@ This produces the dark edges and bases to the clouds.
 
 In-scattering is when a light ray that has scattered in a cloud is combined with others on its way to the eye, essentially brightening the region of the cloud you are looking at. In order for this to occur, an area must have a lot of rays scattering into it, which only occurs where there is cloud material. This means that the deeper in the cloud, the more scattering contributors there are, and the amount of in-scattering on the edges of the clouds is lower, which makes them appear dark. Also, since there are no strong scattering sources below clouds, the bottoms of them will have less occurences of in-scattering as well. 
 
-Only attenuation and Henyey-Greenstein phase: 
+Only attenuation and HG phase: 
 
 ![](/images/READMEImages/in01.PNG)
 
@@ -174,12 +175,17 @@ Second component accounts for decrease in-scattering over height.
 ![](/images/sampleoptimisation.png)
 
 
-## Performance Analysis <a name="Performance"></a>
+
+
+## Performance Analysis 
 
 Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070(laptop GPU) 8074MB (Personal Machine: Customized MSI GT62VR 7RE)
 
+
+
 ## Notes
-- We did not add checks (which is highly recommended when developing Vulkan code for other users) to make sure some features are supported by the GPU before using them, such as anisotropic filtering and the image formats that the GPU supports.
+- We did not add checks to make sure some features are supported by the GPU before using them, such as anisotropic filtering.
+
 
 
 ## Resources
@@ -207,7 +213,6 @@ Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070
 - [Uncharted 2 Tone Mapping](http://filmicworlds.com/blog/filmic-tonemapping-operators/)
 - [God Rays](https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch13.html)
 
-
 ### Upcoming Feature Set:
 - [Off-screen Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/offscreen)
 - [Off-screen Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/pushconstants)
@@ -215,13 +220,14 @@ Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070
 ### Other Resources
 - FBM Procedural Noise Joe Klinger
 - Preetham Sun/Sky model from Project Marshmallow 
- 
+
 
 ## Bloopers
 
 * Tone Mapping Madness
 
 ![](/images/READMEImages/meg01.gif)
+
 
 * Sobel's "edgy" clouds
 
