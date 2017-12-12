@@ -32,26 +32,50 @@ Skip Forward to:
 7. [Resources](#Resources)
 8. [Bloopers](#Bloopers)
 
-## Instructions
+## Instructions <a name="Instructions"></a>
 
 If you wish to run or develop on top of this program, please refer to the [INSTRUCTION.md](https://github.com/Aman-Sachan-asach/Meteoros/blob/master/INSTRUCTION.md) file.
 
-## Features
+## Features <a name="Features"></a>
 
-### Current
+### Current <a name="Current"></a>
+- Vulkan Framework that is easy to extend, heavily commented, and easy to read and understand
+- Multiple Compute and Graphics pipelines working in sync
+- Cloud Modelling, Lighting, and Rendering Models as defined by the papers
+- HDR color space
+- God-Rays and Tone Mapping Post processes
+- Raymarching and Cloud rendering Optimizations
+- Reprojection Optimization that is slightly buggy and currently only in the test branch 'AmanDev'
 
-### Upcoming
-- Fully functional reprojection optimization 
+### Upcoming <a name="Upcoming"></a>
+- Fully functional reprojection optimization
+- More refined cloud shapes and lighting
+- Anti-Aliasing - Temporal and Fast-Approximate (TXAA and FXAA)
+- Offscreen Rendering Pipeline
+- Cloud Shadow casting
 
 ## Pipeline Overview <a name="Pipeline"></a>
 
-Describe the Vulkan graphics and compute pipeline set up here.
+![](/images/pipelinelayout.png)
+
+We have 3 distinct stages in our pipeline: compute stage, rasterization or the regular graphics pipeline stage, and a post-process stage.
+
+#### Compute Stage:
+This stage is responsible for the bulk of this project. It handles: 
+- Reprojection Compute Shader: Reprojection calculations in a separate compute shader
+- Cloud Compute Shader: Cloud raymarching, modeling, lighting, and rendering calculations and stores the result in a HDR color space, i.e. 32bit RGBA channels, texture. This shader also generates a "god-ray creation" texture, which is a grray-scale image used by the god-rays post process shder to create god rays.
+
+#### Synchronization:
+#### Graphics Pipeline Stage:
+#### Post Process Stage:
+
+
 
 ## Implementation Overview <a name="Implementation"></a>
 
 ### Ray-Marching <a name="Raymarching"></a>
 
-### Modeling
+### Modeling <a name="Modeling"></a>
 
 Read in 3D textures for low and high frequency noise. The low frequency noise forms the base shape of the clouds, and the high frequency noise erodes the edges of the clouds to form them into finer shapes.
 
@@ -86,7 +110,7 @@ Curl Noise is used to simulate wind and other motion effects on the clouds. Samp
 
 
 
-### Lighting
+### Lighting <a name="Lighting"></a>
 
 The lighting model consists of 3 different probabilities:
 
@@ -111,29 +135,33 @@ The lighting model consists of 3 different probabilities:
 
 
 
-### Rendering 
+### Rendering <a name="Rendering"></a>
 
 
 ### Post-Processing <a name="Post"></a>
 
-## Optimizations
+#### GodRays
 
+#### Tone Mapping
 
+## Optimizations <a name="Optimizations"></a>
+
+Ray Sampling Optimization
 ![](/images/sampleoptimisation.png)
 
 ## Performance Analysis <a name="Performance"></a>
 
 Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070(laptop GPU) 8074MB (Personal Machine: Customized MSI GT62VR 7RE)
 
-## Notes
+## Notes <a name="Notes"></a>
 - We did not add checks (which is highly recommended when developing Vulkan code for other users) to make sure some features are supported by the GPU before using them, such as anisotropic filtering and the image formats that the GPU supports.
 
-## Resources
+## Resources <a name="Resources"></a>
 
 #### Texture Resources:
 - [Low and High Frequency Noise Textures](https://www.guerrilla-games.com/read/nubis-authoring-real-time-volumetric-cloudscapes-with-the-decima-engine) were made using the 'Nubis Noise Generator' houdini tool that was released along with the 2015 paper. 
 - [Curl Noise Textures](http://bitsquid.blogspot.com/2016/07/volumetric-clouds.html)
-- Weather Map Texture made by Dan Mccan
+- Weather Map Texture by Dan Mccan
 
 #### Libraries:
 - [Image Loading Library](https://github.com/nothings/stb)
@@ -155,13 +183,13 @@ Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070
 
 #### Upcoming Feature Set:
 - [Off-screen Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/offscreen)
-- [Off-screen Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/pushconstants)
+- [Push Constants](https://github.com/SaschaWillems/Vulkan/tree/master/examples/pushconstants)
 
 #### Other Resources
 - FBM Procedural Noise Joe Klinger
 - Preetham Sun/Sky model from Project Marshmallow 
 
-## Bloopers
+## Bloopers <a name="Bloopers"></a>
 
 * Tone Mapping Madness
 
