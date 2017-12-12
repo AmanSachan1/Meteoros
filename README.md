@@ -10,25 +10,12 @@ Contributors:
 2. Aman Sachan - M.S.E. Computer Graphics and Game Technology, UPenn
  
 
-Please see a more detailed description of the algorithms and set up below in the [Detailed Description](https://github.com/Aman-Sachan-asach/Meteoros/edit/master/README.md#detailed-description)
+Please see a more detailed description of the algorithms and set up below in the [Detailed Description](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
 
 
 ## Instructions
 
-How to use cmake:
-
-
-Other Notes:
-
-* Compile GLSL shaders into SPIR-V bytecode:
-* **Windows ONLY** Create a compile.bat file with the following contents:
-
-```
-C:/VulkanSDK/1.0.17.0/Bin32/glslangValidator.exe -V shader.vert
-C:/VulkanSDK/1.0.17.0/Bin32/glslangValidator.exe -V shader.frag
-pause
-```
-Note: Replace the path to glslangValidator.exe with the path to where you installed the Vulkan SDK. Double click the file to run it.
+If you wish to run or develop on top of this program, please refer to the [INSTRUCTION.md](https://github.com/Aman-Sachan-asach/Meteoros/blob/master/INSTRUCTION.md) file.
 
 
 ## Detailed Description
