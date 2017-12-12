@@ -1,17 +1,14 @@
 # Meteoros
 
-## Demo
-
-
 *polished version with more feaures to be released over winter break (before 2nd week of Jan)*
 
 ## Overview
 
 This project is a real-time cloudscape renderer in Vulkan that was made as the final project for the University of Pennsylvania course, CIS 565: GPU Programming and Architecture. It is based on the cloud system NUBIS that was implemented for the Decima Engine by Guerrilla Games. The clouds were made for the game 'Horizon Zero Dawn' and were described in the following SIGGRAPH 2015 and 2017 presentations: 
 
-* [2015](https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn) The Real-time Volumetric Cloudscapes of Horizon Zero Dawn
+* 2015 [The Real-time Volumetric Cloudscapes of Horizon Zero Dawn](https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn)
 
-* [2017](https://www.guerrilla-games.com/read/nubis-authoring-real-time-volumetric-cloudscapes-with-the-decima-engine) Nubis: Authoring Realtime Volumetric Cloudscapes with the Decima Engine 
+* 2017 [Nubis: Authoring Realtime Volumetric Cloudscapes with the Decima Engine](https://www.guerrilla-games.com/read/nubis-authoring-real-time-volumetric-cloudscapes-with-the-decima-engine)
 
 Contributors:
 1. Aman Sachan - M.S.E. Computer Graphics and Game Technology, UPenn
@@ -31,8 +28,9 @@ Skip Forward to:
 	- [Post-Processing](#Post)
 5. [Optimizations](#Optimizations)
 5. [Performance Analysis](#Performance)
-6. [Resources and Notes](#ResourcesAndNotes)
-7. [Bloopers](#Bloopers)
+6. [Resources](#Resources)
+7. [Notes](#Notes)
+8. [Bloopers](#Bloopers)
 
 ## Instructions
 
@@ -133,29 +131,47 @@ The lighting model consists of 3 different probabilities:
 Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070(laptop GPU) 8074MB (Personal Machine: Customized MSI GT62VR 7RE)
 
 
-## Resources and Notes <a name="ResourcesAndNotes"></a>
+## Resources
 
-### Resources
+#### Texture Resources:
+- [Low and High Frequency Noise Textures](https://www.guerrilla-games.com/read/nubis-authoring-real-time-volumetric-cloudscapes-with-the-decima-engine) were made using the 'Nubis Noise Generator' houdini tool that was released along with the 2015 paper. 
 - [Curl Noise Textures](http://bitsquid.blogspot.com/2016/07/volumetric-clouds.html)
+- Weather Map Texture made by Dan Mccan
+
+#### Libraries:
 - [Image Loading Library](https://github.com/nothings/stb)
 - [Obj Loading Library](https://github.com/syoyo/tinyobjloader)
-- [Setting Up Compute Shader that writes to a texture that is sampled by the fragment shader]( https://github.com/SaschaWillems/Vulkan/tree/master/examples/raytracing)
 - [Why to include stb in .cpp file](https://stackoverflow.com/questions/43348798/double-inclusion-and-headers-only-library-stbi-image)
-- FBM Procedural Noise Joe Klinger 
-- Preetham Sun/Sky model from and Project Marshmallow 
+- [Imgui](https://github.com/ocornut/imgui) for our partially wriiten gui
 
+#### Vulkan
+- [Vulkan Tutorial](https://vulkan-tutorial.com/)
+- [RenderDoc](https://renderdoc.org/)
+- [Setting Up Compute Shader that writes to a texture](https://github.com/SaschaWillems/Vulkan/tree/master/examples/raytracing)
+- [3D Textures](https://github.com/SaschaWillems/Vulkan/tree/master/examples/texture3d)
+- [Pipeline Caching](https://github.com/SaschaWillems/Vulkan/tree/master/examples/radialblur) was used for post-processing and so it made more sense to see how it is done for post processing
+- [Radial Blur](https://github.com/SaschaWillems/Vulkan/tree/master/examples/radialblur)
 
+#### Post-Processing:
+- [Uncharted 2 Tone Mapping](http://filmicworlds.com/blog/filmic-tonemapping-operators/)
+- [God Rays](https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch13.html)
 
-### Notes
-- We did not add checks to make sure some features are supported by the GPU before using them, such as anisotropic filtering.
+#### Upcoming Feature Set:
+- [Off-screen Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/offscreen)
+- [Off-screen Rendering](https://github.com/SaschaWillems/Vulkan/tree/master/examples/pushconstants)
 
+#### Other Resources
+- FBM Procedural Noise Joe Klinger
+- Preetham Sun/Sky model from Project Marshmallow 
+
+## Notes
+- We did not add checks (which is highly recommended when developing Vulkan code for other users) to make sure some features are supported by the GPU before using them, such as anisotropic filtering and the image formats that the GPU supports.
 
 ## Bloopers
 
 * Tone Mapping Madness
 
 ![](/images/READMEImages/meg01.gif)
-
 
 * Sobel's "edgy" clouds
 
