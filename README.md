@@ -43,14 +43,9 @@ If you wish to run or develop on top of this program, please refer to the [INSTR
 ### Upcoming
 - Fully functional reprojection optimization 
 
-### Pipeline Overview
-
-#### Vulkan
+## Pipeline Overview <a name="Pipeline"></a>
 
 Describe the Vulkan graphics and compute pipeline set up here.
-
-#### Graphics Pipeline
-![](/images/SimplifiedPipeline.png)
 
 ## Implementation Overview <a name="Implementation"></a>
 
