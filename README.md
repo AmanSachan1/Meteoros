@@ -37,25 +37,25 @@ Skip Forward to:
 8. [Bloopers](#Bloopers)
 
 
-## Instructions
+## Instructions <a name="Instructions"></a>
 
 If you wish to run or develop on top of this program, please refer to the [INSTRUCTION.md](https://github.com/Aman-Sachan-asach/Meteoros/blob/master/INSTRUCTION.md) file.
 
 
-## Features
+## Features <a name="Features"></a>
 
-### Current
+### Current <a name="Current"></a>
 
-### Upcoming
+### Upcoming <a name="Upcoming"></a>
 - Fully functional reprojection optimization 
 
 
 
 
 
-## Pipeline Overview
+## Pipeline Overview <a name="Pipeline"></a>
 
-### Vulkan
+### Vulkan 
 
 Describe the Vulkan graphics and compute pipeline set up here.
 
@@ -65,11 +65,11 @@ Describe the Vulkan graphics and compute pipeline set up here.
 
 
 
-## Implementation Overview 
+## Implementation Overview <a name="Implementation"></a>
 
-### Ray-Marching
+### Ray-Marching <a name="Raymarching"></a>
 
-### Modeling
+### Modeling <a name="Modeling"></a>
 
 Read in 3D textures for low and high frequency noise. The low frequency noise forms the base shape of the clouds, and the high frequency noise erodes the edges of the clouds to form them into finer shapes.
 
@@ -94,7 +94,7 @@ Curl Noise is used to simulate wind and other motion effects on the clouds. Samp
 
 
 
-### Lighting
+### Lighting <a name="Lighting"></a>
 
 The lighting model as described in the 2017 presentation is an attenuation based lighting model. This means that you start with full intensity, and then reduce it as combination of the following 3 probabilities: 
 
@@ -169,31 +169,31 @@ Second component accounts for decrease in-scattering over height.
 
 
 
-### Rendering 
+### Rendering <a name="Rendering"></a>
 
 
-### Post Processing 
+### Post Processing <a name="Post"></a>
 
 
-### Optimizations
+## Optimizations <a name="Optimizations"></a>
 
 ![](/images/sampleoptimisation.png)
 
 
 
 
-## Performance Analysis 
+## Performance Analysis <a name="Performance"></a>
 
 Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070(laptop GPU) 8074MB (Personal Machine: Customized MSI GT62VR 7RE)
 
 
 
-## Notes
+## Notes <a name="Notes"></a>
 - We did not add checks to make sure some features are supported by the GPU before using them, such as anisotropic filtering.
 
 
 
-## Resources
+## Resources <a name="Resources"></a>
 
 ### Texture Resources:
 - [Low and High Frequency Noise Textures](https://www.guerrilla-games.com/read/nubis-authoring-real-time-volumetric-cloudscapes-with-the-decima-engine) were made using the 'Nubis Noise Generator' houdini tool that was released along with the 2015 paper. 
@@ -227,7 +227,7 @@ Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070
 - Preetham Sun/Sky model from Project Marshmallow 
 
 
-## Bloopers
+## Bloopers <a name="Bloopers"></a>
 
 * Tone Mapping Madness
 
