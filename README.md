@@ -1,10 +1,12 @@
 # Meteoros
 
+![](/images/READMEImages/godrays.PNG)
+
 *polished version with more feaures to be released over winter break (before 2nd week of Jan)*
 
 ## Overview
 
-This project is a real-time cloudscape renderer in Vulkan that was made as the final project for the University of Pennsylvania course, CIS 565: GPU Programming and Architecture. It is based on the cloud system NUBIS that was implemented for the Decima Engine by Guerrilla Games. The clouds were made for the game 'Horizon Zero Dawn' and were described in the following SIGGRAPH 2015 and 2017 presentations: 
+This project is a real-time cloudscape renderer in Vulkan that was made as the final project for the course, CIS 565: GPU Programming and Architecture, at the University of Pennsylvania. It is based on the cloud system 'NUBIS' that was implemented for the Decima Engine by Guerrilla Games. The clouds were originally made for the game 'Horizon Zero Dawn' and were described in the following SIGGRAPH 2015 and 2017 presentations: 
 
 * 2015 [The Real-time Volumetric Cloudscapes of Horizon Zero Dawn](https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn)
 
@@ -89,17 +91,7 @@ Read in 3D textures for low and high frequency noise. The low frequency noise fo
 
 Low frequency texture = perlin-worley + 3 worley's
 
-Perlin-Worley
-![](/images/perlinworleyNoise.png)
-
-Worley 1
-![](/images/worleyNoiseLayer1.png)
-
-Worley 2
-![](/images/worleyNoiseLayer2.png)
-
-Worley 3
-![](/images/worleyNoiseLayer3.png)
+<img src="/images/perlinworleyNoise.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer1.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer2.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer3.png" width="243.25" height="231.25">
 
 
 High frequency = 3 worley's at higher frequencies
@@ -120,33 +112,83 @@ Curl Noise is used to simulate wind and other motion effects on the clouds. Samp
 
 ### Lighting <a name="Lighting"></a>
 
-The lighting model consists of 3 different probabilities:
+The lighting model as described in the 2017 presentation is an attenuation based lighting model. This means that you start with full intensity, and then reduce it as combination of the following 3 probabilities: 
 
-* Beer-Lambert
-* Henyey-Greenstein
-* In-scattering
-
-![](/images/FinalLightingModel.png)
+1. Directional Scattering
+2. Absorption / Out-scattering 
+3. In-scattering
 
 
-1. Beers Law
+![](/images/READMEImages/lightingProbs.PNG)
+
+
+#### Directional Scattering
+
+This retains baseline forward scattering and produces silver lining effects. It is calculated using Henyey-Greenstein equation.
+
+The eccentricity value that generally works well for mid-day sunlight doesn't provide enough bright highlights around the sun during sunset. 
+
+![](/images/READMEImages/hg01.PNG)
+
+Change the eccentricity to have more forward scattering, hence bringing the highlights around the sun. Clouds 90 degrees away from the sun, however, become too dark.
+
+![](/images/READMEImages/hg02.PNG)
+
+To retain baseline forward scattering behavior and get the silver lining highlights, combine 2 HG functions, and factors to control the intensity of this effect as well as its spread away from the sun.
+
+![](/images/READMEImages/hg03.PNG)
+
+![](/images/READMEImages/hg04.PNG)
+
+
+
+#### Absorption / Out-scattering
+
+This is the transmittance produced as a result of the Beer-Lambert equation. 
+
+Beer's Law only accounts for attenuation of light and not the emission of light that has in-scattered to the sample point, hence making clouds too dark. 
 
 ![](/images/beerslaw.png)
 
-
-2. Henyey-Greenstein
-
-![](/images/beerspowderlaw.png)
+![](/images/READMEImages/beer01.PNG)
 
 
-3. In-Scattering
+By combining 2 Beer-Lambert equations, the attenuation for the second one is reduced to push light further into the cloud.
+
+![](/images/READMEImages/beer02.PNG)
+
+
+
+#### In-scattering
+This produces the dark edges and bases to the clouds. 
+
+In-scattering is when a light ray that has scattered in a cloud is combined with others on its way to the eye, essentially brightening the region of the cloud you are looking at. In order for this to occur, an area must have a lot of rays scattering into it, which only occurs where there is cloud material. This means that the deeper in the cloud, the more scattering contributors there are, and the amount of in-scattering on the edges of the clouds is lower, which makes them appear dark. Also, since there are no strong scattering sources below clouds, the bottoms of them will have less occurences of in-scattering as well. 
+
+Only attenuation and HG phase: 
+
+![](/images/READMEImages/in01.PNG)
+
+Sampling cloud at low level of density, and accounting for attenuation along in-scatter path. This appears dark because there is little to no in-scattering on the edges.
+
+![](/images/READMEImages/in02.PNG)
+
+Relax the effect over altitude and apply a bias to compensate. 
+
+![](/images/READMEImages/in03.PNG)
+
+Second component accounts for decrease in-scattering over height. 
+
+![](/images/READMEImages/in04.PNG)
+
+
+
 
 
 
 ### Rendering <a name="Rendering"></a>
 
 
-### Post-Processing <a name="Post"></a>
+### Post Processing <a name="Post"></a>
 
 #### GodRays
 
@@ -205,4 +247,4 @@ Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070
 
 * Sobel's "edgy" clouds
 
-![](/images/READMEImages/meg02.gif)
+![](/images/READMEImages/sobeltest.PNG)
