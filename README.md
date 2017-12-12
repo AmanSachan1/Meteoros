@@ -8,15 +8,18 @@ This project is a real-time cloudscape renderer in Vulkan that was made as the f
 Contributors:
 1. Meghana Seshadri - M.S.E. Computer Graphics and Game Technology, UPenn
 2. Aman Sachan - M.S.E. Computer Graphics and Game Technology, UPenn
-
-## Project Description 
-
-This goal of this project was to implement the 
+ 
 
 Please see a more detailed description of the algorithms and set up below in the [Detailed Description](https://github.com/Aman-Sachan-asach/Meteoros/edit/master/README.md#detailed-description)
 
 
 ## Instructions
+
+How to use cmake:
+
+
+Other Notes:
+
 * Compile GLSL shaders into SPIR-V bytecode:
 * **Windows ONLY** Create a compile.bat file with the following contents:
 
@@ -82,7 +85,6 @@ The lighting model consists of 3 different probabilities:
 1. Beers Law
 
 ![](/images/beerslaw.png)
-![](/images/beerspowderlaw.png)
 
 
 2. Henyey-Greenstein
@@ -92,7 +94,6 @@ The lighting model consists of 3 different probabilities:
 
 3. In-Scattering
 
-![](/images/beerspowderlaw.png)
 
 
 #### Rendering 
