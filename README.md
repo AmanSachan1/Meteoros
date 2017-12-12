@@ -19,25 +19,19 @@ Contributors:
 
 Skip Forward to:
 
-[Instructions](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-
-[Features](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
- - [Current](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
- - [Upcoming](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-
-[Implementation Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
- - [Ray-Marching](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
- - [Modelling](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
- - [Lighting](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
- - [Rendering](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-
-[Pipeline Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-
-[Optimizations](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-
-[Notes](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
-
-[Bloopers](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+1. [Instructions](#Instructions)
+2. [Features](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+	- [Current](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+	- [Upcoming](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+3. [Implementation Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+	- [Ray-Marching](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+	- [Modelling](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+	- [Lighting](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+	- [Rendering](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+4. [Pipeline Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+5. [Optimizations](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+6. [Notes](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+7. [Bloopers](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
 
 ## Instructions
 
