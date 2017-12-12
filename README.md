@@ -1,8 +1,8 @@
 # Meteoros
 
-![](/images/READMEImages/godrays.PNG)
-
 *polished version with more feaures to be released over winter break (before 2nd week of Jan)*
+
+![](/images/READMEImages/godrays.PNG)
 
 ## Overview
 
@@ -58,7 +58,7 @@ If you wish to run or develop on top of this program, please refer to the [INSTR
 
 ## Pipeline Overview <a name="Pipeline"></a>
 
-![](/images/pipelinelayout.png)
+![](/images/READMEImages/pipelinelayout.png)
 
 We have 3 distinct stages in our pipeline: compute stage, rasterization or the regular graphics pipeline stage, and a post-process stage.
 
@@ -76,10 +76,12 @@ We don't need a synchronization point between the graphics pipeline stage and th
 
 #### Graphics Pipeline Stage:
 
+This stage is responsible for the rendering of 3D models, which is done via rasterization. The implementation closely follows [this vulkan tutorial](https://vulkan-tutorial.com/) except for the fact that it has been refactored into very readable classes instead of a single file.
+This commands for this stage have been commented outis and thus are not being dispatched because they weren't adding anything to our scene.
 
 #### Post Process Stage:
 
-
+This stage is responsible for adding the god-rays, and tone mapping post-process effects.
 
 ## Implementation Overview <a name="Implementation"></a>
 
@@ -91,24 +93,21 @@ Read in 3D textures for low and high frequency noise. The low frequency noise fo
 
 Low frequency texture = perlin-worley + 3 worley's
 
-<img src="/images/perlinworleyNoise.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer1.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer2.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer3.png" width="243.25" height="231.25">
+<img src="/images/perlinworleyNoise.png" width="243.25" height="231.25"> 
 
+<img src="/images/worleyNoiseLayer1.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer2.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer3.png" width="243.25" height="231.25">
 
 High frequency = 3 worley's at higher frequencies
 ![](/images/highFrequencyDetail.png)
-
 
 Curl Noise is used to simulate wind and other motion effects on the clouds. Sample along with the high frequency clouds.
 
 ![](/images/curlNoise.png)
 
-
 ![](/images/cloudmodelling.png)
 ![](/images/erodeclouds.png)
 ![](/images/modellingClouds.png)
 ![](/images/modellingClouds1.png)
-
-
 
 ### Lighting <a name="Lighting"></a>
 
@@ -118,9 +117,7 @@ The lighting model as described in the 2017 presentation is an attenuation based
 2. Absorption / Out-scattering 
 3. In-scattering
 
-
 ![](/images/READMEImages/lightingProbs.PNG)
-
 
 #### Directional Scattering
 
@@ -140,8 +137,6 @@ To retain baseline forward scattering behavior and get the silver lining highlig
 
 ![](/images/READMEImages/hg04.PNG)
 
-
-
 #### Absorption / Out-scattering
 
 This is the transmittance produced as a result of the Beer-Lambert equation. 
@@ -152,12 +147,9 @@ Beer's Law only accounts for attenuation of light and not the emission of light 
 
 ![](/images/READMEImages/beer01.PNG)
 
-
 By combining 2 Beer-Lambert equations, the attenuation for the second one is reduced to push light further into the cloud.
 
 ![](/images/READMEImages/beer02.PNG)
-
-
 
 #### In-scattering
 This produces the dark edges and bases to the clouds. 
@@ -181,18 +173,19 @@ Second component accounts for decrease in-scattering over height.
 ![](/images/READMEImages/in04.PNG)
 
 
-
-
-
-
 ### Rendering <a name="Rendering"></a>
+
 
 
 ### Post Processing <a name="Post"></a>
 
 #### GodRays
 
+
+
 #### Tone Mapping
+
+
 
 ## Optimizations <a name="Optimizations"></a>
 
