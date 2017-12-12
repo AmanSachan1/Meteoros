@@ -23,10 +23,9 @@ Skip Forward to:
 	- [Upcoming](#Upcoming)
 3. [Pipeline Overview](#Pipeline)
 4. [Implementation Overview](#Implementation)
-	- [Ray-Marching](#Raymarching)
+	- [Ray-Marching and Rendering](#Rendering)
 	- [Modelling](#Modeling)
 	- [Lighting](#Lighting)
-	- [Rendering](#Rendering)
 	- [Post-Processing](#Post)
 5. [Optimizations](#Optimizations)
 5. [Performance Analysis](#Performance)
@@ -85,7 +84,18 @@ This stage is responsible for adding the god-rays, and tone mapping post-process
 
 ## Implementation Overview <a name="Implementation"></a>
 
-### Ray-Marching <a name="Raymarching"></a>
+### Ray-Marching and Rendering <a name="Rendering"></a>
+
+![](/images/READMEImages/layerLayout.png)
+![](/images/READMEImages/horizonLine.png)
+![](/images/READMEImages/raymarching.png)
+
+![](/images/READMEImages/InOutOfCloud.png)
+![](/images/READMEImages/CloudErosion.png)
+
+![](/images/READMEImages/LightCalculations.png)
+![](/images/READMEImages/LightCalculationsNaive.png)
+![](/images/READMEImages/ConeSampling.png)
 
 ### Modeling <a name="Modeling"></a>
 
@@ -172,11 +182,6 @@ Second component accounts for decrease in-scattering over height.
 
 ![](/images/READMEImages/in04.PNG)
 
-
-### Rendering <a name="Rendering"></a>
-
-
-
 ### Post Processing <a name="Post"></a>
 
 #### GodRays
@@ -190,7 +195,9 @@ Second component accounts for decrease in-scattering over height.
 ## Optimizations <a name="Optimizations"></a>
 
 Ray Sampling Optimization
-![](/images/sampleoptimisation.png)
+
+![](/images/READMEImages/CheapSampling.png)
+![](/images/READMEImages/AngularSampling.png)
 
 ## Performance Analysis <a name="Performance"></a>
 
