@@ -2,7 +2,7 @@
 
 *polished version with more feaures to be released over winter break (before 2nd week of Jan)*
 
-![](/images/READMEImages/godrays.PNG)
+![](/images/READMEImages/finalRender.PNG)
 
 ## Overview
 
