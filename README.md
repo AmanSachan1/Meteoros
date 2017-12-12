@@ -1,16 +1,39 @@
 # Meteoros
-This project is a real-time cloudscape renderer in Vulkan that was made as the final project for the University of Pennsylvania course, CIS 565: GPU Programming and Architecture. It is based on the theory and implementation as described in the following SIGGRAPH 2015 and 2017 presentations: 
+===========
+
+## Demo
+
+## Overview
+
+This project is a real-time cloudscape renderer in Vulkan that was made as the final project for the University of Pennsylvania course, CIS 565: GPU Programming and Architecture. It is based on the cloud system NUBIS that was implemented for the Decima Engine by Guerrilla Games. The clouds were made for the game 'Horizon Zero Dawn' and were described in the following SIGGRAPH 2015 and 2017 presentations: 
 
 * [2015](https://www.guerrilla-games.com/read/the-real-time-volumetric-cloudscapes-of-horizon-zero-dawn) The Real-time Volumetric Cloudscapes of Horizon Zero Dawn
 
 * [2017](https://www.guerrilla-games.com/read/nubis-authoring-real-time-volumetric-cloudscapes-with-the-decima-engine) Nubis: Authoring Realtime Volumetric Cloudscapes with the Decima Engine 
 
 Contributors:
-1. Meghana Seshadri - M.S.E. Computer Graphics and Game Technology, UPenn
-2. Aman Sachan - M.S.E. Computer Graphics and Game Technology, UPenn
- 
+1. Aman Sachan - M.S.E. Computer Graphics and Game Technology, UPenn
+2. Meghana Seshadri - M.S.E. Computer Graphics and Game Technology, UPenn
 
-Please see a more detailed description of the algorithms and set up below in the [Detailed Description](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+Skip Forward to:
+
+[Features](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+ - [Current](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+ - [Upcoming](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
+[Implementation Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+ - [Ray-Marching](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+ - [Modelling](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+ - [Lighting](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+ - [Rendering](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
+[Pipeline Overview](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
+[Optimizations](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
+[Notes](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
+
+[Bloopers](https://github.com/Aman-Sachan-asach/Meteoros#detailed-description)
 
 
 ## Instructions
@@ -18,12 +41,9 @@ Please see a more detailed description of the algorithms and set up below in the
 If you wish to run or develop on top of this program, please refer to the [INSTRUCTION.md](https://github.com/Aman-Sachan-asach/Meteoros/blob/master/INSTRUCTION.md) file.
 
 
-## Detailed Description
+## Implementation Overview 
 
-
-### Implementation Overview 
-
-#### Modeling
+### Modeling
 
 Read in 3D textures for low and high frequency noise. The low frequency noise forms the base shape of the clouds, and the high frequency noise erodes the edges of the clouds to form them into finer shapes.
 
@@ -58,7 +78,7 @@ Curl Noise is used to simulate wind and other motion effects on the clouds. Samp
 
 
 
-#### Lighting
+### Lighting
 
 The lighting model consists of 3 different probabilities:
 
@@ -83,19 +103,19 @@ The lighting model consists of 3 different probabilities:
 
 
 
-#### Rendering 
+### Rendering 
 
 
-#### Optimizations and Post Processing 
+### Optimizations and Post Processing 
 
 ![](/images/sampleoptimisation.png)
 
 
-#### Vulkan
+### Vulkan
 
 Describe the Vulkan graphics and compute pipeline set up here.
 
-##### Graphics Pipeline
+#### Graphics Pipeline
 ![](/images/SimplifiedPipeline.png)
 
 
