@@ -94,22 +94,24 @@ At every step of our ray march we determine how dense the atmosphere is and if i
 
 To render the sky as a skybox type dome we create 3 spheres, representing the earth, the inner layer of the atmosphere, and the outer layer of the atmosphere.
 
-![](/images/READMEImages/layerLayout.png)
+<img src="/images/READMEImages/layerLayout.png" width="642" height="362"> 
 
 We don't want to render any thing beyond the horizon because we can't see anything beyond the horizon anyway.
 
-![](/images/READMEImages/horizonLine.png)
+<img src="/images/READMEImages/horizonLine.png" width="642" height="362"> 
 
 Placing a camera atop this virtual earth, we can start our actual rendering process. Start raycasting from your camera, for every ray evaluate it at a fixed stepsize when it is inside the the 2 atmosphere layers we just created.
 
-![](/images/READMEImages/raymarching.png)
+<img src="/images/READMEImages/raymarching.png" width="642" height="362"> 
 
-![](/images/READMEImages/InOutOfCloud.png)
-![](/images/READMEImages/CloudErosion.png)
 
-![](/images/READMEImages/LightCalculations.png)
-![](/images/READMEImages/LightCalculationsNaive.png)
-![](/images/READMEImages/ConeSampling.png)
+<img src="/images/READMEImages/InOutOfCloud.png" width="642" height="362"> 
+<img src="/images/READMEImages/CloudErosion.png" width="642" height="362"> 
+
+
+<img src="/images/READMEImages/LightCalculations.png" width="642" height="362"> 
+<img src="/images/READMEImages/LightCalculationsNaive.png" width="642" height="362"> 
+<img src="/images/READMEImages/ConeSampling.png" width="642" height="362"> 
 
 ### Modeling <a name="Modeling"></a>
 
