@@ -313,6 +313,8 @@ This technique has been implemented in a test branch but is slightly buggy, but 
 - [Obj Loading Library](https://github.com/syoyo/tinyobjloader)
 - [Why to include stb in .cpp file](https://stackoverflow.com/questions/43348798/double-inclusion-and-headers-only-library-stbi-image)
 - [Imgui](https://github.com/ocornut/imgui) for our partially wriiten gui
+- [GLFW](http://www.glfw.org/) utilities for Windows
+- [GLM](https://glm.g-truc.net/0.9.8/index.html) 
 
 #### Vulkan
 - [Vulkan Tutorial](https://vulkan-tutorial.com/)
