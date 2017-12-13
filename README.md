@@ -25,6 +25,7 @@ Skip Forward to:
 4. [Implementation Overview](#Implementation)
 	- [Rendering](#Rendering)
 	- [Modelling](#Modeling)
+	- [Remap](#remap)
 	- [Lighting](#Lighting)
 	- [Post-Processing](#Post)
 5. [Optimizations](#Optimizations)
@@ -147,11 +148,26 @@ There are 3 textures that are used to define the shape of a cloud in this projec
 
 ![](/images/curlNoise.png)
 
+To define the shape of a cloud we first determine its base shape using the low frequency noise in the '3D cloudBaseShapeTexture', next we errode away the cloud at the edges using the '3D cloudDetailsTexture', and finally we give our cloud a sense of turbulence and fake the look of a moving cloud using the '2D cloudMotionTexture.'
+
 ![](/images/cloudmodelling.png)
-<img src="/images/READMEImages/CloudErosion.png" width="642" height="362"> 
-![](/images/erodeclouds.png)
-![](/images/modellingClouds.png)
-![](/images/modellingClouds1.png)
+
+### Remap Function <a name="Remap"></a>
+
+One function is used ubiquitously in modelling and lighting these clouds. The remap finction:
+
+	float remap(in float value, in float original_min, in float original_max, in float new_min, in float new_max)
+	{
+		return new_min + ( ((value - original_min) / (original_max - original_min)) * (new_max - new_min) );
+	}
+
+This remap function simply takes a value, that lies inside one range and maps it to another range that you provide. It seems like a simple function and it is in concept but it is can be used in very clever maners to do all sorts of things.
+
+For example, towards the end of the modelling section of this readme, we talked about erroding the edges of a cloud. How do you possibly determine that the point you're evaluatiing is at the edge of a cloud? Well we could use the remap function to do just that.
+
+If we use the below graph as an example, where the red line represents the base density of the cloud and the green line represents the high frequency noise used to erode our cloud at the egdes. If we performed a remap operations on the base density using the high frequency noise as the new minimum value then we would not lose any density in the center of the cloud, which is exactly what we want.
+
+![](/images/READMEImages/remapFunctionDemonstration.png)
 
 ### Lighting <a name="Lighting"></a>
 
