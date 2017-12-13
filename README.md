@@ -138,7 +138,7 @@ There are 3 textures that are used to define the shape of a cloud in this projec
 	Uses Worley noise at increasing frequencies. 
 	This texture is used to add detail to the base cloud shape defined by the first 3d noise.
 
-![](/images/highFrequencyDetail.png)
+![](/images/READMEImages/highFrequencyDetail.png)
 
 	2D cloudMotionTexture
 	3 channels…
@@ -146,11 +146,11 @@ There are 3 textures that are used to define the shape of a cloud in this projec
 	Uses curl noise. Which is non divergent and is used to fake fluid motion. 
 	We use this noise to distort our cloud shapes and add a sense of turbulence.	
 
-![](/images/curlNoise.png)
+![](/images/READMEImages/curlNoise.png)
 
 To define the shape of a cloud we first determine its base shape using the low frequency noise in the '3D cloudBaseShapeTexture', next we errode away the cloud at the edges using the '3D cloudDetailsTexture', and finally we give our cloud a sense of turbulence and fake the look of a moving cloud using the '2D cloudMotionTexture.'
 
-![](/images/cloudmodelling.png)
+![](/images/READMEImages/CloudErosion.png)
 
 ### Remap Function <a name="Remap"></a>
 
