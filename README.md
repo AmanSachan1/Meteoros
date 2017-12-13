@@ -236,11 +236,33 @@ Second component accounts for decrease in-scattering over height.
 
 #### GodRays
 
+God Rays are the streaks of light that poke out from behind clouds. These streaks, which stream through gaps in clouds or between other objects, are columns of sunlit air separated by darker cloud-shadowed regions. Despite seeming to converge at a point, the rays are in fact near-parallel shafts of sunlight. Their apparent convergence is a perspective effect.
 
+We faked the effect of god rays in screen space by radially blurring light from the location of the sun in screen space and using a grey scale godray mask that was generated in the cloudcompte shader to determine where the clouds lie and hence where streaks of light shouldn't appear.
+
+If the sun was not present in the camera frustum that meant that its screen space location was outside the range [0,1] meaning we couldn't generate a mask for points outside screen space or even sample pixels for radial blurring. To overcome the pixel sampling issue we simply used a gradient to represent the energy value. The gradient moved from white to grey as we moved radially away from the sun. There isn't a good way to incorporate the mask back in so we assume that the gradient values outside the screen bounds are unoccluded.
+
+There also isnt a great but also cheap way to do god-rays when the sun is behind the camerabecause we have no data whatsoever. We simply, blend out the god rays as the sun moves to points no longer in the same hemisphere as the camera lookAt vector.
+
+| Only GodRays | GodRay Mask |
+| ------------ |:-----------:|
+| ![](/images/READMEImages/onlyGodRays.png) | ![](/images/READMEImages/godRayMask.PNG) |
+| ------------ |:-----------:|
+| GodRays Composite on Cloud Density | Final Composite |
+| ------------ |:-----------:|
+| ![](/images/READMEImages/godraycompositeOnCloudDensity.PNG) | ![](/images/READMEImages/godraysComposited.png) |
 
 #### Tone Mapping
 
+Tone Mapping is a technique used to map one color space into another to approximate the appearance of high dynamic range images because displays and monitors have more limited dynamic ranges. We implemented the uncharted 2 tone mapping technique that is really good and has become quite popular.
 
+A great visual example of the different [types of tone mapping techniques](https://www.shadertoy.com/view/lslGzl).
+
+Our project is working in the HDR color space and so requires tone mapping to avoid ridiculously blown out images. (a perfect example is in the [bloopers](#Bloopers))
+
+| Without                                             | With                                             |
+| --------------------------------------------------- |:------------------------------------------------:|
+| ![](/images/READMEImages/lightingNotToneMapped.png) | ![](/images/READMEImages/lightingToneMapped.png) |
 
 ## Optimizations <a name="Optimizations"></a>
 Obviously the more samples you take along the ray the better will be the final of your render. T
