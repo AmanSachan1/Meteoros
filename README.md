@@ -28,8 +28,7 @@ Skip Forward to:
 	- [Remap](#remap)
 	- [Lighting](#Lighting)
 	- [Post-Processing](#Post)
-5. [Optimizations](#Optimizations)
-5. [Performance Analysis](#Performance)
+5. [Performance Analysis and Optimizations](#Performance)
 6. [Notes](#Notes)
 7. [Resources](#Resources)
 8. [Bloopers](#Bloopers)
@@ -250,6 +249,9 @@ There also isnt a great but also cheap way to do god-rays when the sun is behind
 | GodRays Composite on Cloud Density                          | Final Composite |
 | ![](/images/READMEImages/godraycompositeOnCloudDensity.PNG) | ![](/images/READMEImages/godraysComposited.png) |
 
+God Rays use a radial blurring technique which relies on sampling pixels from the god ray mask. The more samples you take the higher the performance toll. The FPS dropped by 3 FPS due to the god ray post-process at a 100 sample/pixel .
+![](/images/READMEImages/godRayChart.PNG)
+
 #### Tone Mapping
 
 Tone Mapping is a technique used to map one color space into another to approximate the appearance of high dynamic range images because displays and monitors have more limited dynamic ranges. We implemented the uncharted 2 tone mapping technique that is really good and has become quite popular.
@@ -262,16 +264,37 @@ Our project is working in the HDR color space and so requires tone mapping to av
 | --------------------------------------------------- |:------------------------------------------------:|
 | ![](/images/READMEImages/lightingNotToneMapped.png) | ![](/images/READMEImages/lightingToneMapped.png) |
 
-## Optimizations <a name="Optimizations"></a>
-Obviously the more samples you take along the ray the better will be the final of your render. T
-Ray Sampling Optimization
-
-![](/images/READMEImages/CheapSampling.png)
-![](/images/READMEImages/AngularSampling.png)
-
-## Performance Analysis <a name="Performance"></a>
+## Performance Analysis and Optimizations <a name="Performance"></a>
 
 Performance analysis conducted on: Windows 10, i7-7700HQ @ 2.8GHz 32GB, GTX 1070(laptop GPU) 8074MB (Personal Machine: Customized MSI GT62VR 7RE)
+
+### Early termination based on accumulated Density
+
+If during our ray march we accumulate a density value of over 1 then we terminate the ray march early.
+
+### Cheap Sampling
+
+We determine we are inside a cloud by getting our base density for the cloud and ensuring its greater than 0. We will not do the high requency errosion and further cloud shaping nor will we do any expensive lighting calculations unless we have determined we are inside a cloud.
+
+![](/images/READMEImages/cheapSamplingChart.PNG)
+
+### Reprojection
+
+Reprojection is a technique that uses pixels from the previous frame to color the pixels in the current frame. This is done by projecting the old frame onto the current frame. We calculate how much the camera has moved between 2 frames an
+
+More technically this is implemented as follows:
+1. We store our previous frame in a texture.
+2. Store the old camera information
+3. For a given pixel in the current frame, ray cast using the ray created by the current camera and the current pixels uv co-ordinates.
+4. The ray cast will intersect with the sphere representing the inner layer of the atmosphere. The point of intersection gives ud a world space position.
+5. This world space position is then converted all the way back into uv co-ordinates using the old camera's view and projection matrices.
+6. This uv co-ordinate if in the range from [0,1] can be used to sample the pixel in the old frame that will be used to fill in the pixel in the current frame.
+
+Using this reprojection technique we can get away with actuall only ray marching for 1/16th of the pixels in the current frame. The other 15 of the 16 pixels are filled in using reprojection.
+
+This technique has been implemented in a test branch but is slightly buggy, but preliminary tests show it giving us a 5.97 times speed boost for a version with an inexpensive lighting model. This further implies that the way more complex lighting model in the master branch will gain even better performance boosts.
+
+![](/images/READMEImages/reprojectionPerformance.PNG)
 
 ## Notes <a name="Notes"></a>
 - We did not add checks (which is highly recommended when developing Vulkan code for other users) to make sure some features are supported by the GPU before using them, such as anisotropic filtering and the image formats that the GPU supports.
