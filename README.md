@@ -246,10 +246,8 @@ There also isnt a great but also cheap way to do god-rays when the sun is behind
 
 | Only GodRays | GodRay Mask |
 | ------------ |:-----------:|
-| ![](/images/READMEImages/onlyGodRays.png) | ![](/images/READMEImages/godRayMask.PNG) |
-| ------------ |:-----------:|
-| GodRays Composite on Cloud Density | Final Composite |
-| ------------ |:-----------:|
+| ![](/images/READMEImages/godRayMask.PNG)                    | ![](/images/READMEImages/onlyGodRays.png) |
+| GodRays Composite on Cloud Density                          | Final Composite |
 | ![](/images/READMEImages/godraycompositeOnCloudDensity.PNG) | ![](/images/READMEImages/godraysComposited.png) |
 
 #### Tone Mapping
