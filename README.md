@@ -23,7 +23,7 @@ Skip Forward to:
 	- [Upcoming](#Upcoming)
 3. [Pipeline Overview](#Pipeline)
 4. [Implementation Overview](#Implementation)
-	- [Ray-Marching and Rendering](#Rendering)
+	- [Rendering](#Rendering)
 	- [Modelling](#Modeling)
 	- [Lighting](#Lighting)
 	- [Post-Processing](#Post)
@@ -84,10 +84,24 @@ This stage is responsible for adding the god-rays, and tone mapping post-process
 
 ## Implementation Overview <a name="Implementation"></a>
 
-### Ray-Marching and Rendering <a name="Rendering"></a>
+### Rendering <a name="Rendering"></a>
+
+We render clouds to a texture using the ray marching technique, which is an image based volumetric rendering technique that is used to evalute volumes as opposed to surfaces. This means that the assumption that a objects properties can be defined at or by its surface are thrown out the window. Ray marching involves sampling a ray at various points along its length because the volume is defined at every point inside itself. 
+
+Ray marching is a widely discussed subject and you can find many great resources to dive into it such as this presentation (https://cis700-procedural-graphics.github.io/files/implicit_surfaces_2_21_17.pdf) from a course on Procedural Graphics at UPenn and [iq's blog](http://www.iquilezles.org/www/articles/raymarchingdf/raymarchingdf.htm)
+
+At every step of our ray march we determine how dense the atmosphere is and if it is dense enough to be quantified as a cloud we light that point. Our lighting model is described later in this readme, however it will make a lot more intuitive sense if one is familiar with volumetic lighting. You can learn more about volumetric lighting in the book [Physically Based Rendering from Theory to Implementation](http://www.pbrt.org/). That is a bit dense and so if you simply want a simple overview go [here](https://www.scratchapixel.com/lessons/advanced-rendering/volume-rendering-for-artists).
+
+To render the sky as a skybox type dome we create 3 spheres, representing the earth, the inner layer of the atmosphere, and the outer layer of the atmosphere.
 
 ![](/images/READMEImages/layerLayout.png)
+
+We don't want to render any thing beyond the horizon because we can't see anything beyond the horizon anyway.
+
 ![](/images/READMEImages/horizonLine.png)
+
+Placing a camera atop this virtual earth, we can start our actual rendering process. Start raycasting from your camera, for every ray evaluate it at a fixed stepsize when it is inside the the 2 atmosphere layers we just created.
+
 ![](/images/READMEImages/raymarching.png)
 
 ![](/images/READMEImages/InOutOfCloud.png)
@@ -193,7 +207,7 @@ Second component accounts for decrease in-scattering over height.
 
 
 ## Optimizations <a name="Optimizations"></a>
-
+Obviously the more samples you take along the ray the better will be the final of your render. T
 Ray Sampling Optimization
 
 ![](/images/READMEImages/CheapSampling.png)
