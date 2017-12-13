@@ -120,22 +120,35 @@ Cone Sampling is a more efficient way of determining the light energy that will 
 
 Generating noise on the fly to determine our cloud shape is a very expensive process. This is why we use tiling 3D noise textures with precomputed density values to determine our cloud shape.
 
-Read in 3D textures for low and high frequency noise. The low frequency noise forms the base shape of the clouds, and the high frequency noise erodes the edges of the clouds to form them into finer shapes.
+There are 3 textures that are used to define the shape of a cloud in this project: 
 
-<img src="/images/READMEImages/CloudErosion.png" width="642" height="362"> 
+	3D cloudBaseShapeTexture
+	4 channels…
+	128^3 resolution…
+	The first channel is the Perlin-Worley noise.
+	The other 3 channels are Worley noise at increasing frequencies. 
+	This 3d texture is used to define the base shape for our clouds.
 
-Low frequency texture = perlin-worley + 3 worley's
+![](/images/READMEImages/LowFrequencyNoiseChannels.png)
 
-![](/images/READMEImages/LowFrequencyNoiseChannles.png)
+	3D cloudDetailsTexture
+	3 channels…
+	32^3 resolution…
+	Uses Worley noise at increasing frequencies. 
+	This texture is used to add detail to the base cloud shape defined by the first 3d noise.
 
-High frequency = 3 worley's at higher frequencies
 ![](/images/highFrequencyDetail.png)
 
-Curl Noise is used to simulate wind and other motion effects on the clouds. Sample along with the high frequency clouds.
+	2D cloudMotionTexture
+	3 channels…
+	128^2 resolution…
+	Uses curl noise. Which is non divergent and is used to fake fluid motion. 
+	We use this noise to distort our cloud shapes and add a sense of turbulence.	
 
 ![](/images/curlNoise.png)
 
 ![](/images/cloudmodelling.png)
+<img src="/images/READMEImages/CloudErosion.png" width="642" height="362"> 
 ![](/images/erodeclouds.png)
 ![](/images/modellingClouds.png)
 ![](/images/modellingClouds1.png)
