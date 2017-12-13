@@ -2,7 +2,7 @@
 
 **The following will be required for the operation and/or development of the program:**
 
-- An NVIDIA graphics card. Any card with Compute Capability 2.0 (sm_20) or greater will work. Gheck your GPU in this [compatibility table](https://developer.nvidia.com/cuda-gpus). 
+- An NVIDIA graphics card. Any card with Compute Capability 2.0 (sm_20) or greater will work. Check your GPU in this [compatibility table](https://developer.nvidia.com/cuda-gpus). 
 - Vulkan 1.0.61
 - Visual Studio 2015
 - CMake
@@ -18,7 +18,7 @@
 	* 2012/2013 will also work, if you already have one installed. 
 	* 2010 doesn't work because glfw only supports 32-bit binaries for vc2010. **We don't provide libraries for Win32**
 	* You need C++ support. None of the optional components are necessary.
-3. Install Vulkan 1.0.61
+3. Install Vulkan 1.0.61 or higher
 	* Download Vulkan [here](https://www.khronos.org/vulkan/). Please note that Vulkan runs on Windows and Linux machines **only**. 
 	* Make sure to run the downloaded installed as administrator so that the installer can set the appropriate environment variables for you.
 	* To check that Vulkan is ready for use, go to your Vulkan SDK directory (C:/VulkanSDK/ unless otherwise specified) and run the cube.exe example within the Bin directory. IF you see a rotating gray cube with the LunarG logo, then you are all set!
