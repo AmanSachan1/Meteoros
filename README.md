@@ -4,6 +4,8 @@
 
 ![](/images/READMEImages/finalRender.PNG)
 
+*Runs at 21 FPS (47.62ms) at a Full HD Resolution on a notebook GTX 1070. This will come down to around <5 ms with the reprojection optimization*
+
 ## Overview
 
 This project is a real-time cloudscape renderer in Vulkan that was made as the final project for the course, CIS 565: GPU Programming and Architecture, at the University of Pennsylvania. It is based on the cloud system 'NUBIS' that was implemented for the Decima Engine by Guerrilla Games. The clouds were originally made for the game 'Horizon Zero Dawn' and were described in the following SIGGRAPH 2015 and 2017 presentations: 
