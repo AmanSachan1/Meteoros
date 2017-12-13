@@ -104,24 +104,29 @@ Placing a camera atop this virtual earth, we can start our actual rendering proc
 
 <img src="/images/READMEImages/raymarching.png" width="642" height="362"> 
 
+When we evaluate a point along the ray and determine it has a non-zero density value we know we are inside a cloud.
 
-<img src="/images/READMEImages/InOutOfCloud.png" width="642" height="362"> 
-<img src="/images/READMEImages/CloudErosion.png" width="642" height="362"> 
+<img src="/images/READMEImages/InOutOfCloud.png" width="642" height="362">
 
+Now, to actually give this point in the cloud some coloration we can light it by shooting a ray towards our single light source, the sun, and use the resulting energy information to color that point.
 
-<img src="/images/READMEImages/LightCalculations.png" width="642" height="362"> 
-<img src="/images/READMEImages/LightCalculationsNaive.png" width="642" height="362"> 
+<img src="/images/READMEImages/LightCalculationsNaive.png" width="642" height="362">
+
+Cone Sampling is a more efficient way of determining the light energy that will be recieved by that point. Cone sampling involves taking some number of samples from inside the volume of a cone that is aligned with our light source. We take 6 samples using cone sampling and make sure to have the last one be placed relatively far. This far-away sample is a way of taking into account if the cloud and hence point we are trying to light is occluded by another cloud in the distance. Using these 6 samples from within the cone we get a density value which is used to attenuate the light energy reaching the point we are trying to color.
+
 <img src="/images/READMEImages/ConeSampling.png" width="642" height="362"> 
 
 ### Modeling <a name="Modeling"></a>
 
+Generating noise on the fly to determine our cloud shape is a very expensive process. This is why we use tiling 3D noise textures with precomputed density values to determine our cloud shape.
+
 Read in 3D textures for low and high frequency noise. The low frequency noise forms the base shape of the clouds, and the high frequency noise erodes the edges of the clouds to form them into finer shapes.
+
+<img src="/images/READMEImages/CloudErosion.png" width="642" height="362"> 
 
 Low frequency texture = perlin-worley + 3 worley's
 
-<img src="/images/perlinworleyNoise.png" width="243.25" height="231.25"> 
-
-<img src="/images/worleyNoiseLayer1.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer2.png" width="243.25" height="231.25"> <img src="/images/worleyNoiseLayer3.png" width="243.25" height="231.25">
+![](/images/READMEImages/LowFrequencyNoiseChannles.png)
 
 High frequency = 3 worley's at higher frequencies
 ![](/images/highFrequencyDetail.png)
