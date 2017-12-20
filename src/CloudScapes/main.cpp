@@ -18,8 +18,8 @@ Renderer* renderer;
 
 Camera* camera;
 
-int window_height = 1080;// 562.5;
-int window_width = 1920;// 1000;
+int window_height = 720; //1080;//
+int window_width = 1280; //1920;//
 
 namespace 
 {

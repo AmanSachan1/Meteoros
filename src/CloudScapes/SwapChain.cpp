@@ -297,6 +297,11 @@ VkImageView VulkanSwapChain::GetVkImageView(uint32_t index) const
 	return vkSwapChainImageViews[index];
 }
 
+VkImageView& VulkanSwapChain::GetRefVkImageView(uint32_t index)
+{
+	return vkSwapChainImageViews[index];
+}
+
 VkSemaphore VulkanSwapChain::GetImageAvailableVkSemaphore() const
 {
 	return imageAvailableSemaphore;

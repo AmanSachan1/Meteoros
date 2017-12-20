@@ -72,6 +72,8 @@ Renderer::~Renderer()
 
 void Renderer::DestroyOnWindowResize()
 {
+	vkDeviceWaitIdle(logicalDevice);
+
 	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer.size()), graphicsCommandBuffer.data());
 	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer);
 
@@ -651,9 +653,9 @@ void Renderer::CreateFrameResources()
 void Renderer::DestroyFrameResources()
 {
 	// Destroy Image Views attached to frameBuffers
-	for (size_t i = 0; i < imageViews.size(); i++)
+	for (size_t i = 0; i < swapChain->GetCount(); i++)
 	{
-		vkDestroyImageView(logicalDevice, imageViews[i], nullptr);
+		vkDestroyImageView(logicalDevice, swapChain->GetRefVkImageView(i), nullptr);
 	}
 
 	// Destroy Depth Image and ImageView
@@ -694,7 +696,7 @@ void Renderer::CreateImageViewsforFrame()
 	part of the image to access, for example if it should be treated as a 2D texture depth texture without
 	any mipmapping levels.
 	*/
-	imageViews.resize(swapChain->GetCount());
+
 	for (uint32_t i = 0; i < swapChain->GetCount(); i++)
 	{
 		// --- Create an image view for each swap chain image ---
@@ -720,7 +722,7 @@ void Renderer::CreateImageViewsforFrame()
 		createInfo.subresourceRange.layerCount = 1;
 
 		// Create the image view
-		if (vkCreateImageView(logicalDevice, &createInfo, nullptr, &imageViews[i]) != VK_SUCCESS) {
+		if (vkCreateImageView(logicalDevice, &createInfo, nullptr, &(swapChain->GetRefVkImageView(i)) ) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create image views");
 		}
 	}
@@ -1542,7 +1544,7 @@ void Renderer::RecreateComputeResources()
 void Renderer::CreateCloudResources()
 {
 	// Low Frequency Cloud 3D Texture
-	const std::string LowFreq_folder_path = "../../src/CloudScapes/textures/CloudTexturesUsed/LowFrequency/";
+	const std::string LowFreq_folder_path = "../../src/CloudScapes/textures/CloudTextures/LowFrequency/";
 	const std::string LowFreq_textureBaseName = "LowFrequency";
 	const std::string LowFreq_fileExtension = ".tga";
 	cloudBaseShapeTexture = new Texture3D(device, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
@@ -1551,7 +1553,7 @@ void Renderer::CreateCloudResources()
 		128, 4);
 
 	// High Frequency Cloud 3D Texture //TODO Get actual High Frequncy Textures
-	const std::string HighFreq_folder_path = "../../src/CloudScapes/textures/CloudTexturesUsed/HighFrequency/";
+	const std::string HighFreq_folder_path = "../../src/CloudScapes/textures/CloudTextures/HighFrequency/";
 	const std::string HighFreq_textureBaseName = "HighFrequency";
 	const std::string HighFreq_fileExtension = ".tga";
 	cloudDetailsTexture = new Texture3D(device, 32, 32, 32, VK_FORMAT_R8G8B8A8_UNORM);
@@ -1560,14 +1562,14 @@ void Renderer::CreateCloudResources()
 		32, 4);
 
 	// Curl Noise 2D Texture
-	const std::string curlNoiseTexture_path = "../../src/CloudScapes/textures/CloudTexturesUsed/curlNoise.png";
+	const std::string curlNoiseTexture_path = "../../src/CloudScapes/textures/CloudTextures/curlNoise.png";
 	cloudMotionTexture = new Texture2D(device, 128, 128, VK_FORMAT_R8G8B8A8_UNORM); //Need to pad an extra channel because R8G8B8 is not supported
 	cloudMotionTexture->createTextureFromFile(logicalDevice, computeCommandPool, curlNoiseTexture_path, 4,
 		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
 
 	// Weather Map 2D Texture
-	const std::string weatherMapTexture_path = "../../src/CloudScapes/textures/CloudTexturesUsed/weatherMap.png";
+	const std::string weatherMapTexture_path = "../../src/CloudScapes/textures/CloudTextures/weatherMap.png";
 	weatherMapTexture = new Texture2D(device, 512, 512, VK_FORMAT_R8G8B8A8_UNORM); //Need to pad an extra channel because R8G8B8 is not supported
 	weatherMapTexture->createTextureFromFile(logicalDevice, computeCommandPool, weatherMapTexture_path, 4,
 		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -1582,81 +1584,4 @@ void Renderer::CreatePostProcessResources()
 	//To store the results of the compute shader that will be passed on to the frag shader
 	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	godRaysCreationDataTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
-}
-
-//----------------------------------------------
-//--------------------- IMGUI ------------------
-//----------------------------------------------
-
-/*
-Put this in for ImGui
-
-Maybe put this instead?
-#define ERR_GUARD_VULKAN(Expr) do { VkResult res__ = (Expr); if (res__ < 0) assert(0); } while(0)
-
-*/
-static void check_vk_result(VkResult err)
-{
-	if (err == 0) return;
-	printf("VkResult %d\n", err);
-	if (err < 0)
-		abort();
-}
-
-void Renderer::ImGuiSetup(GLFWwindow* window)
-{
-	/*
-	// Setup ImGui binding
-	ImGui_ImplGlfwVulkan_Init_Data imgui_init_data = {};
-	//imgui_init_data.allocator = g_vma_Allocator;	// We're using VmaAllocator g_vma_Allocator instead?
-	imgui_init_data.gpu = physicalDevice;
-	imgui_init_data.device = logicalDevice;
-	imgui_init_data.render_pass = renderPass;
-	//imgui_init_data.pipeline_cache =
-	imgui_init_data.descriptor_pool = descriptorPool;
-	imgui_init_data.check_vk_result = check_vk_result;
-	ImGui_ImplGlfwVulkan_Init(window, true, &imgui_init_data);\
-	*/
-
-	// Reference --> Vulkan Example --> ImGui_ImplGlfwVulkan_NewFrame()
-	ImGuiIO& io = ImGui::GetIO();
-	int w, h;
-	int display_w, display_h;
-	glfwGetWindowSize(window, &w, &h);
-	glfwGetFramebufferSize(window, &display_w, &display_h);
-	io.DisplaySize = ImVec2((float)w, (float)h);
-	io.DisplayFramebufferScale = ImVec2(w > 0 ? ((float)display_w / w) : 0,
-		h > 0 ? ((float)display_h / h) : 0);
-
-	io.RenderDrawListsFn = NULL;
-
-	// Build the font atlas texture, then load the texture pixels into graphics memory
-	unsigned char* pixels;
-	int width, height;
-	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-
-	io.DeltaTime = 1.0f / 60.0f;
-
-	double mouse_x, mouse_y;
-	glfwGetCursorPos(window, &mouse_x, &mouse_y);
-	io.MousePos = ImVec2((float)mouse_x, (float)mouse_y);
-	io.MouseDown[0] = glfwGetMouseButton(window, 0);
-	io.MouseDown[1] = glfwGetMouseButton(window, 1);
-
-}
-
-void Renderer::ImGuiCreation()
-{
-	// 1. Show a simple window.
-	// Tip: if we don't call ImGui::Begin()/ImGui::End() the widgets appears in a window automatically called "Debug".
-
-	ImGui::NewFrame();
-	ImGui::Text("New ImGui window");
-
-	//ImGui::ShowTestWindow();
-}
-
-void Renderer::ImGuiRender()
-{
-	ImGui::Render();
 }

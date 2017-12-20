@@ -17,6 +17,7 @@ public:
     uint32_t GetIndex() const;
     uint32_t GetCount() const;
     VkImageView GetVkImageView(uint32_t index) const;
+	VkImageView& GetRefVkImageView(uint32_t index);
 	VkImage GetVkImage(uint32_t index) const;
     VkSemaphore GetImageAvailableVkSemaphore() const;
     VkSemaphore GetRenderFinishedVkSemaphore() const;
