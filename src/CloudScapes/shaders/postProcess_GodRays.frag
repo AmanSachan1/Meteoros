@@ -146,5 +146,5 @@ void main()
 
 	vec4 final_color = originalpixelColor + god_ray_color;
 
-	imageStore( currentFrameResultImage, pixelPos, final_color );
+	imageStore( currentFrameResultImage, pixelPos, originalpixelColor );
 }
