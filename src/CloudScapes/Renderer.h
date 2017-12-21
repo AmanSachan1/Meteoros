@@ -20,6 +20,7 @@
 #include "Model.h"
 #include "Texture2D.h"
 #include "Texture3D.h"
+#include "FormatUtils.h"
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
 
@@ -78,11 +79,6 @@ public:
 	void RecordGraphicsCommandBuffer();
 	void RecordComputeCommandBuffer();
 
-	// Format Helper Functions
-	VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates,
-								VkImageTiling tiling, VkFormatFeatureFlags features);
-	VkFormat FindDepthFormat();
-
 	// Resource Creation and Recreation
 	void CreateComputeResources();
 	void RecreateComputeResources();
@@ -95,8 +91,10 @@ private:
 	VkDevice logicalDevice;
 	VkPhysicalDevice physicalDevice;
 	VulkanSwapChain* swapChain;
+	bool swapPingPongBuffers = false;
 
 	Camera* camera;
+	Camera* cameraOld;
 	Scene* scene;
 
 	uint32_t window_width;
@@ -110,8 +108,10 @@ private:
 
 	VkPipelineLayout graphicsPipelineLayout;
 	VkPipelineLayout computePipelineLayout;
+	VkPipelineLayout reprojectionComputePipelineLayout;
 	VkPipeline graphicsPipeline;
 	VkPipeline computePipeline;
+	VkPipelineLayout reprojectionComputePipeline;
 
 	VkPipelineCache postProcessPipeLineCache;
 	VkPipelineLayout postProcess_GodRays_PipelineLayout;
@@ -162,6 +162,7 @@ private:
 	//Descriptors used in multiple Pipelines
 	VkDescriptorSetLayout cameraSetLayout;
 	VkDescriptorSet cameraSet;
+	VkDescriptorSet cameraOldSet;
 	VkDescriptorSetLayout timeSetLayout;
 	VkDescriptorSet timeSet;
 	VkDescriptorSetLayout sunAndSkySetLayout;
@@ -183,4 +184,8 @@ private:
 
 	VkDescriptorSetLayout finalPassSetLayout;
 	VkDescriptorSet finalPassSet;
+
+	VkDescriptorSetLayout storageImagePingPongSetLayout;
+	VkDescriptorSet storageImagePingPongSet1;
+	VkDescriptorSet storageImagePingPongSet2;
 };

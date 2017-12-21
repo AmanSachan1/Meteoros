@@ -218,7 +218,7 @@ void Renderer::CreateRenderPass()
 
 	// Depth buffer attachment represented by one of the images from the swap chain
 	VkAttachmentDescription depthAttachment = {};
-	depthAttachment.format = FindDepthFormat(); //The format should be the same as the depth image itself.
+	depthAttachment.format = FormatUtils::FindDepthFormat(physicalDevice); //The format should be the same as the depth image itself.
 	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE; //This time we don't care about storing the depth data, 
@@ -690,7 +690,7 @@ void Renderer::RecreateFrameResources()
 // Helper Functions for Frame Resources
 void Renderer::CreateDepthResources()
 {
-	VkFormat depthFormat = FindDepthFormat();
+	VkFormat depthFormat = FormatUtils::FindDepthFormat(physicalDevice);
 	// Create Depth Image and ImageViews
 	Image::createImage(device, swapChain->GetVkExtent().width, swapChain->GetVkExtent().height, depthFormat,
 		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
@@ -1447,34 +1447,6 @@ void Renderer::WriteToAndUpdatePostDescriptorSets()
 	writeFinalPassInfo[0].pImageInfo = &preFinalPassImageInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeFinalPassInfo.size()), writeFinalPassInfo.data(), 0, nullptr);
-}
-
-//----------------------------------------------
-//-------------- Format Helper Functions -------
-//----------------------------------------------
-VkFormat Renderer::FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features)
-{
-	for (VkFormat format : candidates)
-	{
-		VkFormatProperties props;
-		vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
-
-		if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
-			return format;
-		}
-		else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
-			return format;
-		}
-	}
-
-	throw std::runtime_error("failed to find supported format!");
-}
-VkFormat Renderer::FindDepthFormat()
-{
-	return FindSupportedFormat({ VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D32_SFLOAT },
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
-	);
 }
 
 //----------------------------------------------
