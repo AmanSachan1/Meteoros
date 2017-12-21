@@ -20,6 +20,7 @@
 #include "Model.h"
 #include "Texture2D.h"
 #include "Texture3D.h"
+#include "Sky.h"
 #include "FormatUtils.h"
 
 static constexpr unsigned int WORKGROUP_SIZE = 32;
@@ -28,7 +29,7 @@ class Renderer
 {
 public:
 	Renderer() = delete; // To enforce the creation of a the type of renderer we want without leaving the vulkan device, vulkan swapchain, etc as assumptions or nullptrs
-	Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height);
+	Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Sky* sky, Camera* camera, uint32_t width, uint32_t height);
 	~Renderer();
 
 	void DestroyOnWindowResize();
@@ -82,7 +83,6 @@ public:
 	// Resource Creation and Recreation
 	void CreateComputeResources();
 	void RecreateComputeResources();
-	void CreateCloudResources();
 	void CreatePostProcessResources();
 
 private:
@@ -96,6 +96,7 @@ private:
 	Camera* camera;
 	Camera* cameraOld;
 	Scene* scene;
+	Sky* sky;
 
 	uint32_t window_width;
 	uint32_t window_height;
@@ -131,31 +132,6 @@ private:
 	Texture2D* currentFrameResultTexture;
 	Texture2D* previousFrameComputeResultTexture;
 	Texture2D* godRaysCreationDataTexture;
-
-	Texture2D* weatherMapTexture;
-	Texture3D* cloudBaseShapeTexture;
-	Texture3D* cloudDetailsTexture;
-	Texture2D* cloudMotionTexture;
-	/*
-		3D cloudBaseShapeTexture
-		4 channels…
-		128^3 resolution…
-		The first channel is the Perlin-Worley noise.
-		The other 3 channels are Worley noise at increasing frequencies. 
-		This 3d texture is used to define the base shape for our clouds.
-
-		3D cloudDetailsTexture
-		3 channels…
-		32^3 resolution…
-		Uses Worley noise at increasing frequencies. 
-		This texture is used to add detail to the base cloud shape defined by the first 3d noise.
-
-		2D cloudMotionTexture
-		3 channels…
-		128^2 resolution…
-		Uses curl noise. Which is non divergent and is used to fake fluid motion. 
-		We use this noise to distort our cloud shapes and add a sense of turbulence.
-	*/
 	
 	VkDescriptorPool descriptorPool;
 

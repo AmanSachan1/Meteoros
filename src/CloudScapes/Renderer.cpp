@@ -1,11 +1,12 @@
 #include "Renderer.h"
 
-Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Camera* camera, uint32_t width, uint32_t height)
+Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Sky* sky, Camera* camera, uint32_t width, uint32_t height)
 	: device(device),
 	logicalDevice(device->GetVkDevice()),
 	physicalDevice(physicalDevice),
 	swapChain(swapChain),
 	scene(scene),
+	sky(sky),
 	camera(camera),
 	window_width(width),
 	window_height(height)
@@ -64,10 +65,7 @@ Renderer::~Renderer()
 	delete previousFrameComputeResultTexture;
 	delete godRaysCreationDataTexture;
 
-	delete cloudBaseShapeTexture;
-	delete cloudDetailsTexture;
-	delete cloudMotionTexture;
-	delete weatherMapTexture;
+	delete sky;
 }
 
 void Renderer::DestroyOnWindowResize()
@@ -1194,26 +1192,26 @@ void Renderer::WriteToAndUpdateComputeDescriptorSets()
 	// Cloud Low Frequency Noise
 	VkDescriptorImageInfo cloudLowFrequencyNoiseImageInfo = {};
 	cloudLowFrequencyNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	cloudLowFrequencyNoiseImageInfo.imageView = cloudBaseShapeTexture->GetTextureImageView();
-	cloudLowFrequencyNoiseImageInfo.sampler = cloudBaseShapeTexture->GetTextureSampler();
+	cloudLowFrequencyNoiseImageInfo.imageView = sky->cloudBaseShapeTexture->GetTextureImageView();
+	cloudLowFrequencyNoiseImageInfo.sampler = sky->cloudBaseShapeTexture->GetTextureSampler();
 
 	// Cloud High Frequency Noise
 	VkDescriptorImageInfo cloudHighFrequencyNoiseImageInfo = {};
 	cloudHighFrequencyNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	cloudHighFrequencyNoiseImageInfo.imageView = cloudDetailsTexture->GetTextureImageView();
-	cloudHighFrequencyNoiseImageInfo.sampler = cloudDetailsTexture->GetTextureSampler();
+	cloudHighFrequencyNoiseImageInfo.imageView = sky->cloudDetailsTexture->GetTextureImageView();
+	cloudHighFrequencyNoiseImageInfo.sampler = sky->cloudDetailsTexture->GetTextureSampler();
 
 	// Cloud Curl Noise
 	VkDescriptorImageInfo cloudCurlNoiseImageInfo = {};
 	cloudCurlNoiseImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	cloudCurlNoiseImageInfo.imageView = cloudMotionTexture->GetTextureImageView();
-	cloudCurlNoiseImageInfo.sampler = cloudMotionTexture->GetTextureSampler();
+	cloudCurlNoiseImageInfo.imageView = sky->cloudMotionTexture->GetTextureImageView();
+	cloudCurlNoiseImageInfo.sampler = sky->cloudMotionTexture->GetTextureSampler();
 
 	// Weather Map
 	VkDescriptorImageInfo weatherMapInfo = {};
 	weatherMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	weatherMapInfo.imageView = weatherMapTexture->GetTextureImageView();
-	weatherMapInfo.sampler = weatherMapTexture->GetTextureSampler();
+	weatherMapInfo.imageView = sky->weatherMapTexture->GetTextureImageView();
+	weatherMapInfo.sampler = sky->weatherMapTexture->GetTextureSampler();
 
 	// God Rays Creation Data Texture
 	VkDescriptorImageInfo godRaysCreationDataTextureInfo = {};
@@ -1360,7 +1358,7 @@ void Renderer::WriteToAndUpdateRemainingDescriptorSets()
 
 	// SunAndSky Descriptor
 	VkDescriptorBufferInfo sunAndSkyBufferInfo = {};
-	sunAndSkyBufferInfo.buffer = scene->GetSunAndSkyBuffer();
+	sunAndSkyBufferInfo.buffer = sky->GetSunAndSkyBuffer();
 	sunAndSkyBufferInfo.offset = 0;
 	sunAndSkyBufferInfo.range = sizeof(SunAndSky);
 
@@ -1462,7 +1460,7 @@ void Renderer::CreateComputeResources()
 	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//Create the textures that will be passed to the compute shader to create clouds
-	CreateCloudResources();
+	sky->CreateCloudResources(computeCommandPool);
 }
 
 void Renderer::RecreateComputeResources()
@@ -1473,41 +1471,6 @@ void Renderer::RecreateComputeResources()
 	//Stores the results of the previous Frame
 	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
-}
-
-void Renderer::CreateCloudResources()
-{
-	// Low Frequency Cloud 3D Texture
-	const std::string LowFreq_folder_path = "../../src/CloudScapes/textures/CloudTextures/LowFrequency/";
-	const std::string LowFreq_textureBaseName = "LowFrequency";
-	const std::string LowFreq_fileExtension = ".tga";
-	cloudBaseShapeTexture = new Texture3D(device, 128, 128, 128, VK_FORMAT_R8G8B8A8_UNORM);
-	cloudBaseShapeTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool,
-		LowFreq_folder_path, LowFreq_textureBaseName, LowFreq_fileExtension,
-		128, 4);
-
-	// High Frequency Cloud 3D Texture //TODO Get actual High Frequncy Textures
-	const std::string HighFreq_folder_path = "../../src/CloudScapes/textures/CloudTextures/HighFrequency/";
-	const std::string HighFreq_textureBaseName = "HighFrequency";
-	const std::string HighFreq_fileExtension = ".tga";
-	cloudDetailsTexture = new Texture3D(device, 32, 32, 32, VK_FORMAT_R8G8B8A8_UNORM);
-	cloudDetailsTexture->create3DTextureFromMany2DTextures(logicalDevice, computeCommandPool,
-		HighFreq_folder_path, HighFreq_textureBaseName, HighFreq_fileExtension,
-		32, 4);
-
-	// Curl Noise 2D Texture
-	const std::string curlNoiseTexture_path = "../../src/CloudScapes/textures/CloudTextures/curlNoise.png";
-	cloudMotionTexture = new Texture2D(device, 128, 128, VK_FORMAT_R8G8B8A8_UNORM); //Need to pad an extra channel because R8G8B8 is not supported
-	cloudMotionTexture->createTextureFromFile(logicalDevice, computeCommandPool, curlNoiseTexture_path, 4,
-		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
-
-	// Weather Map 2D Texture
-	const std::string weatherMapTexture_path = "../../src/CloudScapes/textures/CloudTextures/weatherMap.png";
-	weatherMapTexture = new Texture2D(device, 512, 512, VK_FORMAT_R8G8B8A8_UNORM); //Need to pad an extra channel because R8G8B8 is not supported
-	weatherMapTexture->createTextureFromFile(logicalDevice, computeCommandPool, weatherMapTexture_path, 4,
-		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_SAMPLER_ADDRESS_MODE_REPEAT, 16.0f);
 }
 
 //----------------------------------------------

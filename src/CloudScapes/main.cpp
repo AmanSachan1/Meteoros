@@ -33,10 +33,10 @@ namespace
 	}
 
 	bool leftMouseDown = false;
-	double previousX = 0.0;
-	double previousY = 0.0;
-	float deltaForRotation = 0.05;
-	float deltaForMovement = 0.01;
+	double previousX = 0.0f;
+	double previousY = 0.0f;
+	float deltaForRotation = 0.05f;
+	float deltaForMovement = 0.01f;
 
 	void keyboardInputs(GLFWwindow* window)
 	{
@@ -156,7 +156,8 @@ int main(int argc, char** argv)
 						window_width, window_height, 45.0f, window_width / window_height, 0.1f, 1000.0f);
 
 	Scene* scene = new Scene(device);
-	renderer = new Renderer(device, instance->GetPhysicalDevice(), swapChain, scene, camera, static_cast<uint32_t>(window_width), static_cast<uint32_t>(window_height));
+	Sky* sky = new Sky(device, device->GetVkDevice());
+	renderer = new Renderer(device, instance->GetPhysicalDevice(), swapChain, scene, sky, camera, static_cast<uint32_t>(window_width), static_cast<uint32_t>(window_height));
 
 	glfwSetWindowSizeCallback(GetGLFWWindow(), resizeCallback);
 	glfwSetMouseButtonCallback(GetGLFWWindow(), mouseDownCallback);
@@ -171,7 +172,7 @@ int main(int argc, char** argv)
 		glfwPollEvents();		
 		// Update Uniforms
 		scene->UpdateTime();
-		scene->UpdateSunAndSky();
+		sky->UpdateSunAndSky();
 		scene->UpdateKeyPressQuery();
 		// Get Inputs from the Keyboard
 		keyboardInputs(GetGLFWWindow());

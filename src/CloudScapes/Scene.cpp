@@ -8,10 +8,6 @@ Scene::Scene(VulkanDevice* device) : device(device)
 	vkMapMemory(device->GetVkDevice(), timeBufferMemory, 0, sizeof(Time), 0, &time_mappedData);
 	memcpy(time_mappedData, &time, sizeof(Time));
 
-	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(SunAndSky), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, sunAndSkyBuffer, sunAndSkyBufferMemory);
-	vkMapMemory(device->GetVkDevice(), sunAndSkyBufferMemory, 0, sizeof(SunAndSky), 0, &sunAndSky_mappedData);
-	memcpy(sunAndSky_mappedData, &sunAndSky, sizeof(SunAndSky));
-
 	BufferUtils::CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(KeyPressQuery), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, keyPressQueryBuffer, keyPressQueryBufferMemory);
 	vkMapMemory(device->GetVkDevice(), keyPressQueryBufferMemory, 0, sizeof(KeyPressQuery), 0, &keyPressQuery_mappedData);
 	memcpy(keyPressQuery_mappedData, &keyPressQuery, sizeof(KeyPressQuery));
@@ -22,10 +18,6 @@ Scene::~Scene()
 	vkUnmapMemory(device->GetVkDevice(), timeBufferMemory);
 	vkDestroyBuffer(device->GetVkDevice(), timeBuffer, nullptr);
 	vkFreeMemory(device->GetVkDevice(), timeBufferMemory, nullptr);
-
-	vkUnmapMemory(device->GetVkDevice(), sunAndSkyBufferMemory);
-	vkDestroyBuffer(device->GetVkDevice(), sunAndSkyBuffer, nullptr);
-	vkFreeMemory(device->GetVkDevice(), sunAndSkyBufferMemory, nullptr);
 
 	vkUnmapMemory(device->GetVkDevice(), keyPressQueryBufferMemory);
 	vkDestroyBuffer(device->GetVkDevice(), keyPressQueryBuffer, nullptr);
@@ -83,22 +75,6 @@ void Scene::UpdateTime()
 glm::vec2 Scene::GetTime() const
 {
 	return time._time;
-}
-
-VkBuffer Scene::GetSunAndSkyBuffer() const
-{
-	return sunAndSkyBuffer;
-}
-void Scene::UpdateSunAndSky()
-{
-	//float angle = time.frameCount*0.000001f;
-	//rotMat = glm::rotate(rotMat, angle, rotationAxis);
-
-	sunAndSky.sunLocation = rotMat * glm::vec4(0.0f, 1.0f, 0.0f, 0.0f);
-	sunAndSky.sunDirection = glm::vec4(1.0f, 1.0f, 1.0f, 0.0f);
-	sunAndSky.lightColor = glm::vec4(1.0f, 1.0f, 0.57f, 1.0f);
-	sunAndSky.sunIntensity = 5.0;
-	memcpy(sunAndSky_mappedData, &sunAndSky, sizeof(SunAndSky));
 }
 
 VkBuffer Scene::GetKeyPressQueryBuffer() const
