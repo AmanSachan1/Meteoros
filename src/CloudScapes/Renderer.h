@@ -71,9 +71,6 @@ public:
 	void CreateFrameResources();
 	void DestroyFrameResources();
 	void RecreateFrameResources();
-
-	// Helper Functions for Frame Resources
-	void CreateDepthResources();
 	void CreateFrameBuffers(VkRenderPass renderPass);
 
 	// Command Buffers

@@ -344,20 +344,16 @@ void Renderer::CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subp
 	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = Vertex::getAttributeDescriptions();
 
 	// -------- Vertex input --------
-	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
-	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputInfo.vertexBindingDescriptionCount = 1;
-	vertexInputInfo.pVertexBindingDescriptions = &vertexInputBinding;
-	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
-	vertexInputInfo.pVertexAttributeDescriptions = vertexInputAttributes.data();
+	VkPipelineVertexInputStateCreateInfo vertexInputState = 
+		VulkanInitializers::pipelineVertexInputStateCreateInfo();
+	vertexInputState.vertexBindingDescriptionCount = 1;
+	vertexInputState.pVertexBindingDescriptions = &vertexInputBinding;
+	vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
+	vertexInputState.pVertexAttributeDescriptions = vertexInputAttributes.data();
 
 	// -------- Input assembly --------
-	// The VkPipelineInputAssemblyStateCreateInfo struct describes two things: what kind of geometry will be drawn 
-	// from the vertices and if primitive restart should be enabled.
-	VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
-	inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	inputAssembly.primitiveRestartEnable = VK_FALSE;
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState =
+		VulkanInitializers::pipelineInputAssemblyStateCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, 0, VK_FALSE);
 
 	// Viewports and Scissors (rectangles that define in which regions pixels are stored)
 	VkViewport viewport = {};
@@ -379,110 +375,41 @@ void Renderer::CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subp
 	// VkPipelineViewportStateCreateInfo struct. It is possible to use multiple viewports and scissor
 	// rectangles on some graphics cards, so its members reference an array of them. Using multiple requires 
 	// enabling a GPU feature (see logical device creation).
-	VkPipelineViewportStateCreateInfo viewportState = {};
-	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.viewportCount = 1;
+
+	VkPipelineViewportStateCreateInfo viewportState =
+		VulkanInitializers::pipelineViewportStateCreateInfo(1, 1, 0);
+
 	viewportState.pViewports = &viewport;
-	viewportState.scissorCount = 1;
 	viewportState.pScissors = &scissor;
 
-	// -------- Rasterize --------
-	// The rasterizer takes the geometry that is shaped by the vertices from the vertex shader and turns
-	// it into fragments to be colored by the fragment shader.
-	// It also performs depth testing, face culling and the scissor test, and it can be configured to output 
-	// fragments that fill entire polygons or just the edges (wireframe rendering). All this is configured 
-	// using the VkPipelineRasterizationStateCreateInfo structure.
-	VkPipelineRasterizationStateCreateInfo rasterizer = {};
-	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizer.depthClampEnable = VK_FALSE;
-	rasterizer.rasterizerDiscardEnable = VK_FALSE; // If rasterizerDiscardEnable is set to VK_TRUE, then geometry never 
-												   // passes through the rasterizer stage. This basically disables any output to the framebuffer.
-	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizer.lineWidth = 1.0f;
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-	rasterizer.depthBiasEnable = VK_FALSE; // The rasterizer can alter the depth values by adding a constant value or biasing 
-										   // them based on a fragment's slope. This is sometimes used for shadow mapping, but 
-										   // we won't be using it.Just set depthBiasEnable to VK_FALSE.
-	rasterizer.depthBiasConstantFactor = 0.0f;
-	rasterizer.depthBiasClamp = 0.0f;
-	rasterizer.depthBiasSlopeFactor = 0.0f;
+	VkPipelineRasterizationStateCreateInfo rasterizationState =
+		VulkanInitializers::pipelineRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL, VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_CLOCKWISE, 0);
 
-	// -------- Multisampling --------
-	// (turned off here)
-	// The VkPipelineMultisampleStateCreateInfo struct configures multisampling, which is one of the ways to perform anti-aliasing. 
-	// It works by combining the fragment shader results of multiple polygons that rasterize to the same pixel. This mainly occurs 
-	// along edges, which is also where the most noticeable aliasing artifacts occur. Because it doesn't need to run the fragment 
-	// shader multiple times if only one polygon maps to a pixel, it is significantly less expensive than simply rendering to a 
-	// higher resolution and then downscaling. Enabling it requires enabling a GPU feature.
-	VkPipelineMultisampleStateCreateInfo multisampling = {};
-	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampling.sampleShadingEnable = VK_FALSE;
-	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	multisampling.minSampleShading = 1.0f;
-	multisampling.pSampleMask = nullptr;
-	multisampling.alphaToCoverageEnable = VK_FALSE;
-	multisampling.alphaToOneEnable = VK_FALSE;
+	VkPipelineMultisampleStateCreateInfo multisamplingState =
+		VulkanInitializers::pipelineMultisampleStateCreateInfo(VK_SAMPLE_COUNT_1_BIT, 0);
 
-	// -------- Depth and Stencil Testing --------
-	VkPipelineDepthStencilStateCreateInfo depthStencil = {};
-	depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	VkPipelineDepthStencilStateCreateInfo depthStencilState =
+		VulkanInitializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS);
 
-	//The depthTestEnable field specifies if the depth of new fragments should be compared to the 
-	//depth buffer to see if they should be discarded. The depthWriteEnable field specifies if the 
-	//new depth of fragments that pass the depth test should actually be written to the depth buffer. 
-	//This is useful for drawing transparent objects. They should be compared to the previously rendered 
-	//opaque objects, but not cause further away transparent objects to not be drawn.
-	depthStencil.depthTestEnable = VK_TRUE;
-	depthStencil.depthWriteEnable = VK_TRUE;
+	VkColorComponentFlags colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	VkPipelineColorBlendAttachmentState blendAttachmentState =
+		VulkanInitializers::pipelineColorBlendAttachmentState(colorWriteMask, VK_FALSE);
 
-	depthStencil.depthCompareOp = VK_COMPARE_OP_LESS; // specifies the comparison that is performed to keep or discard fragments.
-
-	depthStencil.depthBoundsTestEnable = VK_FALSE;
-	depthStencil.minDepthBounds = 0.0f;
-	depthStencil.maxDepthBounds = 1.0f;
-
-	depthStencil.stencilTestEnable = VK_FALSE;
-	depthStencil.front = {};
-	depthStencil.back = {};
-
-	// -------- Color Blending ---------
-	// (turned off here, but showing options for learning) --> Color Blending is usually for transparency
-	// --> Configuration per attached framebuffer
-	VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
-	colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	colorBlendAttachment.blendEnable = VK_FALSE;
-	colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-	colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-	colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-
-	// --> Global color blending settings
-	VkPipelineColorBlendStateCreateInfo colorBlending = {};
-	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlending.logicOpEnable = VK_FALSE;
-	colorBlending.logicOp = VK_LOGIC_OP_COPY;
-	colorBlending.attachmentCount = 1;
-	colorBlending.pAttachments = &colorBlendAttachment;
-	colorBlending.blendConstants[0] = 0.0f;
-	colorBlending.blendConstants[1] = 0.0f;
-	colorBlending.blendConstants[2] = 0.0f;
-	colorBlending.blendConstants[3] = 0.0f;
+	VkPipelineColorBlendStateCreateInfo colorBlendingState =
+		VulkanInitializers::pipelineColorBlendStateCreateInfo(1, &blendAttachmentState);
 
 	// -------- Create graphics pipeline ---------
 	VkGraphicsPipelineCreateInfo pipelineInfo = {};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipelineInfo.stageCount = 2; //vert and frag --> change if you add more
 	pipelineInfo.pStages = shaderStages; //defined above
-	pipelineInfo.pVertexInputState = &vertexInputInfo; //defined above
-	pipelineInfo.pInputAssemblyState = &inputAssembly; //defined above
+	pipelineInfo.pVertexInputState = &vertexInputState; //defined above
+	pipelineInfo.pInputAssemblyState = &inputAssemblyState; //defined above
 	pipelineInfo.pViewportState = &viewportState; //defined above
-	pipelineInfo.pRasterizationState = &rasterizer; //defined above
-	pipelineInfo.pMultisampleState = &multisampling; //defined above
-	pipelineInfo.pDepthStencilState = &depthStencil; //defined above
-	pipelineInfo.pColorBlendState = &colorBlending; //defined above
+	pipelineInfo.pRasterizationState = &rasterizationState; //defined above
+	pipelineInfo.pMultisampleState = &multisamplingState; //defined above
+	pipelineInfo.pDepthStencilState = &depthStencilState; //defined above
+	pipelineInfo.pColorBlendState = &colorBlendingState; //defined above
 	pipelineInfo.pDynamicState = nullptr; //defined above
 	pipelineInfo.layout = graphicsPipelineLayout; // passed in
 	pipelineInfo.renderPass = renderPass; // passed in
@@ -643,7 +570,20 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 //----------------------------------------------
 void Renderer::CreateFrameResources()
 {
-	CreateDepthResources();
+	// Create the depth image and imageView that needs to be attached to the frame buffer
+	VkFormat depthFormat = FormatUtils::FindDepthFormat(physicalDevice);
+	// Create Depth Image and ImageViews
+	Image::createImage(device, swapChain->GetVkExtent().width, swapChain->GetVkExtent().height, depthFormat,
+		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+	// Create Depth ImageView
+	Image::createImageView(device, depthImageView, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+	// Transition the image for use as depth-stencil
+	Image::transitionImageLayout(device, graphicsCommandPool, depthImage, depthFormat,
+		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
 	CreateFrameBuffers(renderPass);
 }
 
@@ -683,23 +623,6 @@ void Renderer::RecreateFrameResources()
 
 	RecordGraphicsCommandBuffer();
 	RecordComputeCommandBuffer();
-}
-
-// Helper Functions for Frame Resources
-void Renderer::CreateDepthResources()
-{
-	VkFormat depthFormat = FormatUtils::FindDepthFormat(physicalDevice);
-	// Create Depth Image and ImageViews
-	Image::createImage(device, swapChain->GetVkExtent().width, swapChain->GetVkExtent().height, depthFormat,
-		VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
-	// Create Depth ImageView
-	Image::createImageView(device, depthImageView, depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
-
-	// Transition the image for use as depth-stencil
-	Image::transitionImageLayout(device, graphicsCommandPool, depthImage, depthFormat,
-		VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 }
 
 void Renderer::CreateFrameBuffers(VkRenderPass renderPass)
@@ -839,7 +762,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//------------------------
 		//--- Graphics Pipeline---
 		//------------------------
-		/*
+		
 		// Uncomment for models :D --> except we can only load small obj's at the moment
 		
 		// Bind the graphics pipeline
@@ -858,7 +781,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		// Draw indexed triangle
 		vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
 
-		*/
+		
 		//-----------------------------
 		//--- PostProcess Pipelines ---
 		//-----------------------------
