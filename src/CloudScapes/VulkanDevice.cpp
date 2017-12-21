@@ -29,7 +29,7 @@ unsigned int VulkanDevice::GetQueueIndex(QueueFlags flag)
 	return GetInstance()->GetQueueFamilyIndices()[flag];
 }
 
-VulkanSwapChain* VulkanDevice::CreateSwapChain(VkSurfaceKHR surface) 
+VulkanSwapChain* VulkanDevice::CreateSwapChain(VkSurfaceKHR surface, uint32_t  width, uint32_t height)
 {
-    return new VulkanSwapChain(this, surface);
+    return new VulkanSwapChain(this, surface, width, height);
 }

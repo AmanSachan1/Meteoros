@@ -70,10 +70,10 @@ namespace
 	}
 }
 
-VulkanSwapChain::VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface)
+VulkanSwapChain::VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface, uint32_t  width, uint32_t height)
   : device(device), vkSurface(vkSurface) 
 {
-	Create();
+	Create(width, height);
 
     VkSemaphoreCreateInfo semaphoreInfo = {};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -97,7 +97,7 @@ VulkanSwapChain::~VulkanSwapChain()
 	vkDestroySwapchainKHR(device->GetVkDevice(), vkSwapChain, nullptr);
 }
 
-void VulkanSwapChain::Create()
+void VulkanSwapChain::Create(uint32_t  width, uint32_t height)
 {
 	auto* instance = device->GetInstance();
 
@@ -105,11 +105,11 @@ void VulkanSwapChain::Create()
 
 	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(instance->GetSurfaceFormats());
 	VkPresentModeKHR presentMode = chooseSwapPresentMode(instance->GetPresentModes());
-	VkExtent2D extent = chooseSwapExtent(surfaceCapabilities, GetGLFWWindow());
+	VkExtent2D extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };//chooseSwapExtent(surfaceCapabilities, GetGLFWWindow());
 
-	// Triple Bufferring --> Displaying, Ready to be displayed next, Being worked on
 	// Can do multiple buffering here!
-	uint32_t imageCount = surfaceCapabilities.minImageCount + 1; // 2 + 1 = triple buffering
+	// Triple Bufferring --> Displaying, Ready to be displayed next, Being worked on
+	uint32_t imageCount = surfaceCapabilities.minImageCount; //2 = only double buffering right now // 2 + 1 = triple buffering
 	if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount)
 	{
 		imageCount = surfaceCapabilities.maxImageCount;
@@ -210,10 +210,10 @@ void VulkanSwapChain::Create()
 	}
 }
 
-void VulkanSwapChain::Recreate() 
+void VulkanSwapChain::Recreate(uint32_t  width, uint32_t height)
 {
 	vkDestroySwapchainKHR(device->GetVkDevice(), vkSwapChain, nullptr);
-	Create();
+	Create(width, height);
 }
 
 void VulkanSwapChain::Acquire() 
@@ -227,7 +227,7 @@ void VulkanSwapChain::Acquire()
     
 	// must recreate swapchain -or- swap chain isn't working //CHECK IF BUGS
 	if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-		Recreate();
+		Recreate(vkSwapChainExtent.width, vkSwapChainExtent.height);
 		return;
 	}
 	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) 
@@ -255,7 +255,7 @@ void VulkanSwapChain::Present()
     VkResult result = vkQueuePresentKHR(device->GetQueue(QueueFlags::Present), &presentInfo);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-		Recreate();
+		Recreate(vkSwapChainExtent.width, vkSwapChainExtent.height);
 	}
 	else if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to present swap chain image");
@@ -293,11 +293,6 @@ uint32_t VulkanSwapChain::GetCount() const
 }
 
 VkImageView VulkanSwapChain::GetVkImageView(uint32_t index) const
-{
-	return vkSwapChainImageViews[index];
-}
-
-VkImageView& VulkanSwapChain::GetRefVkImageView(uint32_t index)
 {
 	return vkSwapChainImageViews[index];
 }

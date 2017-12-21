@@ -71,8 +71,7 @@ public:
 	void RecreateFrameResources();
 
 	// Helper Functions for Frame Resources
-	void CreateImageViewsforFrame();
-	void createDepthResources();
+	void CreateDepthResources();
 	void CreateFrameBuffers(VkRenderPass renderPass);
 
 	// Command Buffers
@@ -123,7 +122,6 @@ private:
 
 	VkRenderPass renderPass;
 
-	std::vector<VkImageView> imageViews;
 	std::vector<VkFramebuffer> frameBuffers;
 	
 	VkImage depthImage;

@@ -20,7 +20,7 @@ class VulkanDevice
     friend class VulkanInstance;
 
 public:
-    VulkanSwapChain* CreateSwapChain(VkSurfaceKHR surface);
+    VulkanSwapChain* CreateSwapChain(VkSurfaceKHR surface, uint32_t  width, uint32_t height);
     VulkanInstance* GetInstance();
     VkDevice GetVkDevice();
     VkQueue GetQueue(QueueFlags flag);

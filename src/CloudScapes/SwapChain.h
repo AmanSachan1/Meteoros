@@ -17,19 +17,21 @@ public:
     uint32_t GetIndex() const;
     uint32_t GetCount() const;
     VkImageView GetVkImageView(uint32_t index) const;
-	VkImageView& GetRefVkImageView(uint32_t index);
 	VkImage GetVkImage(uint32_t index) const;
     VkSemaphore GetImageAvailableVkSemaphore() const;
     VkSemaphore GetRenderFinishedVkSemaphore() const;
 
-	void Create();
-	void Recreate();
+	void Create(uint32_t  width, uint32_t height);
+	void Recreate(uint32_t  width, uint32_t height);
+
+	//void resizeImagesInSwapChain();
+
     void Acquire();
     void Present();
     ~VulkanSwapChain();
 
 private:
-    VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface);
+    VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface, uint32_t  width, uint32_t height);
 
     VulkanDevice* device;
     VkSurfaceKHR vkSurface;

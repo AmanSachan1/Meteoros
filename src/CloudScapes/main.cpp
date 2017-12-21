@@ -28,7 +28,7 @@ namespace
 		if (width == 0 || height == 0) return;
 
 		vkDeviceWaitIdle(device->GetVkDevice());
-		swapChain->Recreate();
+		swapChain->Recreate(width, height);
 		renderer->RecreateOnResize(width, height);
 	}
 
@@ -151,7 +151,7 @@ int main(int argc, char** argv)
 	// QueueFlagBit::PresentBit --> Vulkan is trying to determine if we can make use of the window surface we just created, i.e. draw on the window
     device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::ComputeBit | QueueFlagBit::PresentBit);
     
-	swapChain = device->CreateSwapChain(surface);
+	swapChain = device->CreateSwapChain(surface, window_width, window_height);
 	camera = new Camera(device, glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f), 
 						window_width, window_height, 45.0f, window_width / window_height, 0.1f, 1000.0f);
 
@@ -172,23 +172,18 @@ int main(int argc, char** argv)
 		scene->UpdateTime();
 		scene->UpdateSunAndSky();
 		scene->UpdateKeyPressQuery();
-		// Get Inputd frome the Keyboard
+		// Get Inputs from the Keyboard
 		keyboardInputs(GetGLFWWindow());
-
-		//renderer->ImGuiSetup(GetGLFWWindow());
-		//renderer->ImGuiRender();
 
 		renderer->Frame();
     }// end while loop
 
-    // Wait for the device to finish executing before cleanup
-    vkDeviceWaitIdle(device->GetVkDevice());
-
-	//ImGui::Shutdown();
-
 	//---------------------
 	//------ CleanUp ------
-	//---------------------	
+	//---------------------
+	// Wait for the device to finish executing before cleanup
+	vkDeviceWaitIdle(device->GetVkDevice());
+
 	delete renderer; 
 	delete scene;
 	delete camera;

@@ -645,18 +645,17 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 //----------------------------------------------
 void Renderer::CreateFrameResources()
 {
-	CreateImageViewsforFrame();
-	createDepthResources();
+	CreateDepthResources();
 	CreateFrameBuffers(renderPass);
 }
 
 void Renderer::DestroyFrameResources()
 {
 	// Destroy Image Views attached to frameBuffers
-	for (size_t i = 0; i < swapChain->GetCount(); i++)
-	{
-		vkDestroyImageView(logicalDevice, swapChain->GetRefVkImageView(i), nullptr);
-	}
+	//for (size_t i = 0; i < swapChain->GetCount(); i++)
+	//{
+	//	vkDestroyImageView(logicalDevice, swapChain->GetRefVkImageView(i), nullptr);
+	//}
 
 	// Destroy Depth Image and ImageView
 	vkDestroyImageView(logicalDevice, depthImageView, nullptr);
@@ -689,46 +688,7 @@ void Renderer::RecreateFrameResources()
 }
 
 // Helper Functions for Frame Resources
-void Renderer::CreateImageViewsforFrame()
-{
-	/*
-	An image view is quite literally a view into an image.It describes how to access the image and which
-	part of the image to access, for example if it should be treated as a 2D texture depth texture without
-	any mipmapping levels.
-	*/
-
-	for (uint32_t i = 0; i < swapChain->GetCount(); i++)
-	{
-		// --- Create an image view for each swap chain image ---
-		VkImageViewCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		createInfo.image = swapChain->GetVkImage(i);
-
-		// Specify how the image data should be interpreted
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.format = swapChain->GetVkImageFormat();
-
-		// Specify color channel mappings (can be used for swizzling)
-		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-		// Describe the image's purpose and which part of the image should be accessed
-		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.levelCount = 1;
-		createInfo.subresourceRange.baseArrayLayer = 0;
-		createInfo.subresourceRange.layerCount = 1;
-
-		// Create the image view
-		if (vkCreateImageView(logicalDevice, &createInfo, nullptr, &(swapChain->GetRefVkImageView(i)) ) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to create image views");
-		}
-	}
-}
-
-void Renderer::createDepthResources()
+void Renderer::CreateDepthResources()
 {
 	VkFormat depthFormat = FindDepthFormat();
 	// Create Depth Image and ImageViews
@@ -749,8 +709,7 @@ void Renderer::CreateFrameBuffers(VkRenderPass renderPass)
 	frameBuffers.resize(swapChain->GetCount());
 	for (uint32_t i = 0; i < swapChain->GetCount(); i++)
 	{
-		std::array<VkImageView, 2> attachments = { swapChain->GetVkImageView(i),
-			depthImageView };
+		std::array<VkImageView, 2> attachments = { swapChain->GetVkImageView(i), depthImageView };
 
 		// The color attachment differs for every swap chain image, but the same depth image can 
 		// be used by all of them because only a single subpass is running at the same time due to our semaphores.
@@ -770,6 +729,7 @@ void Renderer::CreateFrameBuffers(VkRenderPass renderPass)
 		}
 	}
 }
+
 //----------------------------------------------
 //-------------- Command Pools -----------------
 //----------------------------------------------
