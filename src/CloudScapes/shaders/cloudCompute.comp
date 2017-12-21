@@ -17,7 +17,7 @@ layout (set = 0, binding = 2) uniform sampler3D cloudBaseShapeSampler;
 layout (set = 0, binding = 3) uniform sampler3D cloudDetailsHighFreqSampler; // Dont use alpha channel
 layout (set = 0, binding = 4) uniform sampler2D curlNoiseSampler; // Don't use alpha channel
 layout (set = 0, binding = 5) uniform sampler2D weatherMapSampler; // Don't use alpha channel
-layout (set = 0, binding = 6, rgba32f) uniform image2D godRaysCreationDataImage;
+layout (set = 0, binding = 6, rgba8) uniform writeonly image2D godRaysCreationDataImage;
 
 layout (set = 1, binding = 0) uniform CameraUBO
 {
@@ -118,6 +118,15 @@ struct Intersection {
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
 //--------------------------------------------------------
+
+//This bit of code is for converting a 32 bit float to store as 4 8 bit floats 
+const vec4 bitEnc = vec4(1.,255.,65025.,16581375.);
+vec4 EncodeFloatRGBA (float v) {
+    vec4 enc = bitEnc * v;
+    enc = fract(enc);
+    enc -= enc.yzww * vec2(1./255., 0.).xxxy;
+    return enc;
+}
 
 // Maps values from one range to another
 float remap(in float value, in float original_min, in float original_max, in float new_min, in float new_max)
@@ -726,8 +735,8 @@ void main()
 		vec3 color2 = vec3(0.0, 0.73, 0.95) * 0.5; //light ocean blue
 		backgroundCol = mix(colorNearHorizon, color2, -ray.direction.y * 5.5);
 
-		imageStore( godRaysCreationDataImage, chosenPixel, vec4(BLACK, 1.0) );
-		imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0) );
+		imageStore( godRaysCreationDataImage, chosenPixel, vec4(0.0f) );
+		imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0f) );
 		return;
 	}
 	else
@@ -763,7 +772,8 @@ void main()
     // // greyScaleColor.a = mix(0.0, lightIntensity, 1.0 - accumDensity);
     // greyScaleColor.a = mix(0.0, 0.01, 1.0 - accumDensity);
 
-	vec4 greyScaleColor = 25.0 * min(vec4(0.05), vec4(1.0 - godRaysAccumDensity));
+	float greyScaleValue= 25.0 * min(0.05f, 1.0f - godRaysAccumDensity);
+	vec4 greyScaleColor = EncodeFloatRGBA (greyScaleValue);
 	// vec4 greyScaleColor = 10.0 * vec4(1.0 - godRaysAccumDensity);
 	if(ray.direction.y < 0.05)
 	{

@@ -762,7 +762,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//------------------------
 		//--- Graphics Pipeline---
 		//------------------------
-		
+		/*
 		// Uncomment for models :D --> except we can only load small obj's at the moment
 		
 		// Bind the graphics pipeline
@@ -780,7 +780,7 @@ void Renderer::RecordGraphicsCommandBuffer()
 
 		// Draw indexed triangle
 		vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
-
+		*/
 		
 		//-----------------------------
 		//--- PostProcess Pipelines ---
@@ -890,15 +890,15 @@ void Renderer::CreateDescriptorPool()
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, //model matrix
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, //texture sampler for model
 
-														  // ------------ Can be attached to multiple pipelines -----------------
+		// ------------ Can be attached to multiple pipelines -----------------
 
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // Camera
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // Time
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // SunAndSky
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // KeyPress
 
-												  // ------------ PostProcess pipelines -----------------
-												  // GodRays -- GreyScale Image of where light is in the sky
+		// ------------ PostProcess pipelines -----------------
+		// GodRays -- GreyScale Image of where light is in the sky
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 		// Anti Aliasing //TODO
@@ -1370,9 +1370,9 @@ void Renderer::WriteToAndUpdatePostDescriptorSets()
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeFinalPassInfo.size()), writeFinalPassInfo.data(), 0, nullptr);
 }
 
-//----------------------------------------------
-//------------- Create Compute Resources -------
-//----------------------------------------------
+//--------------------------------------------------------
+//------------- Resources Creations and Recreation -------
+//--------------------------------------------------------
 void Renderer::CreateComputeResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
@@ -1396,12 +1396,9 @@ void Renderer::RecreateComputeResources()
 	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
 
-//----------------------------------------------
-//------------- Create Compute Resources -------
-//----------------------------------------------
 void Renderer::CreatePostProcessResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
+	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_SNORM);
 	godRaysCreationDataTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }

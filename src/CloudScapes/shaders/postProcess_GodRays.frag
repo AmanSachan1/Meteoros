@@ -33,6 +33,15 @@ layout(location = 0) in vec2 in_uv;
 
 #define PI 3.14159265
 
+const vec4 bitEnc = vec4(1.,255.,65025.,16581375.);
+const vec4 bitDec = 1./bitEnc;
+
+float extract32fFromRGBA8f(vec2 uv)
+{
+	vec4 x = texture(godRayCreationDataSampler, uv);
+	return dot(x, bitDec);
+}
+
 bool uv_OutsideCamFrustum(in vec2 test_uv)
 {
 	if( test_uv.x < 0.0 || test_uv.x > 1.0 ||
@@ -109,7 +118,7 @@ void main()
 			}
 			else
 			{
-				sampleValue.a = texture(godRayCreationDataSampler, uv).a; // Retrieve sample at new location.
+				sampleValue.a = extract32fFromRGBA8f(uv); // Retrieve sample at new location.
 				godRayLoop(uv, sampleValue, illuminationDecay, accumColor);
 				uv -= delta_uv; // Step sample location along ray.
 			}
@@ -121,7 +130,7 @@ void main()
 		//Do things normally if sun is in cam Frustum
 		for (int i = 0; i < numSamples; i++)
 		{
-			sampleValue.a = texture(godRayCreationDataSampler, uv).a; // Retrieve sample at new location.
+			sampleValue.a = extract32fFromRGBA8f(uv); // Retrieve sample at new location.
 			godRayLoop(uv, sampleValue, illuminationDecay, accumColor);
 			uv -= delta_uv; // Step sample location along ray.
 		}
@@ -137,5 +146,5 @@ void main()
 
 	vec4 final_color = originalpixelColor + god_ray_color;
 
-	imageStore( currentFrameResultImage, pixelPos, originalpixelColor );
+	imageStore( currentFrameResultImage, pixelPos, final_color );
 }
