@@ -841,25 +841,26 @@ void Renderer::RecordGraphicsCommandBuffer()
 		//------------------------
 		//--- Graphics Pipeline---
 		//------------------------
-		
+		/*
 		// Uncomment for models :D --> except we can only load small obj's at the moment
 		
-		//// Bind the graphics pipeline
-		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+		// Bind the graphics pipeline
+		vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
-		//// Bind graphics descriptor set
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
+		// Bind graphics descriptor set
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 0, 1, &graphicsSet, 0, nullptr);
+		vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
 
-		//// Bind the vertex and index buffers
-		//VkDeviceSize geomOffsets[] = { 0 };
-		//const VkBuffer geomVertices = scene->GetModels()[0]->getVertexBuffer();
-		//vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
-		//vkCmdBindIndexBuffer(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+		// Bind the vertex and index buffers
+		VkDeviceSize geomOffsets[] = { 0 };
+		const VkBuffer geomVertices = scene->GetModels()[0]->getVertexBuffer();
+		vkCmdBindVertexBuffers(graphicsCommandBuffer[i], 0, 1, &geomVertices, geomOffsets);
+		vkCmdBindIndexBuffer(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-		//// Draw indexed triangle
-		//vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
+		// Draw indexed triangle
+		vkCmdDrawIndexed(graphicsCommandBuffer[i], scene->GetModels()[0]->getIndexBufferSize(), 1, 0, 0, 1);
 
+		*/
 		//-----------------------------
 		//--- PostProcess Pipelines ---
 		//-----------------------------
@@ -905,9 +906,9 @@ void Renderer::RecordComputeCommandBuffer()
 																	// The command buffer can be resubmitted while it is also already pending execution.
 	beginInfo.pInheritanceInfo = nullptr; //only useful for secondary command buffers
 
-										  //---------- Begin recording ----------
-										  //If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
-										  // It's not possible to append commands to a buffer at a later time.
+	//---------- Begin recording ----------
+	//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
+	// It's not possible to append commands to a buffer at a later time.
 	if (vkBeginCommandBuffer(computeCommandBuffer, &beginInfo) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to begin recording compute command buffer");
 	}
@@ -927,9 +928,10 @@ void Renderer::RecordComputeCommandBuffer()
 
 	// Dispatch the compute kernel
 	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
-	uint32_t numBlocksX = (window_width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-	uint32_t numBlocksY = (window_height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	uint32_t numBlocksX = (std::ceil(window_width / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	uint32_t numBlocksY = (std::ceil(window_height / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
 	uint32_t numBlocksZ = 1;
+
 	vkCmdDispatch(computeCommandBuffer, numBlocksX, numBlocksY, numBlocksZ);
 
 	//---------- End Recording ----------

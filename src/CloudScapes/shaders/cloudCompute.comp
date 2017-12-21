@@ -693,8 +693,23 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
 void main() 
 {
-    ivec2 dim = imageSize(currentFrameResultImage);
-	vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
+	ivec2 dim = imageSize(currentFrameResultImage);
+
+    //Actually only raymarch for every 16th pixel because reprojection should handle the others and this will legit get you a 10 times or more speed boost
+    int pixelID = int(frameCount % 16);
+
+    int pX = int(floor(pixelID/4));
+    int pY = int(floor(mod(pixelID,4)));
+
+    uint pixelX = gl_GlobalInvocationID.x * 4 + pX;
+    uint pixelY = gl_GlobalInvocationID.y * 4 + pY;
+
+    // Get the uv of the chosen pixel
+    if (pixelX >= dim.x || pixelY >= dim.y) {
+        return;
+    }
+    vec2 uv = vec2(pixelX, pixelY) / dim; // Same as pX/dim.x, pY/dim.y
+    ivec2 chosenPixel = ivec2(pixelX, pixelY);
 
 	uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
 	vec3 eyePos = -camera.eye.xyz;
@@ -711,8 +726,8 @@ void main()
 		vec3 color2 = vec3(0.0, 0.73, 0.95) * 0.5; //light ocean blue
 		backgroundCol = mix(colorNearHorizon, color2, -ray.direction.y * 5.5);
 
-		imageStore( godRaysCreationDataImage, ivec2(gl_GlobalInvocationID.xy), vec4(BLACK, 1.0) );
-		imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(backgroundCol, 1.0) );
+		imageStore( godRaysCreationDataImage, chosenPixel, vec4(BLACK, 1.0) );
+		imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0) );
 		return;
 	}
 	else
@@ -797,6 +812,6 @@ void main()
 #endif
 	
 	//Pass the color off to the cloud pipeline's frag shader
-	imageStore( godRaysCreationDataImage, ivec2(gl_GlobalInvocationID.xy), greyScaleColor );
-    imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), finalColor );
+	imageStore( godRaysCreationDataImage, chosenPixel, greyScaleColor );
+    imageStore( currentFrameResultImage, chosenPixel, finalColor );
 }

@@ -162,7 +162,8 @@ int main(int argc, char** argv)
 	glfwSetMouseButtonCallback(GetGLFWWindow(), mouseDownCallback);
 	glfwSetScrollCallback(GetGLFWWindow(), scrollCallback);
 	glfwSetCursorPosCallback(GetGLFWWindow(), mouseMoveCallback);
-
+	
+	int x = 0;
 	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Drawing/Rendering_and_presentation
     while (!ShouldQuit()) 
 	{
@@ -176,6 +177,13 @@ int main(int argc, char** argv)
 		keyboardInputs(GetGLFWWindow());
 
 		renderer->Frame();
+
+		//For slow motion stuff uncomment
+		//for (int i = 0; i < 200000000; i++)
+		//{
+		//	x += 1;
+		//}
+
     }// end while loop
 
 	//---------------------
