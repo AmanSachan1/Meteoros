@@ -57,6 +57,7 @@ public:
 	// Helper Functions forWriting and updating Descriptor Sets
 	void WriteToAndUpdateComputeDescriptorSets();
 	void WriteToAndUpdateGraphicsDescriptorSets();
+	void WriteToAndUpdatePingPongDescriptorSets();
 	void WriteToAndUpdateRemainingDescriptorSets();
 	void WriteToAndUpdatePostDescriptorSets();
 
@@ -64,7 +65,7 @@ public:
 	VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts);
 	void CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass);
 	void CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subpass);
-	void CreateComputePipeline();	
+	void CreateComputePipeline(VkPipelineLayout& _computePipelineLayout, VkPipeline& _computePipeline, const std::string &filename);
 	void CreatePostProcessPipeLines(VkRenderPass renderPass);
 
 	// Frame Resources
@@ -74,8 +75,9 @@ public:
 	void CreateFrameBuffers(VkRenderPass renderPass);
 
 	// Command Buffers
-	void RecordGraphicsCommandBuffer();
-	void RecordComputeCommandBuffer();
+	void RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphicsCmdBuffer, VkImage &Image_for_barrier, 
+		VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& finalPassSet);
+	void RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkDescriptorSet& pingPongFrameSet);
 
 	// Resource Creation and Recreation
 	void CreateComputeResources();
@@ -99,17 +101,19 @@ private:
 	uint32_t window_height;
 
 	// We create a vector of command buffers because we want a command buffer for each frame of the swap chain
-	std::vector<VkCommandBuffer> graphicsCommandBuffer;
-	VkCommandBuffer computeCommandBuffer;
+	std::vector<VkCommandBuffer> graphicsCommandBuffer1;
+	VkCommandBuffer computeCommandBuffer1;
+	std::vector<VkCommandBuffer> graphicsCommandBuffer2;
+	VkCommandBuffer computeCommandBuffer2;
 	VkCommandPool graphicsCommandPool;
 	VkCommandPool computeCommandPool;
 
 	VkPipelineLayout graphicsPipelineLayout;
 	VkPipelineLayout computePipelineLayout;
-	VkPipelineLayout reprojectionComputePipelineLayout;
+	VkPipelineLayout reprojectionPipelineLayout;
 	VkPipeline graphicsPipeline;
 	VkPipeline computePipeline;
-	VkPipelineLayout reprojectionComputePipeline;
+	VkPipeline reprojectionPipeline;
 
 	VkPipelineCache postProcessPipeLineCache;
 	VkPipelineLayout postProcess_GodRays_PipelineLayout;
@@ -146,17 +150,21 @@ private:
 	//Descriptor Set Layouts for each pipeline
 	VkDescriptorSetLayout computeSetLayout;	// Compute shader binding layout
 	VkDescriptorSetLayout graphicsSetLayout;
+	VkDescriptorSetLayout pingPongFrameSetLayout;	// Compute shader binding layout
 
 	// Descriptor Sets for each pipeline
 	VkDescriptorSet computeSet;	// Compute shader descriptor Set
 	VkDescriptorSet graphicsSet; // Graphics ( Regular Geometric Meshes ) specific descriptor sets
+	VkDescriptorSet pingPongFrameSet1;	// Compute shader descriptor Set
+	VkDescriptorSet pingPongFrameSet2;	// Compute shader descriptor Set
 
 	//Descriptors used in Post Process pipelines
 	VkDescriptorSetLayout godRaysSetLayout;
 	VkDescriptorSet godRaysSet;
 
 	VkDescriptorSetLayout finalPassSetLayout;
-	VkDescriptorSet finalPassSet;
+	VkDescriptorSet finalPassSet1;
+	VkDescriptorSet finalPassSet2;
 
 	VkDescriptorSetLayout storageImagePingPongSetLayout;
 	VkDescriptorSet storageImagePingPongSet1;

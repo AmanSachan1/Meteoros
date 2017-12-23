@@ -2,9 +2,9 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 layout (set = 0, binding = 0, rgba32f) uniform image2D currentFrameResultImage;
-layout (set = 0, binding = 1) uniform sampler2D godRayCreationDataSampler;
+layout (set = 1, binding = 0) uniform sampler2D godRayCreationDataSampler;
 
-layout (set = 1, binding = 0) uniform CameraUBO
+layout (set = 2, binding = 0) uniform CameraUBO
 {
 	mat4 view;
 	mat4 proj;
@@ -12,7 +12,7 @@ layout (set = 1, binding = 0) uniform CameraUBO
 	vec2 tanFovBy2;
 } camera;
 
-layout (set = 2, binding = 0) uniform SunAndSkyUBO
+layout (set = 3, binding = 0) uniform SunAndSkyUBO
 {
 	vec4 sunLocation;
 	vec4 sunDirection;
