@@ -1,4 +1,4 @@
-// Ray March Reference: https://www.shadertoy.com/view/4sjfzw
+// Motion Blur Reference: https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch27.html
 
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
@@ -59,7 +59,7 @@ struct Intersection {
 #define EARTH_RADIUS 6371000.0 // earth's actual radius in km = 6371
 #define ATMOSPHERE_RADIUS_INNER (EARTH_RADIUS + 7500.0) //paper suggests values of 15000-35000m above
 
-#define NUM_MOTION_BLUR_SAMPLES 20
+#define NUM_MOTION_BLUR_SAMPLES 10
 
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
@@ -173,15 +173,26 @@ void main()
     float old_v = (oldCameraRayDir.y / (camera.tanFovBy2.y)) * 0.5 + 0.5;
     vec2 old_uv = vec2(old_u, old_v);
 
-    if( old_uv.x < 0.0 || old_uv.x > 1.0 || 
-        old_uv.y < 0.0 || old_uv.y > 1.0 )
-    {
-        // Store a specific value so it can be identified in the compute shader so we can simple fill it in with color
-        imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(0.0,0.0,1.0,1.0)); //vec4(-1.0, -1.0, -1.0, 0.0) );
-        return;
-    }
+    // if( old_uv.x < 0.0 || old_uv.x > 1.0 || 
+    //     old_uv.y < 0.0 || old_uv.y > 1.0 )
+    // {
+    //     // Store a specific value so it can be identified in the compute shader so we can simple fill it in with color
+    //     imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(-1.0, -1.0, -1.0, 0.0) );
+    //     return;
+    // }
 
-    vec2 imageUV = round((old_uv ) * dim);
-    vec3 prevFramePixelColor = imageLoad(previousFrameResultImage, clamp(ivec2(imageUV), ivec2(0, 0), ivec2(dim.x - 1,  dim.y - 1))).xyz;
-    imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(prevFramePixelColor,1.0) );
+    vec2 motionVec = old_uv - uv;
+    vec4 blurColor = vec4(0.0);
+    vec2 blurOffset = vec2(0.0);
+    vec2 imageUV = round(old_uv * dim);
+
+    for(int i=0; i<NUM_MOTION_BLUR_SAMPLES; i++)
+    {
+        blurOffset = motionVec * (float(i)/float(NUM_MOTION_BLUR_SAMPLES));
+        imageUV = round( (old_uv - blurOffset) * dim);
+        blurColor += imageLoad(previousFrameResultImage, clamp(ivec2(imageUV), ivec2(0, 0), ivec2(dim.x - 1,  dim.y - 1)));
+    }
+    blurColor /= NUM_MOTION_BLUR_SAMPLES;
+
+    imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), blurColor );
 }
