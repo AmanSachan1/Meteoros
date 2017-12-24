@@ -21,6 +21,7 @@ Sky::~Sky()
 	vkFreeMemory(device->GetVkDevice(), sunAndSkyBufferMemory, nullptr);
 }
 
+//Create the textures that will be passed to the compute shader to create clouds
 void Sky::CreateCloudResources(VkCommandPool computeCommandPool)
 {
 	// Low Frequency Cloud 3D Texture

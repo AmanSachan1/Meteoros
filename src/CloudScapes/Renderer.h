@@ -68,14 +68,13 @@ public:
 	void CreateFrameBuffers(VkRenderPass renderPass);
 
 	// Command Buffers
-	void RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphicsCmdBuffer, VkImage &Image_for_barrier, 
-		VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& finalPassSet);
+	void RecordAllCommandBuffers();
 	void RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkDescriptorSet& pingPongFrameSet);
+	void RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphicsCmdBuffer, VkImage &Image_for_barrier, 
+									VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& finalPassSet);
 
 	// Resource Creation and Recreation
-	void CreateComputeResources();
-	void RecreateComputeResources();
-	void CreatePostProcessResources();
+	void CreateResources();
 
 private:
 	VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)

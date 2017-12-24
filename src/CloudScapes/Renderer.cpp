@@ -83,11 +83,13 @@ void Renderer::DestroyOnWindowResize()
 
 void Renderer::InitializeRenderer()
 {
-	CreateCommandPools();
+	VulkanInitializers::CreateCommandPool(logicalDevice, graphicsCommandPool, device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Graphics] );
+	VulkanInitializers::CreateCommandPool(logicalDevice, computeCommandPool, device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Compute] );
+
 	CreateRenderPass();
 
-	CreateComputeResources();
-	CreatePostProcessResources();
+	CreateResources();
+	sky->CreateCloudResources(computeCommandPool);
 
 	CreateDescriptorPool();
 	CreateAllDescriptorSetLayouts();
@@ -96,15 +98,7 @@ void Renderer::InitializeRenderer()
 	CreateFrameResources();
 
 	CreateAllPipeLines(renderPass, 0);
-
-	VkImage currFrameImage = currentFrameResultTexture->GetTextureImage();
-	VkImage prevFrameImage = previousFrameComputeResultTexture->GetTextureImage();
-
-	RecordComputeCommandBuffer(computeCommandBuffer1, pingPongFrameSet1);
-	RecordGraphicsCommandBuffer(graphicsCommandBuffer1, currFrameImage, pingPongFrameSet1, finalPassSet1);
-
-	RecordComputeCommandBuffer(computeCommandBuffer2, pingPongFrameSet2);
-	RecordGraphicsCommandBuffer(graphicsCommandBuffer2, prevFrameImage, pingPongFrameSet2, finalPassSet2);
+	RecordAllCommandBuffers();
 }
 
 void Renderer::RecreateOnResize(uint32_t width, uint32_t height)
@@ -256,38 +250,29 @@ void Renderer::CreateRenderPass()
 //----------------------------------------------
 //-------------- Pipelines ---------------------
 //----------------------------------------------
-// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
-VkPipelineLayout Renderer::CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts)
-{
-	VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
-	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-	pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
-	pipelineLayoutInfo.pPushConstantRanges = 0;
-
-	VkPipelineLayout pipelineLayout;
-	if (vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to create pipeline layout");
-	}
-
-	return pipelineLayout;
-}
-
 void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 {
-	computePipelineLayout = CreatePipelineLayout({ pingPongFrameSetLayout, computeSetLayout, cameraSetLayout, timeSetLayout, sunAndSkySetLayout, keyPressQuerySetLayout });
+	computePipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongFrameSetLayout, 
+																						computeSetLayout, 
+																						cameraSetLayout, 
+																						timeSetLayout, 
+																						sunAndSkySetLayout, 
+																						keyPressQuerySetLayout });
+	reprojectionPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongFrameSetLayout,	
+																							cameraSetLayout, 
+																							cameraSetLayout,
+																							timeSetLayout });
+	graphicsPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { graphicsSetLayout, 
+																						cameraSetLayout });	
+	postProcess_GodRays_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongFrameSetLayout, 
+																									godRaysSetLayout, 
+																									cameraSetLayout, 
+																									sunAndSkySetLayout });
+	postProcess_FinalPass_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { finalPassSetLayout });
+	
 	CreateComputePipeline(computePipelineLayout, computePipeline, "CloudScapes/shaders/cloudCompute.comp.spv");
-
-	reprojectionPipelineLayout = CreatePipelineLayout({ pingPongFrameSetLayout, cameraSetLayout, cameraSetLayout, timeSetLayout });
 	CreateComputePipeline(reprojectionPipelineLayout, reprojectionPipeline, "CloudScapes/shaders/reprojectionCompute.comp.spv");
-
-	graphicsPipelineLayout = CreatePipelineLayout({ graphicsSetLayout, cameraSetLayout });
 	CreateGraphicsPipeline(renderPass, 0);
-
-	postProcess_GodRays_PipelineLayout = CreatePipelineLayout({ pingPongFrameSetLayout, godRaysSetLayout, cameraSetLayout, sunAndSkySetLayout });
-	postProcess_FinalPass_PipelineLayout = CreatePipelineLayout({ finalPassSetLayout });
 	CreatePostProcessPipeLines(renderPass);
 }
 
@@ -600,9 +585,7 @@ void Renderer::RecreateFrameResources()
 {
 	DestroyOnWindowResize();
 
-	RecreateComputeResources();
-	CreatePostProcessResources();
-
+	CreateResources();
 	CreateRenderPass();
 
 	WriteToAndUpdateAllDescriptorSets();
@@ -610,14 +593,7 @@ void Renderer::RecreateFrameResources()
 	CreateFrameResources();
 	CreateAllPipeLines(renderPass, 0);
 
-	VkImage currFrameImage = currentFrameResultTexture->GetTextureImage();
-	VkImage prevFrameImage = previousFrameComputeResultTexture->GetTextureImage();
-
-	RecordComputeCommandBuffer(computeCommandBuffer1, pingPongFrameSet1);
-	RecordGraphicsCommandBuffer(graphicsCommandBuffer1, currFrameImage, pingPongFrameSet1, finalPassSet1);
-
-	RecordComputeCommandBuffer(computeCommandBuffer2, pingPongFrameSet2);
-	RecordGraphicsCommandBuffer(graphicsCommandBuffer2, prevFrameImage, pingPongFrameSet2, finalPassSet2);
+	RecordAllCommandBuffers();
 }
 
 void Renderer::CreateFrameBuffers(VkRenderPass renderPass)
@@ -647,32 +623,91 @@ void Renderer::CreateFrameBuffers(VkRenderPass renderPass)
 }
 
 //----------------------------------------------
-//-------------- Command Pools -----------------
+//-------------- Command Buffers ---------------
 //----------------------------------------------
-void Renderer::CreateCommandPools()
+void Renderer::RecordAllCommandBuffers()
 {
-	VkCommandPoolCreateInfo graphicsPoolInfo = {};
-	graphicsPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	graphicsPoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Graphics];
-	graphicsPoolInfo.flags = 0;
+	VkImage currFrameImage = currentFrameResultTexture->GetTextureImage();
+	VkImage prevFrameImage = previousFrameComputeResultTexture->GetTextureImage();
 
-	if (vkCreateCommandPool(logicalDevice, &graphicsPoolInfo, nullptr, &graphicsCommandPool) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create graphics command pool");
+	RecordComputeCommandBuffer(computeCommandBuffer1, pingPongFrameSet1);
+	RecordGraphicsCommandBuffer(graphicsCommandBuffer1, currFrameImage, pingPongFrameSet1, finalPassSet1);
+
+	RecordComputeCommandBuffer(computeCommandBuffer2, pingPongFrameSet2);
+	RecordGraphicsCommandBuffer(graphicsCommandBuffer2, prevFrameImage, pingPongFrameSet2, finalPassSet2);
+}
+
+void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkDescriptorSet& pingPongFrameSet)
+{
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.commandPool = computeCommandPool;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+
+	if (vkAllocateCommandBuffers(logicalDevice, &commandBufferAllocateInfo, &computeCmdBuffer) != VK_SUCCESS)
+	{
+		throw std::runtime_error("Failed to allocate compute command buffers");
 	}
 
-	VkCommandPoolCreateInfo computePoolInfo = {};
-	computePoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	computePoolInfo.queueFamilyIndex = device->GetInstance()->GetQueueFamilyIndices()[QueueFlags::Compute];
-	computePoolInfo.flags = 0;
+	// Record command buffer-> should not nead one for every frame of the swapchain
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // How we are using the command buffer
+																	// The command buffer can be resubmitted while it is also already pending execution.
+	beginInfo.pInheritanceInfo = nullptr; //only useful for secondary command buffers
 
-	if (vkCreateCommandPool(logicalDevice, &computePoolInfo, nullptr, &computeCommandPool) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create compute command pool");
+										  //---------- Begin recording ----------
+										  //If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
+										  // It's not possible to append commands to a buffer at a later time.
+	if (vkBeginCommandBuffer(computeCmdBuffer, &beginInfo) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to begin recording compute command buffer");
+	}
+
+	//-----------------------------------------------------
+	//--- Compute Pipeline Binding, Dispatch & Barriers ---
+	//-----------------------------------------------------
+	uint32_t numBlocksX = (window_width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	uint32_t numBlocksY = (window_height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	uint32_t numBlocksZ = 1;
+
+	//Bind the compute piepline
+	vkCmdBindPipeline(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipeline);
+
+	//Bind Descriptor Sets for compute
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 0, 1, &pingPongFrameSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 2, 1, &cameraOldSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 3, 1, &timeSet, 0, nullptr);
+
+	// Dispatch the compute kernel
+	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
+	vkCmdDispatch(computeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ);
+
+	//Bind Descriptor Sets for compute
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &pingPongFrameSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 1, 1, &computeSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 2, 1, &cameraSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 3, 1, &timeSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 4, 1, &sunAndSkySet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 5, 1, &keyPressQuerySet, 0, nullptr);
+
+	//Bind the compute piepline
+	vkCmdBindPipeline(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+
+	// Dispatch the compute kernel
+	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
+	numBlocksX = (std::ceil(window_width / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	numBlocksY = (std::ceil(window_height / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+
+	vkCmdDispatch(computeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ);
+
+	//---------- End Recording ----------
+	if (vkEndCommandBuffer(computeCmdBuffer) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to record the compute command buffer");
 	}
 }
 
-//----------------------------------------------
-//-------------- Command Buffers ---------------
-//----------------------------------------------
 void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphicsCmdBuffer, VkImage &Image_for_barrier, 
 											VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& finalPassSet)
 {
@@ -796,77 +831,6 @@ void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphic
 			throw std::runtime_error("Failed to record the graphics command buffer");
 		}
 	}// end for loop
-}
-
-void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkDescriptorSet& pingPongFrameSet)
-{
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.commandPool = computeCommandPool;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-
-	if (vkAllocateCommandBuffers(logicalDevice, &commandBufferAllocateInfo, &computeCmdBuffer) != VK_SUCCESS)
-	{
-		throw std::runtime_error("Failed to allocate compute command buffers");
-	}
-
-	// Record command buffer-> should not nead one for every frame of the swapchain
-	VkCommandBufferBeginInfo beginInfo = {};
-	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // How we are using the command buffer
-																	// The command buffer can be resubmitted while it is also already pending execution.
-	beginInfo.pInheritanceInfo = nullptr; //only useful for secondary command buffers
-
-	//---------- Begin recording ----------
-	//If the command buffer was already recorded once, then a call to vkBeginCommandBuffer will implicitly reset it. 
-	// It's not possible to append commands to a buffer at a later time.
-	if (vkBeginCommandBuffer(computeCmdBuffer, &beginInfo) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to begin recording compute command buffer");
-	}
-
-	//-----------------------------------------------------
-	//--- Compute Pipeline Binding, Dispatch & Barriers ---
-	//-----------------------------------------------------
-	uint32_t numBlocksX = (window_width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-	uint32_t numBlocksY = (window_height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-	uint32_t numBlocksZ = 1;
-
-	//Bind the compute piepline
-	vkCmdBindPipeline(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipeline);
-
-	//Bind Descriptor Sets for compute
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 0, 1, &pingPongFrameSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 2, 1, &cameraOldSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 3, 1, &timeSet, 0, nullptr);
-
-	// Dispatch the compute kernel
-	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
-	vkCmdDispatch(computeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ);
-
-	//Bind Descriptor Sets for compute
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &pingPongFrameSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 1, 1, &computeSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 2, 1, &cameraSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 3, 1, &timeSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 4, 1, &sunAndSkySet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 5, 1, &keyPressQuerySet, 0, nullptr);
-	
-	//Bind the compute piepline
-	vkCmdBindPipeline(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
-	
-	// Dispatch the compute kernel
-	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
-	numBlocksX = (std::ceil(window_width / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-	numBlocksY = (std::ceil(window_height / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-
-	vkCmdDispatch(computeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ);
-
-	//---------- End Recording ----------
-	if (vkEndCommandBuffer(computeCmdBuffer) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to record the compute command buffer");
-	}
 }
 
 //----------------------------------------------
@@ -1412,31 +1376,16 @@ void Renderer::WriteToAndUpdatePostDescriptorSets()
 //--------------------------------------------------------
 //------------- Resources Creations and Recreation -------
 //--------------------------------------------------------
-void Renderer::CreateComputeResources()
+void Renderer::CreateResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
 	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
+
 	//Stores the results of the previous Frame
 	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
 	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
-	//Create the textures that will be passed to the compute shader to create clouds
-	sky->CreateCloudResources(computeCommandPool);
-}
-
-void Renderer::RecreateComputeResources()
-{
-	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
-	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
-	//Stores the results of the previous Frame
-	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
-	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
-}
-
-void Renderer::CreatePostProcessResources()
-{
 	//To store the results of the compute shader that will be passed on to the frag shader
 	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_SNORM);
 	godRaysCreationDataTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);

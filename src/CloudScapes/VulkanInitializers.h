@@ -22,7 +22,39 @@ namespace VulkanInitializers
 	}
 
 	//--------------------------------------------------------
-	//				PipeLine Creation Initializers
+	//			PipeLine Layouts and Pipeline Cache
+	// Reference: https://vulkan-tutorial.com/Drawing_a_triangle/Graphics_pipeline_basics/Fixed_functions
+	//--------------------------------------------------------
+
+	inline VkPipelineLayout CreatePipelineLayout(VkDevice& logicalDevice, std::vector<VkDescriptorSetLayout> descriptorSetLayouts)
+	{
+		VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
+		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+		pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+		pipelineLayoutInfo.pushConstantRangeCount = 0;
+		pipelineLayoutInfo.pPushConstantRanges = 0;
+
+		VkPipelineLayout pipelineLayout;
+		if (vkCreatePipelineLayout(logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+		{
+			throw std::runtime_error("Failed to create pipeline layout");
+		}
+
+		return pipelineLayout;
+	}
+
+	inline void createPipelineCache(VkDevice& logicalDevice, VkPipelineCache &pipelineCache)
+	{
+		VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
+		pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+		if (vkCreatePipelineCache(logicalDevice, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create pipeline cache");
+		}
+	}
+
+	//--------------------------------------------------------
+	//				PipeLine State Info Creation
 	//--------------------------------------------------------
 
 	inline VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo()
@@ -177,15 +209,6 @@ namespace VulkanInitializers
 		return pipelineCreateInfo;
 	}
 
-	inline void createPipelineCache( VkDevice& logicalDevice, VkPipelineCache &pipelineCache )
-	{
-		VkPipelineCacheCreateInfo pipelineCacheCreateInfo = {};
-		pipelineCacheCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-		if (vkCreatePipelineCache(logicalDevice, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS) {
-			throw std::runtime_error("Failed to create pipeline cache");
-		}
-	}
-
 	//--------------------------------------------------------
 	//			Descriptor Sets and Descriptor Layouts
 	// Reference: https://vulkan-tutorial.com/Uniform_buffers
@@ -215,5 +238,20 @@ namespace VulkanInitializers
 		VkDescriptorSet descriptorSet;
 		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
 		return descriptorSet;
+	}
+
+	//--------------------------------------------------------
+	//					CommandPools
+	//--------------------------------------------------------
+	inline void CreateCommandPool(VkDevice& logicalDevice, VkCommandPool& cmdPool, uint32_t queueFamilyIndex)
+	{
+		VkCommandPoolCreateInfo cmdPoolInfo = {};
+		cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		cmdPoolInfo.queueFamilyIndex = queueFamilyIndex;
+		cmdPoolInfo.flags = 0;
+
+		if (vkCreateCommandPool(logicalDevice, &cmdPoolInfo, nullptr, &cmdPool) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create command pool");
+		}
 	}
 };
