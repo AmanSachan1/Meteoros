@@ -100,7 +100,7 @@ namespace
 	{
 		if (leftMouseDown) 
 		{
-			double sensitivity = 0.05;
+			double sensitivity = 0.1;
 			float deltaX = static_cast<float>((previousX - xPosition) * sensitivity);
 			float deltaY = static_cast<float>((previousY - yPosition) * sensitivity);
 			previousX = xPosition;
@@ -184,7 +184,7 @@ int main(int argc, char** argv)
 		cameraOld->UpdateBuffer(camera);
 		cameraOld->CopyToGPUMemory();
 
-		//For slow motion stuff uncomment
+		// For slow motion stuff uncomment
 		//for (int i = 0; i < 200000000; i++)
 		//{
 		//	x += 1;

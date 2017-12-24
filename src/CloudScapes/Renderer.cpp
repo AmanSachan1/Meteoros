@@ -846,10 +846,10 @@ void Renderer::CreateDescriptorPool()
 		// ------------ Curr and Prev Frames -----------------
 		// ------------ Set 1 --------
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Current Frame
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // Previous Frame
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Previous Frame
 		// ------------ Set 2 --------
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Current Frame
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // Previous Frame
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Previous Frame
 		// ------------ Compute ------------------------------
 		// Samplers for all the cloud Textures
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // low frequency texture
@@ -903,7 +903,7 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	
 	// Ping Pong Set 1
 	VkDescriptorSetLayoutBinding currentFrameLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, nullptr };
-	VkDescriptorSetLayoutBinding previousFrameLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_ALL, nullptr };
+	VkDescriptorSetLayoutBinding previousFrameLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, nullptr };
 	std::array<VkDescriptorSetLayoutBinding, 2> pingPongFrameBindings = { currentFrameLayoutBinding, previousFrameLayoutBinding };
 	
 	VkDescriptorSetLayoutCreateInfo pingPongFrameLayoutInfo = {};
@@ -1084,7 +1084,7 @@ void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 	writePingPongSet1Info[1].dstSet = pingPongFrameSet1;
 	writePingPongSet1Info[1].dstBinding = 1;
 	writePingPongSet1Info[1].descriptorCount = 1;
-	writePingPongSet1Info[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writePingPongSet1Info[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	writePingPongSet1Info[1].pImageInfo = &previousFrameTextureInfo;
 
 	writePingPongSet2Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1100,7 +1100,7 @@ void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 	writePingPongSet2Info[1].dstSet = pingPongFrameSet2;
 	writePingPongSet2Info[1].dstBinding = 1;
 	writePingPongSet2Info[1].descriptorCount = 1;
-	writePingPongSet2Info[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writePingPongSet2Info[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	writePingPongSet2Info[1].pImageInfo = &currentFrameTextureInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writePingPongSet1Info.size()), writePingPongSet1Info.data(), 0, nullptr);

@@ -12,7 +12,7 @@ layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
 //maybe just do it in 2 descriptor sets cause technically they just store pointers and so it shouldnt be terrible in memory
 
 layout (set = 0, binding = 0, rgba32f) uniform writeonly image2D currentFrameResultImage;
-layout (set = 0, binding = 1) uniform sampler2D previousFrameResultImage;
+layout (set = 0, binding = 1, rgba32f) uniform readonly image2D previousFrameResultImage;
 layout (set = 1, binding = 0) uniform sampler3D cloudBaseShapeSampler;
 layout (set = 1, binding = 1) uniform sampler3D cloudDetailsHighFreqSampler; // Dont use alpha channel
 layout (set = 1, binding = 2) uniform sampler2D curlNoiseSampler; // Don't use alpha channel
@@ -103,8 +103,6 @@ struct Intersection {
 #define CLOUD_SPEED (0.005)//*10.7)
 #define CLOUD_TOP_OFFSET 1.0// this offset pushes the tops of the clouds along this wind direction by this many units
 
-
-// #define LightVec normalize(vec3(1.0,1.0,1.0));
 // #define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO:change it through uniform for an animated sky'
 #define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER * 0.9, -ATMOSPHERE_RADIUS_OUTER * 0.9)
 #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, EARTH_RADIUS * 2.0, -EARTH_RADIUS * 10.0)

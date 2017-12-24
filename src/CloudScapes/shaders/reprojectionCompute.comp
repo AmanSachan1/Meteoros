@@ -8,7 +8,7 @@ layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
 
 // Ping pong storage images
 layout (set = 0, binding = 0, rgba32f) uniform writeonly image2D currentFrameResultImage;
-layout (set = 0, binding = 1) uniform sampler2D previousFrameResultImage;
+layout (set = 0, binding = 1, rgba32f) uniform readonly image2D previousFrameResultImage;
 
 layout (set = 1, binding = 0) uniform CameraUBO
 {
@@ -150,32 +150,38 @@ void main()
     //           - do all the work for 15 reprojection pixel fills on one thread
     //           - do full resolution but only work for 15 pixels and terminate early for the one that will be filled by raymarching
     //The last one is the best but it is hard to determine which pixel to skip --> equate the pixel selected with the regular invocation ID --> to determine which to skip
- //    ivec2 dim = imageSize(currentFrameResultImage);
- //    vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
- //    uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
+    ivec2 dim = imageSize(currentFrameResultImage);
+    vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
+    //Do not invert uv's because we already do this in the cloudCompute shader and so things are stored in accordance to openGL convention of uv's
 
-	// vec3 eyePos = -camera.eye.xyz;
-	// Ray ray = castRay(uv, eyePos, camera.view, camera.tanFovBy2);
+	vec3 eyePos = -camera.eye.xyz;
+	Ray ray = castRay(uv, eyePos, camera.view, camera.tanFovBy2);
 
-	// // Hit the inner sphere with the ray you just found to get some basis world position along your current ray
-	// vec3 earthCenter = eyePos;
-	// earthCenter.y = -EARTH_RADIUS; //move earth below camera
-	// Intersection atmosphereInnerIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, ATMOSPHERE_RADIUS_INNER);
+	// Hit the inner sphere with the ray you just found to get some basis world position along your current ray
+	vec3 earthCenter = eyePos;
+	earthCenter.y = -EARTH_RADIUS; //move earth below camera
+	Intersection atmosphereInnerIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, ATMOSPHERE_RADIUS_INNER);
 
- //    //Convert the point you just found back into screenspace using the old camera, i.e. the camera for the previous frame
- //    vec3 NDC_point_prevFrame = (cameraOld.proj * cameraOld.view * vec4(atmosphereInnerIsect.point, 1.0f)).xyz;
-    
- //    if( NDC_point_prevFrame.x < -1.0 || NDC_point_prevFrame.x > 1.0 || 
- //        NDC_point_prevFrame.y < -1.0 || NDC_point_prevFrame.y > 1.0)
- //    {
- //        return;
- //    }
+    vec3 oldCameraRayDir = normalize((cameraOld.view * vec4(atmosphereInnerIsect.point, 1.0f)).xyz);
 
- //    vec2 uv_prevFrame = vec2( ((NDC_point_prevFrame.x + 1.0f) * 0.5f), ((1.0f - NDC_point_prevFrame.y)*0.5f) );
- //    ivec2 pixel_prevFrame = ivec2( int(floor((NDC_point_prevFrame.x + 1.0f) * dim.x * 0.5f)),
- //                                   int(floor((1.0f - NDC_point_prevFrame.y) * dim.y * 0.5f)) );
+    // We have a normalized ray that we need to convert into uv space
+    // We can achieve this by multiplying the xy componentes of the ray by the camera's Right and Up basis vectors  and scaling it down to a 0 to 1 range
+    // In other words the ray goes from camera space <x,y,z> to uv space <u,v,1> using the R U F basis that defines the camera
+    oldCameraRayDir /= -oldCameraRayDir.z; //-z because in camera space we look down negative z and so we don't want 
+                                           //to divide by a negative number --> that would make our uv's negative
+    float old_u = (oldCameraRayDir.x / (camera.tanFovBy2.x)) * 0.5 + 0.5;
+    float old_v = (oldCameraRayDir.y / (camera.tanFovBy2.y)) * 0.5 + 0.5;
+    vec2 old_uv = vec2(old_u, old_v);
 
- //    vec3 prevFramePixelColor = texture( previousFrameResultImage, pixel_prevFrame ).xyz;
+    if( old_uv.x < 0.0 || old_uv.x > 1.0 || 
+        old_uv.y < 0.0 || old_uv.y > 1.0 )
+    {
+        // Store a specific value so it can be identified in the compute shader so we can simple fill it in with color
+        imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(0.0,0.0,1.0,1.0)); //vec4(-1.0, -1.0, -1.0, 0.0) );
+        return;
+    }
 
-    imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(0.0,0.0,0.0, 1.0) );
+    vec2 imageUV = round((old_uv ) * dim);
+    vec3 prevFramePixelColor = imageLoad(previousFrameResultImage, clamp(ivec2(imageUV), ivec2(0, 0), ivec2(dim.x - 1,  dim.y - 1))).xyz;
+    imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(prevFramePixelColor,1.0) );
 }
