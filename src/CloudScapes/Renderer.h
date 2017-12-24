@@ -29,7 +29,7 @@ class Renderer
 {
 public:
 	Renderer() = delete; // To enforce the creation of a the type of renderer we want without leaving the vulkan device, vulkan swapchain, etc as assumptions or nullptrs
-	Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Sky* sky, Camera* camera, uint32_t width, uint32_t height);
+	Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Sky* sky, Camera* camera, Camera* cameraOld, uint32_t width, uint32_t height);
 	~Renderer();
 
 	void DestroyOnWindowResize();
@@ -42,19 +42,12 @@ public:
 	void CreateCommandPools();
 	void CreateRenderPass();
 
-	// Descriptor Pool
+	// Descriptors
 	void CreateDescriptorPool();
-
-	// Descriptor SetLayouts
 	void CreateAllDescriptorSetLayouts();
-	VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding> layoutBindings);
-
-	// Descriptor Sets
 	void CreateAllDescriptorSets();
-	VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout);
 	
 	void WriteToAndUpdateAllDescriptorSets();
-	// Helper Functions forWriting and updating Descriptor Sets
 	void WriteToAndUpdateComputeDescriptorSets();
 	void WriteToAndUpdateGraphicsDescriptorSets();
 	void WriteToAndUpdatePingPongDescriptorSets();

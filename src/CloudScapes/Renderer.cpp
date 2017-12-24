@@ -1,6 +1,7 @@
 #include "Renderer.h"
 
-Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, Scene* scene, Sky* sky, Camera* camera, uint32_t width, uint32_t height)
+Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, VulkanSwapChain* swapChain, 
+	Scene* scene, Sky* sky, Camera* camera, Camera* cameraOld, uint32_t width, uint32_t height)
 	: device(device),
 	logicalDevice(device->GetVkDevice()),
 	physicalDevice(physicalDevice),
@@ -8,6 +9,7 @@ Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, Vulkan
 	scene(scene),
 	sky(sky),
 	camera(camera),
+	cameraOld(cameraOld),
 	window_width(width),
 	window_height(height)
 {
@@ -16,40 +18,16 @@ Renderer::Renderer(VulkanDevice* device, VkPhysicalDevice physicalDevice, Vulkan
 
 Renderer::~Renderer()
 {
-	vkDeviceWaitIdle(logicalDevice);
+	DestroyOnWindowResize(); //Destroys a lot of things already --> so why write it again
 
-	// Destroy any resources you created
-	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer1.size()), graphicsCommandBuffer1.data());
-	vkFreeCommandBuffers(logicalDevice, graphicsCommandPool, static_cast<uint32_t>(graphicsCommandBuffer2.size()), graphicsCommandBuffer2.data());
-	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer1);
-	vkFreeCommandBuffers(logicalDevice, computeCommandPool, 1, &computeCommandBuffer2);
-
+	//Command Pools
 	vkDestroyCommandPool(logicalDevice, graphicsCommandPool, nullptr);
 	vkDestroyCommandPool(logicalDevice, computeCommandPool, nullptr);
-
-	DestroyFrameResources();
-
-	//Regular Pipelines
-	//All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
-	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
-	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
-	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
-
-	//Post Process Pipelines
-	vkDestroyPipelineCache(logicalDevice, postProcessPipeLineCache, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, postProcess_GodRays_PipelineLayout, nullptr);
-	vkDestroyPipeline(logicalDevice, postProcess_GodRays_PipeLine, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, postProcess_FinalPass_PipelineLayout, nullptr);
-	vkDestroyPipeline(logicalDevice, postProcess_FinalPass_PipeLine, nullptr);
-
-	//Render Pass
-	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
-
+	
 	//Descriptor Set Layouts
 	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, pingPongFrameSetLayout, nullptr);
 
 	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, timeSetLayout, nullptr);
@@ -62,11 +40,7 @@ Renderer::~Renderer()
 	//Descriptor Set
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
 
-	//Textures
-	delete currentFrameResultTexture;
-	delete previousFrameComputeResultTexture;
-	delete godRaysCreationDataTexture;
-
+	//Cloud and sky resources that are independent of size
 	delete sky;
 }
 
@@ -86,8 +60,10 @@ void Renderer::DestroyOnWindowResize()
 	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, reprojectionPipelineLayout, nullptr);
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
 	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
+	vkDestroyPipeline(logicalDevice, reprojectionPipeline, nullptr);
 
 	//Post Process Pipelines
 	vkDestroyPipelineCache(logicalDevice, postProcessPipeLineCache, nullptr);
@@ -852,8 +828,22 @@ void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkD
 	//-----------------------------------------------------
 	//--- Compute Pipeline Binding, Dispatch & Barriers ---
 	//-----------------------------------------------------
+	uint32_t numBlocksX = (window_width + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	uint32_t numBlocksY = (window_height + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	uint32_t numBlocksZ = 1;
+
 	//Bind the compute piepline
-	vkCmdBindPipeline(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+	vkCmdBindPipeline(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipeline);
+
+	//Bind Descriptor Sets for compute
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 0, 1, &pingPongFrameSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 1, 1, &cameraSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 2, 1, &cameraOldSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, reprojectionPipelineLayout, 3, 1, &timeSet, 0, nullptr);
+
+	// Dispatch the compute kernel
+	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
+	vkCmdDispatch(computeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ);
 
 	//Bind Descriptor Sets for compute
 	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &pingPongFrameSet, 0, nullptr);
@@ -862,12 +852,14 @@ void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkD
 	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 3, 1, &timeSet, 0, nullptr);
 	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 4, 1, &sunAndSkySet, 0, nullptr);
 	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 5, 1, &keyPressQuerySet, 0, nullptr);
-
+	
+	//Bind the compute piepline
+	vkCmdBindPipeline(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+	
 	// Dispatch the compute kernel
 	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
-	uint32_t numBlocksX = (std::ceil(window_width / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-	uint32_t numBlocksY = (std::ceil(window_height / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-	uint32_t numBlocksZ = 1;
+	numBlocksX = (std::ceil(window_width / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
+	numBlocksY = (std::ceil(window_height / 4) + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
 
 	vkCmdDispatch(computeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ);
 
@@ -889,13 +881,13 @@ void Renderer::CreateDescriptorPool()
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 		// Format for elements: { type, descriptorCount }
 		// ------------ Curr and Prev Frames -----------------
-		// ------------ Set 1 -----------------
+		// ------------ Set 1 --------
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Current Frame
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // Previous Frame
-		// ------------ Set 2 -----------------
+		// ------------ Set 2 --------
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Current Frame
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // Previous Frame
-		// ------------ Compute -----------------
+		// ------------ Compute ------------------------------
 		// Samplers for all the cloud Textures
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // low frequency texture
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // high frequency texture
@@ -904,12 +896,13 @@ void Renderer::CreateDescriptorPool()
 		// Store Texture for God Rays PostProcess
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 
-		// ------------ Graphics -----------------
+		// ------------ Graphics -----------------------------
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, //model matrix
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, //texture sampler for model
 
-		// ------------ Can be attached to multiple pipelines -----------------
+		// -------- Can be attached to multiple pipelines ------
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // Camera
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // previous Frame Camera
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // Time
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // SunAndSky
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, // KeyPress
@@ -934,33 +927,6 @@ void Renderer::CreateDescriptorPool()
 	if (vkCreateDescriptorPool(device->GetVkDevice(), &descriptorPoolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create descriptor pool");
 	}
-}
-
-// Reference: https://vulkan-tutorial.com/Uniform_buffers
-VkDescriptorSetLayout Renderer::CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding> layoutBindings)
-{
-	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-	descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetLayoutCreateInfo.pNext = nullptr;
-	descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
-	descriptorSetLayoutCreateInfo.pBindings = layoutBindings.data();
-
-	VkDescriptorSetLayout descriptorSetLayout;
-	vkCreateDescriptorSetLayout(device->GetVkDevice(), &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout);
-	return descriptorSetLayout;
-}
-
-VkDescriptorSet Renderer::CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)
-{
-	VkDescriptorSetAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	allocInfo.descriptorPool = descriptorPool;
-	allocInfo.descriptorSetCount = 1;
-	allocInfo.pSetLayouts = &descriptorSetLayout;
-
-	VkDescriptorSet descriptorSet;
-	vkAllocateDescriptorSets(device->GetVkDevice(), &allocInfo, &descriptorSet);
-	return descriptorSet;
 }
 
 void Renderer::CreateAllDescriptorSetLayouts()
@@ -1096,20 +1062,21 @@ void Renderer::CreateAllDescriptorSetLayouts()
 void Renderer::CreateAllDescriptorSets()
 {
 	// Initialize descriptor sets
-	computeSet = CreateDescriptorSet(descriptorPool, computeSetLayout);
-	graphicsSet = CreateDescriptorSet(descriptorPool, graphicsSetLayout);
+	computeSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, computeSetLayout);
+	graphicsSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, graphicsSetLayout);
 
-	pingPongFrameSet1 = CreateDescriptorSet(descriptorPool, pingPongFrameSetLayout);
-	pingPongFrameSet2 = CreateDescriptorSet(descriptorPool, pingPongFrameSetLayout);
+	pingPongFrameSet1 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, pingPongFrameSetLayout);
+	pingPongFrameSet2 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, pingPongFrameSetLayout);
 
-	cameraSet = CreateDescriptorSet(descriptorPool, cameraSetLayout);
-	timeSet = CreateDescriptorSet(descriptorPool, timeSetLayout);
-	sunAndSkySet = CreateDescriptorSet(descriptorPool, sunAndSkySetLayout);
-	keyPressQuerySet = CreateDescriptorSet(descriptorPool, keyPressQuerySetLayout);
+	cameraSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, cameraSetLayout);
+	cameraOldSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, cameraSetLayout);
+	timeSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, timeSetLayout);
+	sunAndSkySet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, sunAndSkySetLayout);
+	keyPressQuerySet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, keyPressQuerySetLayout);
 
-	godRaysSet = CreateDescriptorSet(descriptorPool, godRaysSetLayout);
-	finalPassSet1 = CreateDescriptorSet(descriptorPool, finalPassSetLayout);
-	finalPassSet2 = CreateDescriptorSet(descriptorPool, finalPassSetLayout);
+	godRaysSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, godRaysSetLayout);
+	finalPassSet1 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, finalPassSetLayout);
+	finalPassSet2 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, finalPassSetLayout);
 
 	scene->CreateModelsInScene(graphicsCommandPool);
 
@@ -1125,7 +1092,6 @@ void Renderer::WriteToAndUpdateAllDescriptorSets()
 	WriteToAndUpdateRemainingDescriptorSets();
 	WriteToAndUpdatePostDescriptorSets();
 }
-// Helper functions for writing and updating Descriptor Sets
 void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 {
 	// Texture Compute Shader Writes To
@@ -1317,6 +1283,21 @@ void Renderer::WriteToAndUpdateRemainingDescriptorSets()
 	writeCameraSetInfo[0].pBufferInfo = &cameraBufferInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCameraSetInfo.size()), writeCameraSetInfo.data(), 0, nullptr);
+
+	VkDescriptorBufferInfo cameraOldBufferInfo = {};
+	cameraOldBufferInfo.buffer = cameraOld->GetBuffer();
+	cameraOldBufferInfo.offset = 0;
+	cameraOldBufferInfo.range = sizeof(CameraUBO);
+
+	std::array<VkWriteDescriptorSet, 1> writeCameraOldSetInfo = {};
+	writeCameraOldSetInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeCameraOldSetInfo[0].dstSet = cameraOldSet;
+	writeCameraOldSetInfo[0].dstBinding = 0;
+	writeCameraOldSetInfo[0].descriptorCount = 1;									// How many 
+	writeCameraOldSetInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	writeCameraOldSetInfo[0].pBufferInfo = &cameraOldBufferInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeCameraOldSetInfo.size()), writeCameraOldSetInfo.data(), 0, nullptr);
 
 	// Time Descriptor
 	VkDescriptorBufferInfo timeBufferInfo = {};

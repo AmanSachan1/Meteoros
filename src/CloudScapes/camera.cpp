@@ -40,6 +40,13 @@ void Camera::UpdateBuffer()
 	cameraUBO.tanFovBy2.y = std::abs(std::tan(fovy*0.5 * (PI / 180.0)));
 	cameraUBO.tanFovBy2.x = aspect * cameraUBO.tanFovBy2.y;
 }
+void Camera::UpdateBuffer(Camera* cam)
+{
+	cameraUBO.view = cam->cameraUBO.view;
+	cameraUBO.proj = cam->cameraUBO.proj;
+	cameraUBO.eyePos = cam->cameraUBO.eyePos;
+	cameraUBO.tanFovBy2 = cam->cameraUBO.tanFovBy2;
+}
 void Camera::CopyToGPUMemory()
 {
 	memcpy(mappedData, &cameraUBO, sizeof(CameraUBO));

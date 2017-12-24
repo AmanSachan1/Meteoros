@@ -17,6 +17,7 @@ VulkanSwapChain* swapChain;
 Renderer* renderer;
 
 Camera* camera;
+Camera* cameraOld;
 
 int window_height = 720; //1080;//
 int window_width = 1280; //1920;//
@@ -154,10 +155,11 @@ int main(int argc, char** argv)
 	swapChain = device->CreateSwapChain(surface, window_width, window_height);
 	camera = new Camera(device, glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f), 
 						window_width, window_height, 45.0f, window_width / window_height, 0.1f, 1000.0f);
-
+	cameraOld = new Camera(device, glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3(0.0f, 0.0f, 1.0f),
+						window_width, window_height, 45.0f, window_width / window_height, 0.1f, 1000.0f);
 	Scene* scene = new Scene(device);
 	Sky* sky = new Sky(device, device->GetVkDevice());
-	renderer = new Renderer(device, instance->GetPhysicalDevice(), swapChain, scene, sky, camera, static_cast<uint32_t>(window_width), static_cast<uint32_t>(window_height));
+	renderer = new Renderer(device, instance->GetPhysicalDevice(), swapChain, scene, sky, camera, cameraOld, static_cast<uint32_t>(window_width), static_cast<uint32_t>(window_height));
 
 	glfwSetWindowSizeCallback(GetGLFWWindow(), resizeCallback);
 	glfwSetMouseButtonCallback(GetGLFWWindow(), mouseDownCallback);
@@ -185,6 +187,9 @@ int main(int argc, char** argv)
 		//	x += 1;
 		//}
 
+		//Copy current camera data into cameraOld
+		cameraOld->UpdateBuffer(camera);
+		cameraOld->CopyToGPUMemory();
     }// end while loop
 
 	//---------------------
@@ -196,6 +201,7 @@ int main(int argc, char** argv)
 	delete renderer; 
 	delete scene;
 	delete camera;
+	delete cameraOld;
 
     delete swapChain;
     vkDestroySurfaceKHR(instance->GetVkInstance(), surface, nullptr);

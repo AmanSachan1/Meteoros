@@ -7,8 +7,9 @@
 namespace VulkanInitializers
 {
 	//--------------------------------------------------------
-	//				PipeLine Creation Initializers
+	//				Shader Program Loading
 	//--------------------------------------------------------
+
 	inline VkPipelineShaderStageCreateInfo loadShader(VkShaderStageFlagBits shaderStageBits ,VkShaderModule shadermodule)
 	{
 		VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
@@ -19,6 +20,10 @@ namespace VulkanInitializers
 
 		return shaderStageCreateInfo;
 	}
+
+	//--------------------------------------------------------
+	//				PipeLine Creation Initializers
+	//--------------------------------------------------------
 
 	inline VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo()
 	{
@@ -179,5 +184,36 @@ namespace VulkanInitializers
 		if (vkCreatePipelineCache(logicalDevice, &pipelineCacheCreateInfo, nullptr, &pipelineCache) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create pipeline cache");
 		}
+	}
+
+	//--------------------------------------------------------
+	//			Descriptor Sets and Descriptor Layouts
+	// Reference: https://vulkan-tutorial.com/Uniform_buffers
+	//--------------------------------------------------------
+	
+	inline VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice& logicalDevice, std::vector<VkDescriptorSetLayoutBinding> layoutBindings)
+	{
+		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
+		descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		descriptorSetLayoutCreateInfo.pNext = nullptr;
+		descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
+		descriptorSetLayoutCreateInfo.pBindings = layoutBindings.data();
+
+		VkDescriptorSetLayout descriptorSetLayout;
+		vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout);
+		return descriptorSetLayout;
+	}
+
+	inline VkDescriptorSet CreateDescriptorSet(VkDevice& logicalDevice, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)
+	{
+		VkDescriptorSetAllocateInfo allocInfo = {};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorSetCount = 1;
+		allocInfo.pSetLayouts = &descriptorSetLayout;
+
+		VkDescriptorSet descriptorSet;
+		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &descriptorSet);
+		return descriptorSet;
 	}
 };

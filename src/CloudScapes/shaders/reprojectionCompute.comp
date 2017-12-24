@@ -150,32 +150,32 @@ void main()
     //           - do all the work for 15 reprojection pixel fills on one thread
     //           - do full resolution but only work for 15 pixels and terminate early for the one that will be filled by raymarching
     //The last one is the best but it is hard to determine which pixel to skip --> equate the pixel selected with the regular invocation ID --> to determine which to skip
-    ivec2 dim = imageSize(currentFrameResultImage);
-    vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
-    uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
+ //    ivec2 dim = imageSize(currentFrameResultImage);
+ //    vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
+ //    uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
 
-	vec3 eyePos = -camera.eye.xyz;
-	Ray ray = castRay(uv, eyePos, camera.view, camera.tanFovBy2);
+	// vec3 eyePos = -camera.eye.xyz;
+	// Ray ray = castRay(uv, eyePos, camera.view, camera.tanFovBy2);
 
-	// Hit the inner sphere with the ray you just found to get some basis world position along your current ray
-	vec3 earthCenter = eyePos;
-	earthCenter.y = -EARTH_RADIUS; //move earth below camera
-	Intersection atmosphereInnerIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, ATMOSPHERE_RADIUS_INNER);
+	// // Hit the inner sphere with the ray you just found to get some basis world position along your current ray
+	// vec3 earthCenter = eyePos;
+	// earthCenter.y = -EARTH_RADIUS; //move earth below camera
+	// Intersection atmosphereInnerIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, ATMOSPHERE_RADIUS_INNER);
 
-    //Convert the point you just found back into screenspace using the old camera, i.e. the camera for the previous frame
-    vec3 NDC_point_prevFrame = (cameraOld.proj * cameraOld.view * vec4(atmosphereInnerIsect.point, 1.0f)).xyz;
+ //    //Convert the point you just found back into screenspace using the old camera, i.e. the camera for the previous frame
+ //    vec3 NDC_point_prevFrame = (cameraOld.proj * cameraOld.view * vec4(atmosphereInnerIsect.point, 1.0f)).xyz;
     
-    if( NDC_point_prevFrame.x < -1.0 || NDC_point_prevFrame.x > 1.0 || 
-        NDC_point_prevFrame.y < -1.0 || NDC_point_prevFrame.y > 1.0)
-    {
-        return;
-    }
+ //    if( NDC_point_prevFrame.x < -1.0 || NDC_point_prevFrame.x > 1.0 || 
+ //        NDC_point_prevFrame.y < -1.0 || NDC_point_prevFrame.y > 1.0)
+ //    {
+ //        return;
+ //    }
 
-    vec2 uv_prevFrame = vec2( ((NDC_point_prevFrame.x + 1.0f) * 0.5f), ((1.0f - NDC_point_prevFrame.y)*0.5f) );
-    ivec2 pixel_prevFrame = ivec2( int(floor((NDC_point_prevFrame.x + 1.0f) * dim.x * 0.5f)),
-                                   int(floor((1.0f - NDC_point_prevFrame.y) * dim.y * 0.5f)) );
+ //    vec2 uv_prevFrame = vec2( ((NDC_point_prevFrame.x + 1.0f) * 0.5f), ((1.0f - NDC_point_prevFrame.y)*0.5f) );
+ //    ivec2 pixel_prevFrame = ivec2( int(floor((NDC_point_prevFrame.x + 1.0f) * dim.x * 0.5f)),
+ //                                   int(floor((1.0f - NDC_point_prevFrame.y) * dim.y * 0.5f)) );
 
-    vec3 prevFramePixelColor = texture( previousFrameResultImage, pixel_prevFrame ).xyz;
+ //    vec3 prevFramePixelColor = texture( previousFrameResultImage, pixel_prevFrame ).xyz;
 
-    imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(prevFramePixelColor, 1.0) );
+    imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(0.0,0.0,0.0, 1.0) );
 }

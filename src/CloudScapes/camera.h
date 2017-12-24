@@ -27,6 +27,7 @@ public:
 
 	VkBuffer GetBuffer() const;
 	void UpdateBuffer();
+	void UpdateBuffer(Camera* cam);
 	void CopyToGPUMemory();
 
 	glm::mat4 GetView() const;
