@@ -399,7 +399,6 @@ void Renderer::CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subp
 	vkDestroyShaderModule(device->GetVkDevice(), vertShaderModule, nullptr);
 	vkDestroyShaderModule(device->GetVkDevice(), fragShaderModule, nullptr);
 }
-
 void Renderer::CreateComputePipeline(VkPipelineLayout& _computePipelineLayout, VkPipeline& _computePipeline, const std::string &filename)
 {
 	VkShaderModule compShaderModule = ShaderModule::createShaderModule(filename, device->GetVkDevice());
@@ -421,7 +420,6 @@ void Renderer::CreateComputePipeline(VkPipelineLayout& _computePipelineLayout, V
 
 	vkDestroyShaderModule(device->GetVkDevice(), compShaderModule, nullptr);
 }
-
 void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 {
 	// -------- Vertex input binding --------
@@ -560,15 +558,8 @@ void Renderer::CreateFrameResources()
 
 	CreateFrameBuffers(renderPass);
 }
-
 void Renderer::DestroyFrameResources()
 {
-	// Destroy Image Views attached to frameBuffers
-	//for (size_t i = 0; i < swapChain->GetCount(); i++)
-	//{
-	//	vkDestroyImageView(logicalDevice, swapChain->GetRefVkImageView(i), nullptr);
-	//}
-
 	// Destroy Depth Image and ImageView
 	vkDestroyImageView(logicalDevice, depthImageView, nullptr);
 	vkFreeMemory(logicalDevice, depthImageMemory, nullptr);
@@ -580,7 +571,6 @@ void Renderer::DestroyFrameResources()
 		vkDestroyFramebuffer(logicalDevice, frameBuffers[i], nullptr);
 	}
 }
-
 void Renderer::RecreateFrameResources()
 {
 	DestroyOnWindowResize();
@@ -636,7 +626,6 @@ void Renderer::RecordAllCommandBuffers()
 	RecordComputeCommandBuffer(computeCommandBuffer2, pingPongFrameSet2);
 	RecordGraphicsCommandBuffer(graphicsCommandBuffer2, prevFrameImage, pingPongFrameSet2, finalPassSet2);
 }
-
 void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkDescriptorSet& pingPongFrameSet)
 {
 	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
@@ -707,7 +696,6 @@ void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkD
 		throw std::runtime_error("Failed to record the compute command buffer");
 	}
 }
-
 void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphicsCmdBuffer, VkImage &Image_for_barrier, 
 											VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& finalPassSet)
 {
@@ -1022,7 +1010,6 @@ void Renderer::CreateAllDescriptorSetLayouts()
 		throw std::runtime_error("failed to create descriptor set layout!");
 	}
 }
-
 void Renderer::CreateAllDescriptorSets()
 {
 	// Initialize descriptor sets
