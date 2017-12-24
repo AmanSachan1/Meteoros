@@ -119,9 +119,13 @@ void Renderer::Frame()
 
 	VkSubmitInfo computeSubmitInfo = {};
 	computeSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
 	computeSubmitInfo.commandBufferCount = 1;
-	computeSubmitInfo.pCommandBuffers = &computeCommandBuffer1;
+	if (swapPingPongBuffers) {
+		computeSubmitInfo.pCommandBuffers = &computeCommandBuffer1;
+	}
+	else {
+		computeSubmitInfo.pCommandBuffers = &computeCommandBuffer2;
+	}
 
 	// submit the command buffer to the compute queue
 	if (vkQueueSubmit(device->GetQueue(QueueFlags::Compute), 1, &computeSubmitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
@@ -156,7 +160,12 @@ void Renderer::Frame()
 
 	// specify which command buffers to actually submit for execution
 	graphicsSubmitInfo.commandBufferCount = 1;
-	graphicsSubmitInfo.pCommandBuffers = &graphicsCommandBuffer1[swapChain->GetIndex()];
+	if (swapPingPongBuffers) {
+		graphicsSubmitInfo.pCommandBuffers = &graphicsCommandBuffer1[swapChain->GetIndex()];
+	}
+	else {
+		graphicsSubmitInfo.pCommandBuffers = &graphicsCommandBuffer2[swapChain->GetIndex()];
+	}	
 
 	// The signalSemaphoreCount and pSignalSemaphores parameters specify which semaphores to signal once the command buffer(s) have finished execution.
 	VkSemaphore signalSemaphores[] = { swapChain->GetRenderFinishedVkSemaphore() };
@@ -170,6 +179,8 @@ void Renderer::Frame()
 
 	// Display a frame
 	swapChain->Present();
+
+	swapPingPongBuffers = !swapPingPongBuffers;
 }
 
 //----------------------------------------------

@@ -36,14 +36,14 @@ namespace
 	bool leftMouseDown = false;
 	double previousX = 0.0f;
 	double previousY = 0.0f;
-	float deltaForRotation = 0.05f;
-	float deltaForMovement = 0.01f;
+	float deltaForRotation = 0.25f;
+	float deltaForMovement = 10.0f;
 
 	void keyboardInputs(GLFWwindow* window)
 	{
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 			glfwSetWindowShouldClose(window, true);
-		}			
+		}
 
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
 			camera->TranslateAlongLook(deltaForMovement);
@@ -171,15 +171,18 @@ int main(int argc, char** argv)
     while (!ShouldQuit()) 
 	{
 		//Mouse inputs and window resize callbacks
-		glfwPollEvents();		
+		glfwPollEvents();
+		keyboardInputs(GetGLFWWindow());
 		// Update Uniforms
 		scene->UpdateTime();
 		sky->UpdateSunAndSky();
 		scene->UpdateKeyPressQuery();
-		// Get Inputs from the Keyboard
-		keyboardInputs(GetGLFWWindow());
 
 		renderer->Frame();
+
+		//Copy current camera data into cameraOld
+		cameraOld->UpdateBuffer(camera);
+		cameraOld->CopyToGPUMemory();
 
 		//For slow motion stuff uncomment
 		//for (int i = 0; i < 200000000; i++)
@@ -187,9 +190,6 @@ int main(int argc, char** argv)
 		//	x += 1;
 		//}
 
-		//Copy current camera data into cameraOld
-		cameraOld->UpdateBuffer(camera);
-		cameraOld->CopyToGPUMemory();
     }// end while loop
 
 	//---------------------

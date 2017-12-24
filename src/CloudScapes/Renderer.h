@@ -39,7 +39,6 @@ public:
 
 	void Frame();
 
-	void CreateCommandPools();
 	void CreateRenderPass();
 
 	// Descriptors
@@ -55,7 +54,6 @@ public:
 	void WriteToAndUpdatePostDescriptorSets();
 
 	// Pipelines
-	VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts);
 	void CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass);
 	void CreateGraphicsPipeline(VkRenderPass renderPass, unsigned int subpass);
 	void CreateComputePipeline(VkPipelineLayout& _computePipelineLayout, VkPipeline& _computePipeline, const std::string &filename);
