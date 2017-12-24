@@ -4,7 +4,7 @@
 
 ![](/images/READMEImages/finalRender.PNG)
 
-*Runs at 21 FPS (47.62ms) at a Full HD Resolution on a notebook GTX 1070. This will come down to around <5 ms with the reprojection optimization*
+*Runs at 2.8ms/Frame - 14.6ms/Frame at a Full HD Resolution on a notebook GTX 1070. This will come down to be consistently <5 ms with a few more optimizations related to sampling close to the horizon and reducing the number of samples and hiding the artifacts with TXAA*
 
 ## Overview
 
