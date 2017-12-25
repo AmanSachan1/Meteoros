@@ -68,9 +68,11 @@ void Renderer::DestroyOnWindowResize()
 	//Post Process Pipelines
 	vkDestroyPipelineCache(logicalDevice, postProcessPipeLineCache, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, postProcess_GodRays_PipelineLayout, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_ToneMap_PipelineLayout, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, postProcess_TXAA_PipelineLayout, nullptr);
 	vkDestroyPipeline(logicalDevice, postProcess_GodRays_PipeLine, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, postProcess_FinalPass_PipelineLayout, nullptr);
-	vkDestroyPipeline(logicalDevice, postProcess_FinalPass_PipeLine, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_ToneMap_PipeLine, nullptr);
+	vkDestroyPipeline(logicalDevice, postProcess_TXAA_PipeLine, nullptr);
 
 	//Render Pass
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
@@ -279,10 +281,11 @@ void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 																									godRaysSetLayout, 
 																									cameraSetLayout, 
 																									sunAndSkySetLayout });
-	postProcess_FinalPass_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { finalPassSetLayout });
+	postProcess_ToneMap_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { finalPassSetLayout });
+	postProcess_TXAA_PipelineLayout = VulkanInitializers::CreatePipelineLayout(logicalDevice, { finalPassSetLayout });
 	
-	CreateComputePipeline(computePipelineLayout, computePipeline, "CloudScapes/shaders/cloudCompute.comp.spv");
-	CreateComputePipeline(reprojectionPipelineLayout, reprojectionPipeline, "CloudScapes/shaders/reprojectionCompute.comp.spv");
+	CreateComputePipeline(computePipelineLayout, computePipeline, "CloudScapes/shaders/cloudRayMarch.comp.spv");
+	CreateComputePipeline(reprojectionPipelineLayout, reprojectionPipeline, "CloudScapes/shaders/reprojection.comp.spv");
 	CreateGraphicsPipeline(renderPass, 0);
 	CreatePostProcessPipeLines(renderPass);
 }
@@ -483,7 +486,7 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 
 	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages; //Defined later on and changes per pipeline binding since we are creating many pipelines here
 
-																 // -------- Create Base PostProcess pipeline Info ---------
+	// -------- Create Base PostProcess pipeline Info ---------
 	VkGraphicsPipelineCreateInfo postProcessPipelineCreateInfo =
 		VulkanInitializers::graphicsPipelineCreateInfo(postProcess_GodRays_PipelineLayout, renderPass, 0);
 
@@ -521,30 +524,46 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 
 	vkDestroyShaderModule(device->GetVkDevice(), godRays_fragShaderModule, nullptr);
 
-	// -------- Anti Aliasing  pipeline -----------------------------------------
-
-	// -------- Final Pass pipeline -----------------------------------------
-	// Does Compositing and Tone Mapping
-
+	// -------- Enable Writing to Frame Buffer Again ------------------
 	// BlendAttachmentState in addition to defining the blend state also defines if the shaders can write to the framebuffer with the color write mask
 	// Color Write Mask Reference: https://www.khronos.org/registry/vulkan/specs/1.0/man/html/VkColorComponentFlagBits.html
 	blendAttachmentState = VulkanInitializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
 
-	VkShaderModule finalPass_fragShaderModule =
-		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_FinalPass.frag.spv", logicalDevice);
+	// -------- Tone Map Post -----------------------------------------
+	VkShaderModule toneMap_fragShaderModule =
+		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_ToneMap.frag.spv", logicalDevice);
 
 	// Assign each shader module to the appropriate stage in the pipeline
 	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, generic_vertShaderModule);
-	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, finalPass_fragShaderModule);
+	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, toneMap_fragShaderModule);
 
 	// Empty vertex input state
-	postProcessPipelineCreateInfo.layout = postProcess_FinalPass_PipelineLayout;
+	postProcessPipelineCreateInfo.layout = postProcess_ToneMap_PipelineLayout;
 
-	if (vkCreateGraphicsPipelines(logicalDevice, postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, nullptr, &postProcess_FinalPass_PipeLine) != VK_SUCCESS) {
+	if (vkCreateGraphicsPipelines(logicalDevice, postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, nullptr, &postProcess_ToneMap_PipeLine) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create post process pipeline");
 	}
 
-	vkDestroyShaderModule(device->GetVkDevice(), finalPass_fragShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), toneMap_fragShaderModule, nullptr);
+
+	// -------- Anti Aliasing  pipeline -----------------------------------------
+	VkShaderModule TXAA_fragShaderModule =
+		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_TXAA.frag.spv", logicalDevice);
+	VkShaderModule TXAA_vertShaderModule =
+		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_TXAA.vert.spv", logicalDevice);
+
+	// Assign each shader module to the appropriate stage in the pipeline
+	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, TXAA_vertShaderModule);
+	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, TXAA_fragShaderModule);
+
+	postProcessPipelineCreateInfo.layout = postProcess_TXAA_PipelineLayout;
+
+	if (vkCreateGraphicsPipelines(logicalDevice, postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, nullptr, &postProcess_TXAA_PipeLine) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create post process pipeline");
+	}
+
+	vkDestroyShaderModule(device->GetVkDevice(), TXAA_fragShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVkDevice(), TXAA_vertShaderModule, nullptr);
 	vkDestroyShaderModule(device->GetVkDevice(), generic_vertShaderModule, nullptr);
 }
 
@@ -818,8 +837,8 @@ void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphic
 		//vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
 
 		// Final Pass Pipeline
-		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipelineLayout, 0, 1, &finalPassSet, 0, NULL);
-		vkCmdBindPipeline(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_FinalPass_PipeLine);
+		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_ToneMap_PipelineLayout, 0, 1, &finalPassSet, 0, NULL);
+		vkCmdBindPipeline(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_ToneMap_PipeLine);
 		vkCmdDraw(graphicsCmdBuffer[i], 3, 1, 0, 0);
 
 		//---------- End RenderPass ---------

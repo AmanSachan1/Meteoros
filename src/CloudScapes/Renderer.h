@@ -107,10 +107,11 @@ private:
 
 	VkPipelineCache postProcessPipeLineCache;
 	VkPipelineLayout postProcess_GodRays_PipelineLayout;
+	VkPipelineLayout postProcess_ToneMap_PipelineLayout;
+	VkPipelineLayout postProcess_TXAA_PipelineLayout;
 	VkPipeline postProcess_GodRays_PipeLine;
-
-	VkPipelineLayout postProcess_FinalPass_PipelineLayout;
-	VkPipeline postProcess_FinalPass_PipeLine;
+	VkPipeline postProcess_ToneMap_PipeLine;
+	VkPipeline postProcess_TXAA_PipeLine;
 
 	VkRenderPass renderPass;
 
