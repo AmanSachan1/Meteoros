@@ -19,8 +19,9 @@ Renderer* renderer;
 Camera* camera;
 Camera* cameraOld;
 
+//Boundaries getting eaten by the actual window which affects how vulkan is accessing things in the framebuffer or something --> solution is to overdraw for now
 int window_height = 720; //1080;//
-int window_width = 1280; //1920;//
+int window_width = 1284; // 1280; //1920;//
 
 namespace 
 {
