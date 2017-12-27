@@ -78,6 +78,8 @@ void Renderer::DestroyOnWindowResize()
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
 	//Textures
+	delete currentFrameTexture;
+	delete previousFrameTexture;
 	delete currentCloudsResultTexture;
 	delete previousCloudsResultTexture;
 	delete godRaysCreationDataTexture;
@@ -1303,42 +1305,115 @@ void Renderer::WriteToAndUpdateGodRaysSet()
 }
 void Renderer::WriteToAndUpdateToneMapSet()
 {
-	VkDescriptorImageInfo preFinalPassImage1Info = {};
-	preFinalPassImage1Info.imageLayout = currentCloudsResultTexture->GetTextureLayout();
-	preFinalPassImage1Info.imageView = currentCloudsResultTexture->GetTextureImageView();
-	preFinalPassImage1Info.sampler = currentCloudsResultTexture->GetTextureSampler();
+	VkDescriptorImageInfo toneMapPassImage1Info = {};
+	toneMapPassImage1Info.imageLayout = currentCloudsResultTexture->GetTextureLayout();
+	toneMapPassImage1Info.imageView = currentCloudsResultTexture->GetTextureImageView();
+	toneMapPassImage1Info.sampler = currentCloudsResultTexture->GetTextureSampler();
 
-	VkDescriptorImageInfo preFinalPassImage2Info = {};
-	preFinalPassImage2Info.imageLayout = previousCloudsResultTexture->GetTextureLayout();
-	preFinalPassImage2Info.imageView = previousCloudsResultTexture->GetTextureImageView();
-	preFinalPassImage2Info.sampler = previousCloudsResultTexture->GetTextureSampler();
+	VkDescriptorImageInfo currentFrameImageInfo = {};
+	currentFrameImageInfo.imageLayout = currentFrameTexture->GetTextureLayout();
+	currentFrameImageInfo.imageView = currentFrameTexture->GetTextureImageView();
+	currentFrameImageInfo.sampler = currentFrameTexture->GetTextureSampler();
 
-	std::array<VkWriteDescriptorSet, 1> writeFinalPass1Info = {};
+	VkDescriptorImageInfo toneMapPassImage2Info = {};
+	toneMapPassImage2Info.imageLayout = previousCloudsResultTexture->GetTextureLayout(); 
+	toneMapPassImage2Info.imageView = previousCloudsResultTexture->GetTextureImageView();
+	toneMapPassImage2Info.sampler = previousCloudsResultTexture->GetTextureSampler();
 
-	writeFinalPass1Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeFinalPass1Info[0].pNext = NULL;
-	writeFinalPass1Info[0].dstSet = toneMapSet1;
-	writeFinalPass1Info[0].dstBinding = 0;
-	writeFinalPass1Info[0].descriptorCount = 1;
-	writeFinalPass1Info[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeFinalPass1Info[0].pImageInfo = &preFinalPassImage1Info;
+	VkDescriptorImageInfo previousFrameImageInfo = {};
+	previousFrameImageInfo.imageLayout = previousFrameTexture->GetTextureLayout();
+	previousFrameImageInfo.imageView = previousFrameTexture->GetTextureImageView();
+	previousFrameImageInfo.sampler = previousFrameTexture->GetTextureSampler();
 
-	std::array<VkWriteDescriptorSet, 1> writeFinalPass2Info = {};
+	std::array<VkWriteDescriptorSet, 2> writeToneMapPass1Info = {};
 
-	writeFinalPass2Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeFinalPass2Info[0].pNext = NULL;
-	writeFinalPass2Info[0].dstSet = toneMapSet2;
-	writeFinalPass2Info[0].dstBinding = 0;
-	writeFinalPass2Info[0].descriptorCount = 1;
-	writeFinalPass2Info[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	writeFinalPass2Info[0].pImageInfo = &preFinalPassImage2Info;
+	writeToneMapPass1Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeToneMapPass1Info[0].pNext = NULL;
+	writeToneMapPass1Info[0].dstSet = toneMapSet1;
+	writeToneMapPass1Info[0].dstBinding = 0;
+	writeToneMapPass1Info[0].descriptorCount = 1;
+	writeToneMapPass1Info[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeToneMapPass1Info[0].pImageInfo = &toneMapPassImage1Info;
 
-	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeFinalPass1Info.size()), writeFinalPass1Info.data(), 0, nullptr);
-	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeFinalPass2Info.size()), writeFinalPass2Info.data(), 0, nullptr);
+	writeToneMapPass1Info[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeToneMapPass1Info[1].pNext = NULL;
+	writeToneMapPass1Info[1].dstSet = toneMapSet1;
+	writeToneMapPass1Info[1].dstBinding = 1;
+	writeToneMapPass1Info[1].descriptorCount = 1;
+	writeToneMapPass1Info[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeToneMapPass1Info[1].pImageInfo = &currentFrameImageInfo;
+
+	std::array<VkWriteDescriptorSet, 2> writeToneMapPass2Info = {};
+
+	writeToneMapPass2Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeToneMapPass2Info[0].pNext = NULL;
+	writeToneMapPass2Info[0].dstSet = toneMapSet2;
+	writeToneMapPass2Info[0].dstBinding = 0;
+	writeToneMapPass2Info[0].descriptorCount = 1;
+	writeToneMapPass2Info[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeToneMapPass2Info[0].pImageInfo = &toneMapPassImage2Info;
+
+	writeToneMapPass2Info[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeToneMapPass2Info[1].pNext = NULL;
+	writeToneMapPass2Info[1].dstSet = toneMapSet2;
+	writeToneMapPass2Info[1].dstBinding = 1;
+	writeToneMapPass2Info[1].descriptorCount = 1;
+	writeToneMapPass2Info[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeToneMapPass2Info[1].pImageInfo = &previousFrameImageInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeToneMapPass1Info.size()), writeToneMapPass1Info.data(), 0, nullptr);
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeToneMapPass2Info.size()), writeToneMapPass2Info.data(), 0, nullptr);
 }
 void Renderer::WriteToAndUpdateTXAASet()
 {
+	VkDescriptorImageInfo currentFrameImageInfo = {};
+	currentFrameImageInfo.imageLayout = currentFrameTexture->GetTextureLayout();
+	currentFrameImageInfo.imageView = currentFrameTexture->GetTextureImageView();
+	currentFrameImageInfo.sampler = currentFrameTexture->GetTextureSampler();
 
+	VkDescriptorImageInfo previousFrameImageInfo = {};
+	previousFrameImageInfo.imageLayout = previousFrameTexture->GetTextureLayout();
+	previousFrameImageInfo.imageView = previousFrameTexture->GetTextureImageView();
+	previousFrameImageInfo.sampler = previousFrameTexture->GetTextureSampler();
+
+	std::array<VkWriteDescriptorSet, 2> writeTXAAPass1Info = {};
+
+	writeTXAAPass1Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeTXAAPass1Info[0].pNext = NULL;
+	writeTXAAPass1Info[0].dstSet = TXAASet1;
+	writeTXAAPass1Info[0].dstBinding = 0;
+	writeTXAAPass1Info[0].descriptorCount = 1;
+	writeTXAAPass1Info[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeTXAAPass1Info[0].pImageInfo = &previousFrameImageInfo;
+
+	writeTXAAPass1Info[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeTXAAPass1Info[1].pNext = NULL;
+	writeTXAAPass1Info[1].dstSet = TXAASet1;
+	writeTXAAPass1Info[1].dstBinding = 1;
+	writeTXAAPass1Info[1].descriptorCount = 1;
+	writeTXAAPass1Info[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeTXAAPass1Info[1].pImageInfo = &currentFrameImageInfo;
+
+	std::array<VkWriteDescriptorSet, 2> writeTXAAPass2Info = {};
+
+	writeTXAAPass2Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeTXAAPass2Info[0].pNext = NULL;
+	writeTXAAPass2Info[0].dstSet = TXAASet2;
+	writeTXAAPass2Info[0].dstBinding = 0;
+	writeTXAAPass2Info[0].descriptorCount = 1;
+	writeTXAAPass2Info[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeTXAAPass2Info[0].pImageInfo = &currentFrameImageInfo;
+
+	writeTXAAPass2Info[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	writeTXAAPass2Info[1].pNext = NULL;
+	writeTXAAPass2Info[1].dstSet = TXAASet2;
+	writeTXAAPass2Info[1].dstBinding = 1;
+	writeTXAAPass2Info[1].descriptorCount = 1;
+	writeTXAAPass2Info[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+	writeTXAAPass2Info[1].pImageInfo = &previousFrameImageInfo;
+
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeTXAAPass1Info.size()), writeTXAAPass1Info.data(), 0, nullptr);
+	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeTXAAPass2Info.size()), writeTXAAPass2Info.data(), 0, nullptr);
 }
 
 //--------------------------------------------------------
@@ -1357,4 +1432,10 @@ void Renderer::CreateResources()
 	//To store the results of the compute shader that will be passed on to the frag shader
 	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_SNORM);
 	godRaysCreationDataTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
+
+	currentFrameTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_SNORM);
+	currentFrameTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
+
+	previousFrameTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_SNORM);
+	previousFrameTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 }
