@@ -725,7 +725,7 @@ void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkD
 	}
 }
 void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphicsCmdBuffer, VkImage &Image_for_barrier, 
-											VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& toneMapSet, VkDescriptorSet& TXAASet)
+											VkDescriptorSet& pingPongCloudResultSet, VkDescriptorSet& toneMapSet, VkDescriptorSet& TXAASet)
 {
 	graphicsCmdBuffer.resize(swapChain->GetCount());
 
@@ -828,11 +828,12 @@ void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphic
 		//--- PostProcess Pipelines ---
 		//-----------------------------
 		// God Rays Pipeline
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &godRaysSet, 0, NULL);
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 1, 1, &cameraSet, 0, NULL);
-		//vkCmdBindDescriptorSets(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 2, 1, &sunAndSkySet, 0, NULL);
-		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
-		//vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
+		//vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &pingPongCloudResultSet, 0, NULL);
+		//vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 1, 1, &godRaysSet, 0, NULL);
+		//vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 2, 1, &cameraSet, 0, NULL);
+		//vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 3, 1, &sunAndSkySet, 0, NULL);
+		//vkCmdBindPipeline(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
+		//vkCmdDraw(graphicsCmdBuffer[i], 3, 1, 0, 0);
 
 		// Tone Map Pass Pipeline
 		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_ToneMap_PipelineLayout, 0, 1, &toneMapSet, 0, NULL);

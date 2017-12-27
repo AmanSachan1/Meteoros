@@ -15,7 +15,7 @@ void main()
 	vec4 prevColor = texture( prevFrameImage, in_uv );
 	vec4 currColor = imageLoad( currentFrameResultImage, pixelPos );
 
-	vec4 color_TXAA = mix(prevColor, currColor, 0.7);
+	vec4 color_TXAA = mix(prevColor, currColor, 1.0);
 
 	imageStore( currentFrameResultImage, pixelPos, color_TXAA );
 	outColor = color_TXAA;
