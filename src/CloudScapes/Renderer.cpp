@@ -25,9 +25,9 @@ Renderer::~Renderer()
 	vkDestroyCommandPool(logicalDevice, computeCommandPool, nullptr);
 	
 	//Descriptor Set Layouts
-	vkDestroyDescriptorSetLayout(logicalDevice, computeSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, cloudComputeSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, graphicsSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, pingPongFrameSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, pingPongCloudResultSetLayout, nullptr);
 
 	vkDestroyDescriptorSetLayout(logicalDevice, cameraSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, timeSetLayout, nullptr);
@@ -35,7 +35,7 @@ Renderer::~Renderer()
 	vkDestroyDescriptorSetLayout(logicalDevice, keyPressQuerySetLayout, nullptr);
 
 	vkDestroyDescriptorSetLayout(logicalDevice, godRaysSetLayout, nullptr);
-	vkDestroyDescriptorSetLayout(logicalDevice, finalPassSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, toneMapSetLayout, nullptr);
 
 	//Descriptor Set
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
@@ -59,10 +59,10 @@ void Renderer::DestroyOnWindowResize()
 	// All 3 pipelines have things that depend on the window width and height and so we need to recreate all of those resources when resizing
 	//This Function recreates the frame resources which in turn means we need to recreate the graphics pipeline and rerecord the graphics command buffers
 	vkDestroyPipelineLayout(logicalDevice, graphicsPipelineLayout, nullptr);
-	vkDestroyPipelineLayout(logicalDevice, computePipelineLayout, nullptr);
+	vkDestroyPipelineLayout(logicalDevice, cloudComputePipelineLayout, nullptr);
 	vkDestroyPipelineLayout(logicalDevice, reprojectionPipelineLayout, nullptr);
 	vkDestroyPipeline(logicalDevice, graphicsPipeline, nullptr);
-	vkDestroyPipeline(logicalDevice, computePipeline, nullptr);
+	vkDestroyPipeline(logicalDevice, cloudComputePipeline, nullptr);
 	vkDestroyPipeline(logicalDevice, reprojectionPipeline, nullptr);
 
 	//Post Process Pipelines
@@ -78,8 +78,8 @@ void Renderer::DestroyOnWindowResize()
 	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
 
 	//Textures
-	delete currentFrameResultTexture;
-	delete previousFrameComputeResultTexture;
+	delete currentCloudsResultTexture;
+	delete previousCloudsResultTexture;
 	delete godRaysCreationDataTexture;
 }
 
@@ -265,26 +265,26 @@ void Renderer::CreateRenderPass()
 //----------------------------------------------
 void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 {
-	computePipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongFrameSetLayout, 
-																						computeSetLayout, 
+	cloudComputePipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout, 
+																						cloudComputeSetLayout, 
 																						cameraSetLayout, 
 																						timeSetLayout, 
 																						sunAndSkySetLayout, 
 																						keyPressQuerySetLayout });
-	reprojectionPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongFrameSetLayout,	
+	reprojectionPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout,	
 																							cameraSetLayout, 
 																							cameraSetLayout,
 																							timeSetLayout });
 	graphicsPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { graphicsSetLayout, 
 																						cameraSetLayout });	
-	postProcess_GodRays_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongFrameSetLayout, 
+	postProcess_GodRays_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout, 
 																									godRaysSetLayout, 
 																									cameraSetLayout, 
 																									sunAndSkySetLayout });
-	postProcess_ToneMap_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { finalPassSetLayout });
-	postProcess_TXAA_PipelineLayout = VulkanInitializers::CreatePipelineLayout(logicalDevice, { finalPassSetLayout });
+	postProcess_ToneMap_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { toneMapSetLayout });
+	postProcess_TXAA_PipelineLayout = VulkanInitializers::CreatePipelineLayout(logicalDevice, { toneMapSetLayout });
 	
-	CreateComputePipeline(computePipelineLayout, computePipeline, "CloudScapes/shaders/cloudRayMarch.comp.spv");
+	CreateComputePipeline(cloudComputePipelineLayout, cloudComputePipeline, "CloudScapes/shaders/cloudRayMarch.comp.spv");
 	CreateComputePipeline(reprojectionPipelineLayout, reprojectionPipeline, "CloudScapes/shaders/reprojection.comp.spv");
 	CreateGraphicsPipeline(renderPass, 0);
 	CreatePostProcessPipeLines(renderPass);
@@ -508,12 +508,13 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 
 	VkShaderModule generic_vertShaderModule =
 		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GenericVertShader.vert.spv", logicalDevice);
+	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, generic_vertShaderModule);
+
 	// -------- God Rays pipeline -----------------------------------------
 	VkShaderModule godRays_fragShaderModule =
 		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_GodRays.frag.spv", logicalDevice);
 
 	// Assign each shader module to the appropriate stage in the pipeline
-	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, generic_vertShaderModule);
 	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, godRays_fragShaderModule);
 
 	postProcessPipelineCreateInfo.layout = postProcess_GodRays_PipelineLayout;
@@ -534,7 +535,6 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_ToneMap.frag.spv", logicalDevice);
 
 	// Assign each shader module to the appropriate stage in the pipeline
-	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, generic_vertShaderModule);
 	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, toneMap_fragShaderModule);
 
 	// Empty vertex input state
@@ -549,11 +549,8 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	// -------- Anti Aliasing  pipeline -----------------------------------------
 	VkShaderModule TXAA_fragShaderModule =
 		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_TXAA.frag.spv", logicalDevice);
-	VkShaderModule TXAA_vertShaderModule =
-		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_TXAA.vert.spv", logicalDevice);
 
 	// Assign each shader module to the appropriate stage in the pipeline
-	shaderStages[0] = VulkanInitializers::loadShader(VK_SHADER_STAGE_VERTEX_BIT, TXAA_vertShaderModule);
 	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, TXAA_fragShaderModule);
 
 	postProcessPipelineCreateInfo.layout = postProcess_TXAA_PipelineLayout;
@@ -563,7 +560,6 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	}
 
 	vkDestroyShaderModule(device->GetVkDevice(), TXAA_fragShaderModule, nullptr);
-	vkDestroyShaderModule(device->GetVkDevice(), TXAA_vertShaderModule, nullptr);
 	vkDestroyShaderModule(device->GetVkDevice(), generic_vertShaderModule, nullptr);
 }
 
@@ -647,14 +643,14 @@ void Renderer::CreateFrameBuffers(VkRenderPass renderPass)
 //----------------------------------------------
 void Renderer::RecordAllCommandBuffers()
 {
-	VkImage currFrameImage = currentFrameResultTexture->GetTextureImage();
-	VkImage prevFrameImage = previousFrameComputeResultTexture->GetTextureImage();
+	VkImage currFrameImage = currentCloudsResultTexture->GetTextureImage();
+	VkImage prevFrameImage = previousCloudsResultTexture->GetTextureImage();
 
-	RecordComputeCommandBuffer(computeCommandBuffer1, pingPongFrameSet1);
-	RecordGraphicsCommandBuffer(graphicsCommandBuffer1, currFrameImage, pingPongFrameSet1, finalPassSet1);
+	RecordComputeCommandBuffer(computeCommandBuffer1, pingPongCloudResultSet1);
+	RecordGraphicsCommandBuffer(graphicsCommandBuffer1, currFrameImage, pingPongCloudResultSet1, toneMapSet1);
 
-	RecordComputeCommandBuffer(computeCommandBuffer2, pingPongFrameSet2);
-	RecordGraphicsCommandBuffer(graphicsCommandBuffer2, prevFrameImage, pingPongFrameSet2, finalPassSet2);
+	RecordComputeCommandBuffer(computeCommandBuffer2, pingPongCloudResultSet2);
+	RecordGraphicsCommandBuffer(graphicsCommandBuffer2, prevFrameImage, pingPongCloudResultSet2, toneMapSet2);
 }
 void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkDescriptorSet& pingPongFrameSet)
 {
@@ -704,15 +700,15 @@ void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkD
 	vkCmdDispatch(computeCmdBuffer, numBlocksX, numBlocksY, numBlocksZ);
 
 	//Bind Descriptor Sets for compute
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &pingPongFrameSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 1, 1, &computeSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 2, 1, &cameraSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 3, 1, &timeSet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 4, 1, &sunAndSkySet, 0, nullptr);
-	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 5, 1, &keyPressQuerySet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cloudComputePipelineLayout, 0, 1, &pingPongFrameSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cloudComputePipelineLayout, 1, 1, &cloudComputeSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cloudComputePipelineLayout, 2, 1, &cameraSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cloudComputePipelineLayout, 3, 1, &timeSet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cloudComputePipelineLayout, 4, 1, &sunAndSkySet, 0, nullptr);
+	vkCmdBindDescriptorSets(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cloudComputePipelineLayout, 5, 1, &keyPressQuerySet, 0, nullptr);
 
 	//Bind the compute piepline
-	vkCmdBindPipeline(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+	vkCmdBindPipeline(computeCmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, cloudComputePipeline);
 
 	// Dispatch the compute kernel
 	// similar to a kernel call --> void vkCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ);	
@@ -893,7 +889,9 @@ void Renderer::CreateDescriptorPool()
 		
 		// Tone Map Pass (2 sets --> curr and prev pingponged cloud results)
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 
 		// Anti Aliasing  (2 sets --> curr and prev pingponged frames)
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
@@ -915,10 +913,10 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	// pImmutableSamplers --> for image sampling related descriptors
 	
 	// Ping Pong Set 1
-	VkDescriptorSetLayoutBinding currentFrameLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, nullptr };
-	VkDescriptorSetLayoutBinding previousFrameLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, nullptr };
-	std::array<VkDescriptorSetLayoutBinding, 2> pingPongFrameBindings = { currentFrameLayoutBinding, previousFrameLayoutBinding };
-	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(pingPongFrameBindings.size()), pingPongFrameBindings.data(), pingPongFrameSetLayout);
+	VkDescriptorSetLayoutBinding currentCloudResultLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, nullptr };
+	VkDescriptorSetLayoutBinding previousCloudResultLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, nullptr };
+	std::array<VkDescriptorSetLayoutBinding, 2> pingPongFrameBindings = { currentCloudResultLayoutBinding, previousCloudResultLayoutBinding };
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(pingPongFrameBindings.size()), pingPongFrameBindings.data(), pingPongCloudResultSetLayout);
 	
 	//-------------------- Computes Pipeline --------------------
 	VkDescriptorSetLayoutBinding cloudLowFrequencyNoiseSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
@@ -927,9 +925,9 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	VkDescriptorSetLayoutBinding weatherMapSetLayoutBinding = { 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding godRaysCreationDataSetLayoutBinding = { 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 
-	std::array<VkDescriptorSetLayoutBinding, 5> computeBindings = { cloudLowFrequencyNoiseSetLayoutBinding, cloudHighFrequencyNoiseSetLayoutBinding,
-																	cloudCurlNoiseSetLayoutBinding, weatherMapSetLayoutBinding, godRaysCreationDataSetLayoutBinding };
-	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(computeBindings.size()), computeBindings.data(), computeSetLayout);
+	std::array<VkDescriptorSetLayoutBinding, 5> cloudRayMarchBindings = { cloudLowFrequencyNoiseSetLayoutBinding, cloudHighFrequencyNoiseSetLayoutBinding,
+																cloudCurlNoiseSetLayoutBinding, weatherMapSetLayoutBinding, godRaysCreationDataSetLayoutBinding };
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(cloudRayMarchBindings.size()), cloudRayMarchBindings.data(), cloudComputeSetLayout);
 
 	//-------------------- Graphics Pipeline --------------------
 	VkDescriptorSetLayoutBinding modelSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr };
@@ -971,19 +969,27 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(godRaysBindings.size()), godRaysBindings.data(), godRaysSetLayout);
 
 	//Tone Map Pass
-	VkDescriptorSetLayoutBinding preFinalImageSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	VkDescriptorSetLayoutBinding toneMapInputImageSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	VkDescriptorSetLayoutBinding toneMapWriteImageSetLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 
-	std::array<VkDescriptorSetLayoutBinding, 1> finalPassBindings = { preFinalImageSetLayoutBinding };
-	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(finalPassBindings.size()), finalPassBindings.data(), finalPassSetLayout);
+	std::array<VkDescriptorSetLayoutBinding, 2> toneMapBindings = { toneMapInputImageSetLayoutBinding, toneMapWriteImageSetLayoutBinding };
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(toneMapBindings.size()), toneMapBindings.data(), toneMapSetLayout);
+
+	//TXAA Pass
+	VkDescriptorSetLayoutBinding TXAAPrevFrameSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+	VkDescriptorSetLayoutBinding TXAACurrentFrameSetLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
+
+	std::array<VkDescriptorSetLayoutBinding, 2> TXAABindings = { TXAAPrevFrameSetLayoutBinding, TXAACurrentFrameSetLayoutBinding };
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(TXAABindings.size()), TXAABindings.data(), TXAASetLayout);
 }
 void Renderer::CreateAllDescriptorSets()
 {
 	// Initialize descriptor sets
-	computeSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, computeSetLayout);
+	cloudComputeSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, cloudComputeSetLayout);
 	graphicsSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, graphicsSetLayout);
 
-	pingPongFrameSet1 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, pingPongFrameSetLayout);
-	pingPongFrameSet2 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, pingPongFrameSetLayout);
+	pingPongCloudResultSet1 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, pingPongCloudResultSetLayout);
+	pingPongCloudResultSet2 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, pingPongCloudResultSetLayout);
 
 	cameraSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, cameraSetLayout);
 	cameraOldSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, cameraSetLayout);
@@ -992,9 +998,13 @@ void Renderer::CreateAllDescriptorSets()
 	keyPressQuerySet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, keyPressQuerySetLayout);
 
 	godRaysSet = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, godRaysSetLayout);
-	finalPassSet1 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, finalPassSetLayout);
-	finalPassSet2 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, finalPassSetLayout);
+	toneMapSet1 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, toneMapSetLayout);
+	toneMapSet2 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, toneMapSetLayout);
 
+	TXAASet1 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, TXAASetLayout);
+	TXAASet2 = VulkanInitializers::CreateDescriptorSet(logicalDevice, descriptorPool, TXAASetLayout);
+
+	//Create other things in the Scene like terrain models
 	scene->CreateModelsInScene(graphicsCommandPool);
 
 	//Write to and Update DescriptorSets
@@ -1018,20 +1028,20 @@ void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 	// Texture Compute Shader Writes To
 	VkDescriptorImageInfo currentFrameTextureInfo = {};
 	currentFrameTextureInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	currentFrameTextureInfo.imageView = currentFrameResultTexture->GetTextureImageView();
-	currentFrameTextureInfo.sampler = currentFrameResultTexture->GetTextureSampler();
+	currentFrameTextureInfo.imageView = currentCloudsResultTexture->GetTextureImageView();
+	currentFrameTextureInfo.sampler = currentCloudsResultTexture->GetTextureSampler();
 
 	// previous Frame Data for Reprojection
 	VkDescriptorImageInfo previousFrameTextureInfo = {};
 	previousFrameTextureInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-	previousFrameTextureInfo.imageView = previousFrameComputeResultTexture->GetTextureImageView();
-	previousFrameTextureInfo.sampler = previousFrameComputeResultTexture->GetTextureSampler();
+	previousFrameTextureInfo.imageView = previousCloudsResultTexture->GetTextureImageView();
+	previousFrameTextureInfo.sampler = previousCloudsResultTexture->GetTextureSampler();
 
 	std::array<VkWriteDescriptorSet, 2> writePingPongSet1Info = {};
 	
 	writePingPongSet1Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writePingPongSet1Info[0].pNext = NULL;
-	writePingPongSet1Info[0].dstSet = pingPongFrameSet1;
+	writePingPongSet1Info[0].dstSet = pingPongCloudResultSet1;
 	writePingPongSet1Info[0].dstBinding = 0;
 	writePingPongSet1Info[0].descriptorCount = 1;
 	writePingPongSet1Info[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1039,7 +1049,7 @@ void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 
 	writePingPongSet1Info[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writePingPongSet1Info[1].pNext = NULL;
-	writePingPongSet1Info[1].dstSet = pingPongFrameSet1;
+	writePingPongSet1Info[1].dstSet = pingPongCloudResultSet1;
 	writePingPongSet1Info[1].dstBinding = 1;
 	writePingPongSet1Info[1].descriptorCount = 1;
 	writePingPongSet1Info[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1049,7 +1059,7 @@ void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 
 	writePingPongSet2Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writePingPongSet2Info[0].pNext = NULL;
-	writePingPongSet2Info[0].dstSet = pingPongFrameSet2;
+	writePingPongSet2Info[0].dstSet = pingPongCloudResultSet2;
 	writePingPongSet2Info[0].dstBinding = 0;
 	writePingPongSet2Info[0].descriptorCount = 1;
 	writePingPongSet2Info[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1057,7 +1067,7 @@ void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 	
 	writePingPongSet2Info[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writePingPongSet2Info[1].pNext = NULL;
-	writePingPongSet2Info[1].dstSet = pingPongFrameSet2;
+	writePingPongSet2Info[1].dstSet = pingPongCloudResultSet2;
 	writePingPongSet2Info[1].dstBinding = 1;
 	writePingPongSet2Info[1].descriptorCount = 1;
 	writePingPongSet2Info[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1105,7 +1115,7 @@ void Renderer::WriteToAndUpdateComputeDescriptorSets()
 	
 	writeComputeTextureInfo[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[0].pNext = NULL;
-	writeComputeTextureInfo[0].dstSet = computeSet;
+	writeComputeTextureInfo[0].dstSet = cloudComputeSet;
 	writeComputeTextureInfo[0].dstBinding = 0;
 	writeComputeTextureInfo[0].descriptorCount = 1;
 	writeComputeTextureInfo[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1113,7 +1123,7 @@ void Renderer::WriteToAndUpdateComputeDescriptorSets()
 
 	writeComputeTextureInfo[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[1].pNext = NULL;
-	writeComputeTextureInfo[1].dstSet = computeSet;
+	writeComputeTextureInfo[1].dstSet = cloudComputeSet;
 	writeComputeTextureInfo[1].dstBinding = 1;
 	writeComputeTextureInfo[1].descriptorCount = 1;
 	writeComputeTextureInfo[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1121,7 +1131,7 @@ void Renderer::WriteToAndUpdateComputeDescriptorSets()
 
 	writeComputeTextureInfo[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[2].pNext = NULL;
-	writeComputeTextureInfo[2].dstSet = computeSet;
+	writeComputeTextureInfo[2].dstSet = cloudComputeSet;
 	writeComputeTextureInfo[2].dstBinding = 2;
 	writeComputeTextureInfo[2].descriptorCount = 1;
 	writeComputeTextureInfo[2].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1129,7 +1139,7 @@ void Renderer::WriteToAndUpdateComputeDescriptorSets()
 
 	writeComputeTextureInfo[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[3].pNext = NULL;
-	writeComputeTextureInfo[3].dstSet = computeSet;
+	writeComputeTextureInfo[3].dstSet = cloudComputeSet;
 	writeComputeTextureInfo[3].dstBinding = 3;
 	writeComputeTextureInfo[3].descriptorCount = 1;
 	writeComputeTextureInfo[3].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1137,7 +1147,7 @@ void Renderer::WriteToAndUpdateComputeDescriptorSets()
 
 	writeComputeTextureInfo[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeComputeTextureInfo[4].pNext = NULL;
-	writeComputeTextureInfo[4].dstSet = computeSet;
+	writeComputeTextureInfo[4].dstSet = cloudComputeSet;
 	writeComputeTextureInfo[4].dstBinding = 4;
 	writeComputeTextureInfo[4].descriptorCount = 1;
 	writeComputeTextureInfo[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -1294,20 +1304,20 @@ void Renderer::WriteToAndUpdateGodRaysSet()
 void Renderer::WriteToAndUpdateToneMapSet()
 {
 	VkDescriptorImageInfo preFinalPassImage1Info = {};
-	preFinalPassImage1Info.imageLayout = currentFrameResultTexture->GetTextureLayout();
-	preFinalPassImage1Info.imageView = currentFrameResultTexture->GetTextureImageView();
-	preFinalPassImage1Info.sampler = currentFrameResultTexture->GetTextureSampler();
+	preFinalPassImage1Info.imageLayout = currentCloudsResultTexture->GetTextureLayout();
+	preFinalPassImage1Info.imageView = currentCloudsResultTexture->GetTextureImageView();
+	preFinalPassImage1Info.sampler = currentCloudsResultTexture->GetTextureSampler();
 
 	VkDescriptorImageInfo preFinalPassImage2Info = {};
-	preFinalPassImage2Info.imageLayout = previousFrameComputeResultTexture->GetTextureLayout();
-	preFinalPassImage2Info.imageView = previousFrameComputeResultTexture->GetTextureImageView();
-	preFinalPassImage2Info.sampler = previousFrameComputeResultTexture->GetTextureSampler();
+	preFinalPassImage2Info.imageLayout = previousCloudsResultTexture->GetTextureLayout();
+	preFinalPassImage2Info.imageView = previousCloudsResultTexture->GetTextureImageView();
+	preFinalPassImage2Info.sampler = previousCloudsResultTexture->GetTextureSampler();
 
 	std::array<VkWriteDescriptorSet, 1> writeFinalPass1Info = {};
 
 	writeFinalPass1Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeFinalPass1Info[0].pNext = NULL;
-	writeFinalPass1Info[0].dstSet = finalPassSet1;
+	writeFinalPass1Info[0].dstSet = toneMapSet1;
 	writeFinalPass1Info[0].dstBinding = 0;
 	writeFinalPass1Info[0].descriptorCount = 1;
 	writeFinalPass1Info[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1317,7 +1327,7 @@ void Renderer::WriteToAndUpdateToneMapSet()
 
 	writeFinalPass2Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeFinalPass2Info[0].pNext = NULL;
-	writeFinalPass2Info[0].dstSet = finalPassSet2;
+	writeFinalPass2Info[0].dstSet = toneMapSet2;
 	writeFinalPass2Info[0].dstBinding = 0;
 	writeFinalPass2Info[0].descriptorCount = 1;
 	writeFinalPass2Info[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1337,12 +1347,12 @@ void Renderer::WriteToAndUpdateTXAASet()
 void Renderer::CreateResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	currentFrameResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
-	currentFrameResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
+	currentCloudsResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
+	currentCloudsResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//Stores the results of the previous Frame
-	previousFrameComputeResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
-	previousFrameComputeResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
+	previousCloudsResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
+	previousCloudsResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//To store the results of the compute shader that will be passed on to the frag shader
 	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_SNORM);

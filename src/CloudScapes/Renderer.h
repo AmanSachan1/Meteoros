@@ -101,10 +101,10 @@ private:
 	VkCommandPool computeCommandPool;
 
 	VkPipelineLayout graphicsPipelineLayout;
-	VkPipelineLayout computePipelineLayout;
+	VkPipelineLayout cloudComputePipelineLayout;
 	VkPipelineLayout reprojectionPipelineLayout;
 	VkPipeline graphicsPipeline;
-	VkPipeline computePipeline;
+	VkPipeline cloudComputePipeline;
 	VkPipeline reprojectionPipeline;
 
 	VkPipelineCache postProcessPipeLineCache;
@@ -123,8 +123,11 @@ private:
 	VkDeviceMemory depthImageMemory;
 	VkImageView depthImageView;
 
-	Texture2D* currentFrameResultTexture;
-	Texture2D* previousFrameComputeResultTexture;
+	Texture2D* currentFrameTexture;
+	Texture2D* previousFrameTexture;
+
+	Texture2D* currentCloudsResultTexture;
+	Texture2D* previousCloudsResultTexture;
 	Texture2D* godRaysCreationDataTexture;
 	
 	VkDescriptorPool descriptorPool;
@@ -141,25 +144,30 @@ private:
 	VkDescriptorSet keyPressQuerySet;
 
 	//Descriptor Set Layouts for each pipeline
-	VkDescriptorSetLayout computeSetLayout;	// Compute shader binding layout
+	VkDescriptorSetLayout cloudComputeSetLayout;	// Compute shader binding layout
 	VkDescriptorSetLayout graphicsSetLayout;
-	VkDescriptorSetLayout pingPongFrameSetLayout;	// Compute shader binding layout
 
 	// Descriptor Sets for each pipeline
-	VkDescriptorSet computeSet;	// Compute shader descriptor Set
+	VkDescriptorSet cloudComputeSet;	// Compute shader descriptor Set
 	VkDescriptorSet graphicsSet; // Graphics ( Regular Geometric Meshes ) specific descriptor sets
-	VkDescriptorSet pingPongFrameSet1;	// Compute shader descriptor Set
-	VkDescriptorSet pingPongFrameSet2;	// Compute shader descriptor Set
+
+	// Descriptor Sets for pingPonged Cloud Results
+	VkDescriptorSetLayout pingPongCloudResultSetLayout;
+	VkDescriptorSet pingPongCloudResultSet1;
+	VkDescriptorSet pingPongCloudResultSet2;
 
 	//Descriptors used in Post Process pipelines
+	//God Rays
 	VkDescriptorSetLayout godRaysSetLayout;
 	VkDescriptorSet godRaysSet;
 
-	VkDescriptorSetLayout finalPassSetLayout;
-	VkDescriptorSet finalPassSet1;
-	VkDescriptorSet finalPassSet2;
+	//Tone Map
+	VkDescriptorSetLayout toneMapSetLayout;
+	VkDescriptorSet toneMapSet1;
+	VkDescriptorSet toneMapSet2;
 
-	VkDescriptorSetLayout storageImagePingPongSetLayout;
-	VkDescriptorSet storageImagePingPongSet1;
-	VkDescriptorSet storageImagePingPongSet2;
+	// Descriptor Sets for pingPonged TXAA
+	VkDescriptorSetLayout TXAASetLayout;
+	VkDescriptorSet TXAASet1;
+	VkDescriptorSet TXAASet2;
 };
