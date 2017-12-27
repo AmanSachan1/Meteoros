@@ -11,6 +11,8 @@ using namespace std::chrono;
 
 struct Time 
 {
+	glm::vec4 haltonSeq1;
+	glm::vec4 haltonSeq2;
 	glm::vec2 _time = glm::vec2(0.0f, 0.0f); //stores delta time and total time packed as a vec2 so vulkan offsetting doesnt become an issue later
 	int frameCount = 1;
 };
@@ -50,7 +52,9 @@ public:
 
 	VkBuffer GetTimeBuffer() const;
 	void UpdateTime();
+	void InitializeTime();
 	glm::vec2 GetTime() const;
+	float HaltonSequenceAt(int index, int base);
 
 	VkBuffer GetKeyPressQueryBuffer() const;
 	void UpdateKeyPressQuery();

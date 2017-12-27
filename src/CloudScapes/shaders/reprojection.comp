@@ -28,6 +28,8 @@ layout (set = 2, binding = 0) uniform CameraOldUBO
 
 layout (set = 3, binding = 0) uniform TimeUBO
 {
+    vec4 haltonSeq1;
+    vec4 haltonSeq2;
     vec2 time; //stores delat time and total time
     int frameCount;
 };
