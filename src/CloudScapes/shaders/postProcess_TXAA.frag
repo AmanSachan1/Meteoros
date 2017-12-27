@@ -12,5 +12,11 @@ void main()
 	ivec2 dim = imageSize(currentFrameResultImage);
 	ivec2 pixelPos = clamp(ivec2(round(float(dim.x) * in_uv.x), round(float(dim.y) * in_uv.y)), ivec2(0.0), ivec2(dim.x - 1, dim.y - 1));
 
-	outColor = imageLoad( currentFrameResultImage, pixelPos );
+	vec4 prevColor = texture( prevFrameImage, in_uv );
+	vec4 currColor = imageLoad( currentFrameResultImage, pixelPos );
+
+	vec4 color_TXAA = mix(prevColor, currColor, 0.7);
+
+	imageStore( currentFrameResultImage, pixelPos, color_TXAA );
+	outColor = color_TXAA;
 }
