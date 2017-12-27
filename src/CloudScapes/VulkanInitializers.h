@@ -214,17 +214,31 @@ namespace VulkanInitializers
 	// Reference: https://vulkan-tutorial.com/Uniform_buffers
 	//--------------------------------------------------------
 	
-	inline VkDescriptorSetLayout CreateDescriptorSetLayout(VkDevice& logicalDevice, std::vector<VkDescriptorSetLayoutBinding> layoutBindings)
+	inline void CreateDescriptorPool(VkDevice& logicalDevice, uint32_t poolSizeCount, VkDescriptorPoolSize* data, VkDescriptorPool& descriptorPool)
+	{
+		VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+		descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		descriptorPoolInfo.pNext = nullptr;
+		descriptorPoolInfo.poolSizeCount = poolSizeCount;
+		descriptorPoolInfo.pPoolSizes = data;
+		descriptorPoolInfo.maxSets = poolSizeCount;
+
+		if (vkCreateDescriptorPool(logicalDevice, &descriptorPoolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create descriptor pool");
+		}
+	}
+
+	inline void CreateDescriptorSetLayout(VkDevice& logicalDevice, uint32_t bindingCount, VkDescriptorSetLayoutBinding* data, VkDescriptorSetLayout& descriptorSetLayout)
 	{
 		VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
 		descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		descriptorSetLayoutCreateInfo.pNext = nullptr;
-		descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
-		descriptorSetLayoutCreateInfo.pBindings = layoutBindings.data();
+		descriptorSetLayoutCreateInfo.bindingCount = bindingCount;
+		descriptorSetLayoutCreateInfo.pBindings = data;
 
-		VkDescriptorSetLayout descriptorSetLayout;
-		vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout);
-		return descriptorSetLayout;
+		if (vkCreateDescriptorSetLayout(logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor set layout!");
+		}
 	}
 
 	inline VkDescriptorSet CreateDescriptorSet(VkDevice& logicalDevice, VkDescriptorPool descriptorPool, VkDescriptorSetLayout descriptorSetLayout)

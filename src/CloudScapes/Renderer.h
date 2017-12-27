@@ -51,7 +51,9 @@ public:
 	void WriteToAndUpdateGraphicsDescriptorSets();
 	void WriteToAndUpdatePingPongDescriptorSets();
 	void WriteToAndUpdateRemainingDescriptorSets();
-	void WriteToAndUpdatePostDescriptorSets();
+	void WriteToAndUpdateGodRaysSet();
+	void WriteToAndUpdateToneMapSet();
+	void WriteToAndUpdateTXAASet();
 
 	// Pipelines
 	void CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass);

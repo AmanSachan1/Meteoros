@@ -862,21 +862,18 @@ void Renderer::CreateDescriptorPool()
 	// compute and graphics descriptor sets are allocated from the same pool
 	std::vector<VkDescriptorPoolSize> poolSizes = {
 		// Format for elements: { type, descriptorCount }
-		// ------------ Curr and Prev Frames -----------------
-		// ------------ Set 1 --------
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Current Frame
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Previous Frame
-		// ------------ Set 2 --------
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Current Frame
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Previous Frame
+		// ------------ Curr and Prev Cloud Results -----------------
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Current Cloud Result
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Previous Cloud Result
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Current Cloud Result
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, // Previous Cloud Result
 		// ------------ Compute ------------------------------
 		// Samplers for all the cloud Textures
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // low frequency texture
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // high frequency texture
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // curl noise texture
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // Weather Map
-		// Store Texture for God Rays PostProcess
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 }, //God Rays Mask
 
 		// ------------ Graphics -----------------------------
 		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 }, //model matrix
@@ -893,22 +890,19 @@ void Renderer::CreateDescriptorPool()
 		// GodRays -- GreyScale Image of where light is in the sky
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
 		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
-		// Anti Aliasing //TODO
-		// Final Pass with Tone Mapping	(2 sets --> curr and prev pingponged frames)
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 }, // Reads the image that was created by the compute Shader and later modified by all other post processes
+		
+		// Tone Map Pass (2 sets --> curr and prev pingponged cloud results)
 		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+
+		// Anti Aliasing  (2 sets --> curr and prev pingponged frames)
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1 },
 	};
-
-	VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
-	descriptorPoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	descriptorPoolInfo.pNext = nullptr;
-	descriptorPoolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-	descriptorPoolInfo.pPoolSizes = poolSizes.data();
-	descriptorPoolInfo.maxSets = static_cast<uint32_t>(poolSizes.size());
-
-	if (vkCreateDescriptorPool(device->GetVkDevice(), &descriptorPoolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
-		throw std::runtime_error("Failed to create descriptor pool");
-	}
+	
+	VulkanInitializers::CreateDescriptorPool(logicalDevice, static_cast<uint32_t>(poolSizes.size()), poolSizes.data(), descriptorPool);
 }
 
 void Renderer::CreateAllDescriptorSetLayouts()
@@ -924,15 +918,8 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	VkDescriptorSetLayoutBinding currentFrameLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, nullptr };
 	VkDescriptorSetLayoutBinding previousFrameLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_ALL, nullptr };
 	std::array<VkDescriptorSetLayoutBinding, 2> pingPongFrameBindings = { currentFrameLayoutBinding, previousFrameLayoutBinding };
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(pingPongFrameBindings.size()), pingPongFrameBindings.data(), pingPongFrameSetLayout);
 	
-	VkDescriptorSetLayoutCreateInfo pingPongFrameLayoutInfo = {};
-	pingPongFrameLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	pingPongFrameLayoutInfo.bindingCount = static_cast<uint32_t>(pingPongFrameBindings.size());
-	pingPongFrameLayoutInfo.pBindings = pingPongFrameBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &pingPongFrameLayoutInfo, nullptr, &pingPongFrameSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
-
 	//-------------------- Computes Pipeline --------------------
 	VkDescriptorSetLayoutBinding cloudLowFrequencyNoiseSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding cloudHighFrequencyNoiseSetLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
@@ -940,105 +927,54 @@ void Renderer::CreateAllDescriptorSetLayouts()
 	VkDescriptorSetLayoutBinding weatherMapSetLayoutBinding = { 3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 	VkDescriptorSetLayoutBinding godRaysCreationDataSetLayoutBinding = { 4, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr };
 
-	std::array<VkDescriptorSetLayoutBinding, 5> computeBindings = { cloudLowFrequencyNoiseSetLayoutBinding,
-																	cloudHighFrequencyNoiseSetLayoutBinding,
-																	cloudCurlNoiseSetLayoutBinding,
-																	weatherMapSetLayoutBinding,
-																	godRaysCreationDataSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo computeLayoutInfo = {};
-	computeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	computeLayoutInfo.bindingCount = static_cast<uint32_t>(computeBindings.size());
-	computeLayoutInfo.pBindings = computeBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &computeLayoutInfo, nullptr, &computeSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
+	std::array<VkDescriptorSetLayoutBinding, 5> computeBindings = { cloudLowFrequencyNoiseSetLayoutBinding, cloudHighFrequencyNoiseSetLayoutBinding,
+																	cloudCurlNoiseSetLayoutBinding, weatherMapSetLayoutBinding, godRaysCreationDataSetLayoutBinding };
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(computeBindings.size()), computeBindings.data(), computeSetLayout);
 
 	//-------------------- Graphics Pipeline --------------------
 	VkDescriptorSetLayoutBinding modelSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr };
 	VkDescriptorSetLayoutBinding samplerSetLayoutBinding = { 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 
 	std::array<VkDescriptorSetLayoutBinding, 2> graphicsBindings = { modelSetLayoutBinding, samplerSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo graphicsLayoutInfo = {};
-	graphicsLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	graphicsLayoutInfo.bindingCount = static_cast<uint32_t>(graphicsBindings.size());
-	graphicsLayoutInfo.pBindings = graphicsBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &graphicsLayoutInfo, nullptr, &graphicsSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(graphicsBindings.size()), graphicsBindings.data(), graphicsSetLayout);
 
 	//-------------------- Descriptors that are discrete and mey be attached to multiple pieplines --------------------
 	//Camera
 	VkDescriptorSetLayoutBinding cameraSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
 
 	std::array<VkDescriptorSetLayoutBinding, 1> cameraBindings = { cameraSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo cameraLayoutInfo = {};
-	cameraLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	cameraLayoutInfo.bindingCount = static_cast<uint32_t>(cameraBindings.size());
-	cameraLayoutInfo.pBindings = cameraBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &cameraLayoutInfo, nullptr, &cameraSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(cameraBindings.size()), cameraBindings.data(), cameraSetLayout);
 
 	//Time --> Would be better to use pushConstants --> TODO at somepoint
 	VkDescriptorSetLayoutBinding timeSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
 
 	std::array<VkDescriptorSetLayoutBinding, 1> timeBindings = { timeSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo timeLayoutInfo = {};
-	timeLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	timeLayoutInfo.bindingCount = static_cast<uint32_t>(timeBindings.size());
-	timeLayoutInfo.pBindings = timeBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &timeLayoutInfo, nullptr, &timeSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(timeBindings.size()), timeBindings.data(), timeSetLayout);
 
 	//SunAndSky
 	VkDescriptorSetLayoutBinding sunAndSkySetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
 
 	std::array<VkDescriptorSetLayoutBinding, 1> sunAndSkyBindings = { sunAndSkySetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo sunAndSkyLayoutInfo = {};
-	sunAndSkyLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	sunAndSkyLayoutInfo.bindingCount = static_cast<uint32_t>(sunAndSkyBindings.size());
-	sunAndSkyLayoutInfo.pBindings = sunAndSkyBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &sunAndSkyLayoutInfo, nullptr, &sunAndSkySetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(sunAndSkyBindings.size()), sunAndSkyBindings.data(), sunAndSkySetLayout);
 
 	//KeyPressQuery
 	VkDescriptorSetLayoutBinding keyPressQuerySetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_ALL, nullptr };
 
 	std::array<VkDescriptorSetLayoutBinding, 1> keyPressQueryBindings = { keyPressQuerySetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo keyPressQueryLayoutInfo = {};
-	keyPressQueryLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	keyPressQueryLayoutInfo.bindingCount = static_cast<uint32_t>(keyPressQueryBindings.size());
-	keyPressQueryLayoutInfo.pBindings = keyPressQueryBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &keyPressQueryLayoutInfo, nullptr, &keyPressQuerySetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(keyPressQueryBindings.size()), keyPressQueryBindings.data(), keyPressQuerySetLayout);
 
 	//-------------------- Post Process --------------------
 	//God Rays
 	VkDescriptorSetLayoutBinding godRaysSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 
 	std::array<VkDescriptorSetLayoutBinding, 1> godRaysBindings = { godRaysSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo godRaysLayoutInfo = {};
-	godRaysLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	godRaysLayoutInfo.bindingCount = static_cast<uint32_t>(godRaysBindings.size());
-	godRaysLayoutInfo.pBindings = godRaysBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &godRaysLayoutInfo, nullptr, &godRaysSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(godRaysBindings.size()), godRaysBindings.data(), godRaysSetLayout);
 
-	//Final Pass
+	//Tone Map Pass
 	VkDescriptorSetLayoutBinding preFinalImageSetLayoutBinding = { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr };
 
 	std::array<VkDescriptorSetLayoutBinding, 1> finalPassBindings = { preFinalImageSetLayoutBinding };
-	VkDescriptorSetLayoutCreateInfo finalPassLayoutInfo = {};
-	finalPassLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	finalPassLayoutInfo.bindingCount = static_cast<uint32_t>(finalPassBindings.size());
-	finalPassLayoutInfo.pBindings = finalPassBindings.data();
-	if (vkCreateDescriptorSetLayout(logicalDevice, &finalPassLayoutInfo, nullptr, &finalPassSetLayout) != VK_SUCCESS) {
-		throw std::runtime_error("failed to create descriptor set layout!");
-	}
+	VulkanInitializers::CreateDescriptorSetLayout(logicalDevice, static_cast<uint32_t>(finalPassBindings.size()), finalPassBindings.data(), finalPassSetLayout);
 }
 void Renderer::CreateAllDescriptorSets()
 {
@@ -1071,7 +1007,11 @@ void Renderer::WriteToAndUpdateAllDescriptorSets()
 	WriteToAndUpdateComputeDescriptorSets();
 	WriteToAndUpdateGraphicsDescriptorSets();
 	WriteToAndUpdateRemainingDescriptorSets();
-	WriteToAndUpdatePostDescriptorSets();
+	
+	//Post Process Sets
+	WriteToAndUpdateGodRaysSet();
+	WriteToAndUpdateToneMapSet();
+	WriteToAndUpdateTXAASet();
 }
 void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 {
@@ -1088,8 +1028,7 @@ void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 	previousFrameTextureInfo.sampler = previousFrameComputeResultTexture->GetTextureSampler();
 
 	std::array<VkWriteDescriptorSet, 2> writePingPongSet1Info = {};
-	std::array<VkWriteDescriptorSet, 2> writePingPongSet2Info = {};
-
+	
 	writePingPongSet1Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writePingPongSet1Info[0].pNext = NULL;
 	writePingPongSet1Info[0].dstSet = pingPongFrameSet1;
@@ -1105,6 +1044,8 @@ void Renderer::WriteToAndUpdatePingPongDescriptorSets()
 	writePingPongSet1Info[1].descriptorCount = 1;
 	writePingPongSet1Info[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 	writePingPongSet1Info[1].pImageInfo = &previousFrameTextureInfo;
+
+	std::array<VkWriteDescriptorSet, 2> writePingPongSet2Info = {};
 
 	writePingPongSet2Info[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writePingPongSet2Info[0].pNext = NULL;
@@ -1331,13 +1272,9 @@ void Renderer::WriteToAndUpdateRemainingDescriptorSets()
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeKeyPressQuerySetInfo.size()), writeKeyPressQuerySetInfo.data(), 0, nullptr);
 }
-void Renderer::WriteToAndUpdatePostDescriptorSets()
+
+void Renderer::WriteToAndUpdateGodRaysSet()
 {
-	//------------------------------------------
-	//-------- Post Process Descriptor Sets ----
-	//------------------------------------------
-	//God Rays
-	// God Rays Creation Data Texture
 	VkDescriptorImageInfo godRaysDataTextureInfo = {};
 	godRaysDataTextureInfo.imageLayout = godRaysCreationDataTexture->GetTextureLayout();
 	godRaysDataTextureInfo.imageView = godRaysCreationDataTexture->GetTextureImageView();
@@ -1353,9 +1290,9 @@ void Renderer::WriteToAndUpdatePostDescriptorSets()
 	writeGodRaysPassInfo[0].pImageInfo = &godRaysDataTextureInfo;
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeGodRaysPassInfo.size()), writeGodRaysPassInfo.data(), 0, nullptr);
-
-	// Final Pass
-	// preFinalPassImage --> appply tone mapping and other effects to this
+}
+void Renderer::WriteToAndUpdateToneMapSet()
+{
 	VkDescriptorImageInfo preFinalPassImage1Info = {};
 	preFinalPassImage1Info.imageLayout = currentFrameResultTexture->GetTextureLayout();
 	preFinalPassImage1Info.imageView = currentFrameResultTexture->GetTextureImageView();
@@ -1388,6 +1325,10 @@ void Renderer::WriteToAndUpdatePostDescriptorSets()
 
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeFinalPass1Info.size()), writeFinalPass1Info.data(), 0, nullptr);
 	vkUpdateDescriptorSets(logicalDevice, static_cast<uint32_t>(writeFinalPass2Info.size()), writeFinalPass2Info.data(), 0, nullptr);
+}
+void Renderer::WriteToAndUpdateTXAASet()
+{
+
 }
 
 //--------------------------------------------------------
