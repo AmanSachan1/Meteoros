@@ -45,6 +45,7 @@ namespace
 			glfwSetWindowShouldClose(window, true);
 		}
 
+		//Commented out for now --> maybe for ever--> not useful in demo --> can cause really whack behaviour if movement delta is high --> if putting back in reduce deltaMovement
 		//if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
 		//	camera->TranslateAlongLook(deltaForMovement);
 		//}			
