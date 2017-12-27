@@ -71,7 +71,7 @@ public:
 	void RecordAllCommandBuffers();
 	void RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkDescriptorSet& pingPongFrameSet);
 	void RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphicsCmdBuffer, VkImage &Image_for_barrier, 
-									VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& finalPassSet);
+									VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& toneMapSet, VkDescriptorSet& TXAASet);
 
 	// Resource Creation and Recreation
 	void CreateResources();

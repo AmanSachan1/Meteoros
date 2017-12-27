@@ -36,6 +36,7 @@ Renderer::~Renderer()
 
 	vkDestroyDescriptorSetLayout(logicalDevice, godRaysSetLayout, nullptr);
 	vkDestroyDescriptorSetLayout(logicalDevice, toneMapSetLayout, nullptr);
+	vkDestroyDescriptorSetLayout(logicalDevice, TXAASetLayout, nullptr);
 
 	//Descriptor Set
 	vkDestroyDescriptorPool(logicalDevice, descriptorPool, nullptr);
@@ -527,11 +528,6 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 
 	vkDestroyShaderModule(device->GetVkDevice(), godRays_fragShaderModule, nullptr);
 
-	// -------- Enable Writing to Frame Buffer Again ------------------
-	// BlendAttachmentState in addition to defining the blend state also defines if the shaders can write to the framebuffer with the color write mask
-	// Color Write Mask Reference: https://www.khronos.org/registry/vulkan/specs/1.0/man/html/VkColorComponentFlagBits.html
-	blendAttachmentState = VulkanInitializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
-
 	// -------- Tone Map Post -----------------------------------------
 	VkShaderModule toneMap_fragShaderModule =
 		ShaderModule::createShaderModule("CloudScapes/shaders/postProcess_ToneMap.frag.spv", logicalDevice);
@@ -539,7 +535,6 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	// Assign each shader module to the appropriate stage in the pipeline
 	shaderStages[1] = VulkanInitializers::loadShader(VK_SHADER_STAGE_FRAGMENT_BIT, toneMap_fragShaderModule);
 
-	// Empty vertex input state
 	postProcessPipelineCreateInfo.layout = postProcess_ToneMap_PipelineLayout;
 
 	if (vkCreateGraphicsPipelines(logicalDevice, postProcessPipeLineCache, 1, &postProcessPipelineCreateInfo, nullptr, &postProcess_ToneMap_PipeLine) != VK_SUCCESS) {
@@ -547,6 +542,11 @@ void Renderer::CreatePostProcessPipeLines(VkRenderPass renderPass)
 	}
 
 	vkDestroyShaderModule(device->GetVkDevice(), toneMap_fragShaderModule, nullptr);
+
+	// -------- Enable Writing to Frame Buffer Again ------------------
+	// BlendAttachmentState in addition to defining the blend state also defines if the shaders can write to the framebuffer with the color write mask
+	// Color Write Mask Reference: https://www.khronos.org/registry/vulkan/specs/1.0/man/html/VkColorComponentFlagBits.html
+	blendAttachmentState = VulkanInitializers::pipelineColorBlendAttachmentState(0xf, VK_FALSE);
 
 	// -------- Anti Aliasing  pipeline -----------------------------------------
 	VkShaderModule TXAA_fragShaderModule =
@@ -649,10 +649,10 @@ void Renderer::RecordAllCommandBuffers()
 	VkImage prevFrameImage = previousCloudsResultTexture->GetTextureImage();
 
 	RecordComputeCommandBuffer(computeCommandBuffer1, pingPongCloudResultSet1);
-	RecordGraphicsCommandBuffer(graphicsCommandBuffer1, currFrameImage, pingPongCloudResultSet1, toneMapSet1);
+	RecordGraphicsCommandBuffer(graphicsCommandBuffer1, currFrameImage, pingPongCloudResultSet1, toneMapSet1, TXAASet1);
 
 	RecordComputeCommandBuffer(computeCommandBuffer2, pingPongCloudResultSet2);
-	RecordGraphicsCommandBuffer(graphicsCommandBuffer2, prevFrameImage, pingPongCloudResultSet2, toneMapSet2);
+	RecordGraphicsCommandBuffer(graphicsCommandBuffer2, prevFrameImage, pingPongCloudResultSet2, toneMapSet2, TXAASet2);
 }
 void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkDescriptorSet& pingPongFrameSet)
 {
@@ -725,7 +725,7 @@ void Renderer::RecordComputeCommandBuffer(VkCommandBuffer &computeCmdBuffer, VkD
 	}
 }
 void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphicsCmdBuffer, VkImage &Image_for_barrier, 
-											VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& finalPassSet)
+											VkDescriptorSet& pingPongFrameSet, VkDescriptorSet& toneMapSet, VkDescriptorSet& TXAASet)
 {
 	graphicsCmdBuffer.resize(swapChain->GetCount());
 
@@ -834,9 +834,14 @@ void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphic
 		//vkCmdBindPipeline(graphicsCommandBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipeLine);
 		//vkCmdDraw(graphicsCommandBuffer[i], 3, 1, 0, 0);
 
-		// Final Pass Pipeline
-		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_ToneMap_PipelineLayout, 0, 1, &finalPassSet, 0, NULL);
+		// Tone Map Pass Pipeline
+		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_ToneMap_PipelineLayout, 0, 1, &toneMapSet, 0, NULL);
 		vkCmdBindPipeline(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_ToneMap_PipeLine);
+		vkCmdDraw(graphicsCmdBuffer[i], 3, 1, 0, 0);
+
+		// Temporal Anti-Aliasing Pass Pipeline
+		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_TXAA_PipelineLayout, 0, 1, &TXAASet, 0, NULL);
+		vkCmdBindPipeline(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_TXAA_PipeLine);
 		vkCmdDraw(graphicsCmdBuffer[i], 3, 1, 0, 0);
 
 		//---------- End RenderPass ---------

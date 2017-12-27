@@ -1,7 +1,8 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout(set = 0, binding = 0) uniform sampler2D preFinalImageSampler;
+layout(set = 0, binding = 0) uniform sampler2D inputImageSampler;
+layout (set = 0, binding = 1, rgba8) uniform writeonly image2D currentFrameResultImage;
 
 layout(location = 0) in vec2 in_uv;
 layout(location = 0) out vec4 outColor;
@@ -36,12 +37,15 @@ vec3 tonemap(vec3 x, float whiteBalance)
 
 void main() 
 {
-   vec3 in_color = texture(preFinalImageSampler, in_uv).rgb;
+	ivec2 dim = imageSize(currentFrameResultImage);
+	ivec2 pixelPos = clamp(ivec2(round(float(dim.x) * in_uv.x), round(float(dim.y) * in_uv.y)), ivec2(0.0), ivec2(dim.x - 1, dim.y - 1));
 
-   float whitepoint = 100.0f; //changes the point at which something becomes pure white --> not a hundred precent 
-   //sure how it scales though I think the white point is the value that is mapped to 1.0 in the regular RGB space.
-   vec3 toneMapped_color = tonemap(in_color, whitepoint);
+	vec3 in_color = texture(inputImageSampler, in_uv).rgb;
 
-   outColor = vec4(toneMapped_color, 1.0);
-   // outColor = vec4(in_color, 1.0);
+	float whitepoint = 100.0f; //changes the point at which something becomes pure white --> not a hundred precent 
+	//sure how it scales though I think the white point is the value that is mapped to 1.0 in the regular RGB space.
+	vec3 toneMapped_color = tonemap(in_color, whitepoint);
+
+	imageStore( currentFrameResultImage, pixelPos, vec4(toneMapped_color, 1.0) );
+	// imageStore( currentFrameResultImage, pixelPos, vec4(in_color, 1.0) );
 }
