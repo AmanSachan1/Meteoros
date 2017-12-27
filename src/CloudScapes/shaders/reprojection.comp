@@ -30,6 +30,8 @@ layout (set = 3, binding = 0) uniform TimeUBO
 {
     vec4 haltonSeq1;
     vec4 haltonSeq2;
+    vec4 haltonSeq3;
+    vec4 haltonSeq4;
     vec2 time; //stores delat time and total time
     int frameCount;
 };
@@ -67,8 +69,46 @@ struct Intersection {
 //					TOOL BOX FUNCTIONS
 //--------------------------------------------------------
 
+vec2 getJitterOffset (in int index, ivec2 dim) 
+{
+    //index is a value from 0-15
+    //Use pre generated halton sequence to jitter point --> halton sequence is a low discrepancy sampling pattern
+    vec2 jitter = vec2(0.0);
+    index = index/2;
+    if(index < 4)
+    {
+        jitter.x = haltonSeq1[index];
+        jitter.y = haltonSeq2[index];
+    }
+    else
+    {
+        index -= 4;
+        jitter.x = haltonSeq1[index];
+        jitter.y = haltonSeq2[index];
+    }
+    return jitter/dim;
+}
+
+float getJitterOffset (in int index, float maxOffset) 
+{
+    //index is a value from 0-15
+    //Use pre generated halton sequence to jitter point --> halton sequence is a low discrepancy sampling pattern
+    float jitter = 0.0;
+    index = index/2;
+    if(index < 4)
+    {
+        jitter = haltonSeq1[index];
+    }
+    else
+    {
+        index -= 4;
+        jitter = haltonSeq2[index];
+    }
+    return jitter*maxOffset;
+}
+
 // //Compute Ray for ray marching based on NDC point
-Ray castRay( in vec2 screenPoint, in vec3 eye, in mat4 view, in vec2 tanFovBy2 )
+Ray castRay( in vec2 screenPoint, in vec3 eye, in mat4 view, in vec2 tanFovBy2, int pixelID, ivec2 dim )
 {
 	Ray r;
 
@@ -85,6 +125,10 @@ Ray castRay( in vec2 screenPoint, in vec3 eye, in mat4 view, in vec2 tanFovBy2 )
 
 	// Compute ndc space point from screenspace point //[-1,1] to [0,1] range
     vec2 NDC_Space_Point = screenPoint * 2.0 - 1.0; 
+
+    //Jitter point with halton sequence
+
+    NDC_Space_Point += getJitterOffset(pixelID, dim);
 
     //convert to camera space
     vec3 cam_x = NDC_Space_Point.x * tanFovBy2.x * camRight;
@@ -156,8 +200,10 @@ void main()
     vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
     //Do not invert uv's because we already do this in the cloudCompute shader and so things are stored in accordance to openGL convention of uv's
 
+    int pixelID = int(frameCount % 16);
+
 	vec3 eyePos = -camera.eye.xyz;
-	Ray ray = castRay(uv, eyePos, camera.view, camera.tanFovBy2);
+	Ray ray = castRay(uv, eyePos, camera.view, camera.tanFovBy2, pixelID, dim);
 
 	// Hit the inner sphere with the ray you just found to get some basis world position along your current ray
 	vec3 earthCenter = eyePos;
@@ -173,15 +219,7 @@ void main()
                                            //to divide by a negative number --> that would make our uv's negative
     float old_u = (oldCameraRayDir.x / (camera.tanFovBy2.x)) * 0.5 + 0.5;
     float old_v = (oldCameraRayDir.y / (camera.tanFovBy2.y)) * 0.5 + 0.5;
-    vec2 old_uv = vec2(old_u, old_v);
-
-    // if( old_uv.x < 0.0 || old_uv.x > 1.0 || 
-    //     old_uv.y < 0.0 || old_uv.y > 1.0 )
-    // {
-    //     // Store a specific value so it can be identified in the compute shader so we can simple fill it in with color
-    //     imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(-1.0, -1.0, -1.0, 0.0) );
-    //     return;
-    // }
+    vec2 old_uv = vec2(old_u, old_v); //if old_uv is out of range -> the texture sampler simply returns black --> keep in mind when porting
 
     vec2 motionVec = old_uv - uv;
     vec4 blurColor = vec4(0.0);

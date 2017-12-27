@@ -268,24 +268,17 @@ void Renderer::CreateRenderPass()
 //----------------------------------------------
 void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 {
-	cloudComputePipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout, 
-																						cloudComputeSetLayout, 
-																						cameraSetLayout, 
-																						timeSetLayout, 
-																						sunAndSkySetLayout, 
-																						keyPressQuerySetLayout });
-	reprojectionPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout,	
-																							cameraSetLayout, 
-																							cameraSetLayout,
-																							timeSetLayout });
-	graphicsPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { graphicsSetLayout, 
-																						cameraSetLayout });	
-	postProcess_GodRays_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout, 
-																									godRaysSetLayout, 
-																									cameraSetLayout, 
-																									sunAndSkySetLayout });
+	cloudComputePipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout, cloudComputeSetLayout, 
+																							cameraSetLayout, timeSetLayout, 
+																							sunAndSkySetLayout, keyPressQuerySetLayout });
+	reprojectionPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout, cameraSetLayout, 
+																							cameraSetLayout, timeSetLayout });
+	graphicsPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { graphicsSetLayout, cameraSetLayout });	
+	postProcess_GodRays_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout, godRaysSetLayout, 
+																									cameraSetLayout, sunAndSkySetLayout });
 	postProcess_ToneMap_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { toneMapSetLayout });
-	postProcess_TXAA_PipelineLayout = VulkanInitializers::CreatePipelineLayout(logicalDevice, { toneMapSetLayout });
+	postProcess_TXAA_PipelineLayout = VulkanInitializers::CreatePipelineLayout(logicalDevice, { TXAASetLayout, cameraSetLayout, 
+																								cameraSetLayout, timeSetLayout});
 	
 	CreateComputePipeline(cloudComputePipelineLayout, cloudComputePipeline, "CloudScapes/shaders/cloudRayMarch.comp.spv");
 	CreateComputePipeline(reprojectionPipelineLayout, reprojectionPipeline, "CloudScapes/shaders/reprojection.comp.spv");
@@ -842,6 +835,9 @@ void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphic
 
 		// Temporal Anti-Aliasing Pass Pipeline
 		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_TXAA_PipelineLayout, 0, 1, &TXAASet, 0, NULL);
+		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_TXAA_PipelineLayout, 1, 1, &cameraSet, 0, NULL);
+		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_TXAA_PipelineLayout, 2, 1, &cameraOldSet, 0, NULL);
+		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_TXAA_PipelineLayout, 3, 1, &timeSet, 0, NULL);
 		vkCmdBindPipeline(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_TXAA_PipeLine);
 		vkCmdDraw(graphicsCmdBuffer[i], 3, 1, 0, 0);
 

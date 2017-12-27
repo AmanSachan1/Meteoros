@@ -11,8 +11,11 @@ using namespace std::chrono;
 
 struct Time 
 {
+	//16 values stored in halton seq because 2D case
 	glm::vec4 haltonSeq1;
 	glm::vec4 haltonSeq2;
+	glm::vec4 haltonSeq3;
+	glm::vec4 haltonSeq4;
 	glm::vec2 _time = glm::vec2(0.0f, 0.0f); //stores delta time and total time packed as a vec2 so vulkan offsetting doesnt become an issue later
 	int frameCount = 1;
 };

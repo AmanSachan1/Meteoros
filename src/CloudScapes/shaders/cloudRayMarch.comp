@@ -31,6 +31,8 @@ layout (set = 3, binding = 0) uniform TimeUBO
 {
     vec4 haltonSeq1;
     vec4 haltonSeq2;
+    vec4 haltonSeq3;
+    vec4 haltonSeq4;
     vec2 time; //stores delat time and total time
 	int frameCount;
 };
@@ -102,7 +104,7 @@ struct Intersection {
 
 // Global Wind Defines
 #define WIND_DIRECTION vec3(1.0,0.0,0.0)
-#define CLOUD_SPEED (0.005)//*10.7)
+#define CLOUD_SPEED 0.05//(0.005)//*10.7)
 #define CLOUD_TOP_OFFSET 1.0// this offset pushes the tops of the clouds along this wind direction by this many units
 
 // #define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO:change it through uniform for an animated sky'
@@ -124,6 +126,44 @@ vec4 EncodeFloatRGBA (float v) {
     enc = fract(enc);
     enc -= enc.yzww * vec2(1./255., 0.).xxxy;
     return enc;
+}
+
+vec2 getJitterOffset (in int index, ivec2 dim) 
+{
+    //index is a value from 0-15
+    //Use pre generated halton sequence to jitter point --> halton sequence is a low discrepancy sampling pattern
+    vec2 jitter = vec2(0.0);
+    index = index/2;
+    if(index < 4)
+    {
+        jitter.x = haltonSeq1[index];
+        jitter.y = haltonSeq2[index];
+    }
+    else
+    {
+        index -= 4;
+        jitter.x = haltonSeq1[index];
+        jitter.y = haltonSeq2[index];
+    }
+    return jitter/dim;
+}
+
+float getJitterOffset (in int index, float maxOffset) 
+{
+    //index is a value from 0-15
+    //Use pre generated halton sequence to jitter point --> halton sequence is a low discrepancy sampling pattern
+    float jitter = 0.0;
+    index = index/2;
+    if(index < 4)
+    {
+        jitter = haltonSeq1[index];
+    }
+    else
+    {
+        index -= 4;
+        jitter = haltonSeq2[index];
+    }
+    return jitter*maxOffset;
 }
 
 // Maps values from one range to another
@@ -161,7 +201,7 @@ vec3 getRelativePositionInAtmosphere(in vec3 pos, in vec3 earthCenter)
 }
 
 //Compute Ray for ray marching based on NDC point
-Ray castRay( vec2 screenPoint, vec3 eye )
+Ray castRay( vec2 screenPoint, vec3 eye, int pixelID, ivec2 dim )
 {
 	Ray r;
 
@@ -178,6 +218,9 @@ Ray castRay( vec2 screenPoint, vec3 eye )
 
 	// Compute ndc space point from screenspace point //[-1,1] to [0,1] range
     vec2 NDC_Space_Point = screenPoint * 2.0 - 1.0; 
+
+    //Jitter point with halton sequence
+    NDC_Space_Point += getJitterOffset(pixelID, dim);
 
     //convert to camera space
     vec3 cam_x = NDC_Space_Point.x * camera.tanFovBy2.x * camRight;
@@ -560,14 +603,14 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
 	return final_cloud;
 }
 
-vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in float end_t, inout float accumDensity, inout float transmittance)
+vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in float end_t, in int pixelID, inout float accumDensity, inout float transmittance)
 {
 	//TODO the above causes faint circular lines smooth it out
 	float _dot = dot(abs(ray.direction), vec3(0.0, 1.0, 0.0));
 	float maxSteps = floor(mix(52.0, 84.0, 1.0 - _dot)); //floor(mix(20.0, 30.0, 1.0 - _dot));
-
+    float atmosphereThickness = (end_t - start_t);
 	// MANIPULATE ME 
-	float stepSize = ((end_t - start_t) / maxSteps)* 0.5;// * 0.25; // * 0.1;    // Make step size smaller to remove banding
+	float stepSize = (atmosphereThickness / maxSteps) * 0.5;// * 0.25; // * 0.1;    // Make step size smaller to remove banding
 
     vec3 pos;
     vec3 samplePoint;
@@ -616,13 +659,15 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
     };
     // ---------------------------------------------------------------------------------
 
-
     vec3 returnColor = vec3(0.0);
     float baseDensity;
 
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
 		vec3 colorPerSample = vec3(0.0);
+
+        // //jitter the sample point along the ray
+        // t += getJitterOffset(pixelID, stepSize);
 
 		pos = ray.origin + t * ray.direction;
         samplePoint = getRelativePositionInAtmosphere(pos, earthCenter);
@@ -720,7 +765,7 @@ void main()
 
 	uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
 	vec3 eyePos = -camera.eye.xyz;
-	Ray ray = castRay(uv, eyePos);
+	Ray ray = castRay(uv, eyePos, pixelID, dim);
 
 	float sunIntensity = SUN_INTENSITY;
 	vec3 backgroundCol = BLACK;
@@ -753,7 +798,7 @@ void main()
 	// Ray March
 	float transmittance = 1.0;
 	float accumDensity = 0.0;
-	vec3 rayMarchResult = rayMarch(ray, earthCenter, atmosphereInnerIsect.point, atmosphereInnerIsect.t, atmosphereOuterIsect.t, accumDensity, transmittance);
+	vec3 rayMarchResult = rayMarch(ray, earthCenter, atmosphereInnerIsect.point, atmosphereInnerIsect.t, atmosphereOuterIsect.t, pixelID, accumDensity, transmittance);
 
 	float godRaysAccumDensity = accumDensity;//min(0.2, accumDensity);
 

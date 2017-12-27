@@ -185,7 +185,7 @@ int main(int argc, char** argv)
 		cameraOld->CopyToGPUMemory();
 
 		// For slow motion stuff uncomment
-		//for (int i = 0; i < 200000000; i++)
+		//for (int i = 0; i < 1000000000; i++)
 		//{
 		//	x += 1;
 		//}
