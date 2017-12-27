@@ -45,26 +45,26 @@ namespace
 			glfwSetWindowShouldClose(window, true);
 		}
 
-		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-			camera->TranslateAlongLook(deltaForMovement);
-		}			
-		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-			camera->TranslateAlongLook(-deltaForMovement);
-		}
+		//if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+		//	camera->TranslateAlongLook(deltaForMovement);
+		//}			
+		//if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+		//	camera->TranslateAlongLook(-deltaForMovement);
+		//}
 
-		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			camera->TranslateAlongRight(-deltaForMovement);
-		}
-		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			camera->TranslateAlongRight(deltaForMovement);
-		}			
+		//if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+		//	camera->TranslateAlongRight(-deltaForMovement);
+		//}
+		//if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+		//	camera->TranslateAlongRight(deltaForMovement);
+		//}			
 
-		if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-			camera->TranslateAlongUp(deltaForMovement);
-		}		
-		if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-			camera->TranslateAlongUp(-deltaForMovement);
-		}
+		//if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+		//	camera->TranslateAlongUp(deltaForMovement);
+		//}		
+		//if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+		//	camera->TranslateAlongUp(-deltaForMovement);
+		//}
 
 		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
 			camera->RotateAboutRight(deltaForRotation);

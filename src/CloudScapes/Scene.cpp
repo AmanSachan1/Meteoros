@@ -95,15 +95,15 @@ void Scene::InitializeTime()
 	time.haltonSeq2.z = HaltonSequenceAt(7, 3);
 	time.haltonSeq2.w = HaltonSequenceAt(8, 3);
 
-	time.haltonSeq3.x = HaltonSequenceAt(5, 3);
-	time.haltonSeq3.y = HaltonSequenceAt(6, 3);
-	time.haltonSeq3.z = HaltonSequenceAt(7, 3);
-	time.haltonSeq3.w = HaltonSequenceAt(8, 3);
+	time.haltonSeq3.x = HaltonSequenceAt(9, 3);
+	time.haltonSeq3.y = HaltonSequenceAt(10, 3);
+	time.haltonSeq3.z = HaltonSequenceAt(11, 3);
+	time.haltonSeq3.w = HaltonSequenceAt(12, 3);
 
-	time.haltonSeq4.x = HaltonSequenceAt(5, 3);
-	time.haltonSeq4.y = HaltonSequenceAt(6, 3);
-	time.haltonSeq4.z = HaltonSequenceAt(7, 3);
-	time.haltonSeq4.w = HaltonSequenceAt(8, 3);
+	time.haltonSeq4.x = HaltonSequenceAt(13, 3);
+	time.haltonSeq4.y = HaltonSequenceAt(14, 3);
+	time.haltonSeq4.z = HaltonSequenceAt(15, 3);
+	time.haltonSeq4.w = HaltonSequenceAt(16, 3);
 
 	time.frameCount = 0;
 

@@ -84,8 +84,8 @@ vec2 getJitterOffset (in int index, ivec2 dim)
     else
     {
         index -= 4;
-        jitter.x = haltonSeq1[index];
-        jitter.y = haltonSeq2[index];
+        jitter.x = haltonSeq3[index];
+        jitter.y = haltonSeq4[index];
     }
     return jitter/dim;
 }

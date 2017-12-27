@@ -104,7 +104,7 @@ struct Intersection {
 
 // Global Wind Defines
 #define WIND_DIRECTION vec3(1.0,0.0,0.0)
-#define CLOUD_SPEED 0.05//(0.005)//*10.7)
+#define CLOUD_SPEED 0.01//(0.005)//*10.7)
 #define CLOUD_TOP_OFFSET 1.0// this offset pushes the tops of the clouds along this wind direction by this many units
 
 // #define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO:change it through uniform for an animated sky'
@@ -769,6 +769,7 @@ void main()
 
 	float sunIntensity = SUN_INTENSITY;
 	vec3 backgroundCol = BLACK;
+    vec3 transitionGradient = WHITE;
 
 	if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.0 )
 	{
@@ -782,6 +783,19 @@ void main()
 		imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0f) );
 		return;
 	}
+    // else if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.175f )
+    // {
+    //     //TODO :: ACTUAL TRANSITION
+    //     //kill threads because we shouldnt see clouds below the horizon
+    //     //magic numbers to make the colors look good after a tone map
+    //     vec3 colorNearHorizon = vec3(0.0, 0.16, 0.51) * 0.4; //dark ocean blue
+    //     vec3 color2 = vec3(0.0, 0.73, 0.95) * 0.5; //light ocean blue
+    //     vec3 transitionGradient = RED;
+
+    //     imageStore( godRaysCreationDataImage, chosenPixel, vec4(0.0f) );
+    //     imageStore( currentFrameResultImage, chosenPixel, vec4(transitionGradient, 1.0f) );
+    //     return;
+    // }
 	else
 	{
 		// Get sky background color from Preetham Sun/Sky Model
