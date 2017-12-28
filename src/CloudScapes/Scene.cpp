@@ -72,6 +72,7 @@ void Scene::UpdateTime()
 	time._time.y += time._time.x;
 
 	time.frameCount += 1;
+	time.frameCount = time.frameCount % 16;
 
 	memcpy(time_mappedData, &time, sizeof(Time));
 }

@@ -1433,7 +1433,7 @@ void Renderer::CreateResources()
 	previousCloudsResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//To store the results of the compute shader that will be passed on to the frag shader
-	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_SNORM);
+	godRaysCreationDataTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R16G16B16A16_SFLOAT);
 	godRaysCreationDataTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	currentFrameTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_SNORM);

@@ -33,7 +33,7 @@ layout (set = 3, binding = 0) uniform TimeUBO
     vec4 haltonSeq3;
     vec4 haltonSeq4;
     vec2 time; //stores delat time and total time
-    int frameCount;
+    int frameCountMod16;
 };
 
 struct Ray {
@@ -200,7 +200,7 @@ void main()
     vec2 uv = vec2(gl_GlobalInvocationID.xy) / dim;
     //Do not invert uv's because we already do this in the cloudCompute shader and so things are stored in accordance to openGL convention of uv's
 
-    int pixelID = int(frameCount % 16);
+    int pixelID = frameCountMod16;
 
 	vec3 eyePos = -camera.eye.xyz;
 	Ray ray = castRay(uv, eyePos, camera.view, camera.tanFovBy2, pixelID, dim);

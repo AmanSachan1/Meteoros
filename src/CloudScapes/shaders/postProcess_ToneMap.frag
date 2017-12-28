@@ -11,7 +11,7 @@ layout (set = 1, binding = 0) uniform TimeUBO
     vec4 haltonSeq3;
     vec4 haltonSeq4;
     vec2 time; //stores delta time and total time
-    int frameCount;
+    int frameCountMod16;
 };
 
 layout(location = 0) in vec2 in_uv;

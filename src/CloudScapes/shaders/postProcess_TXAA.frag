@@ -30,7 +30,7 @@ layout (set = 3, binding = 0) uniform TimeUBO
     vec4 haltonSeq3;
     vec4 haltonSeq4;
     vec2 time; //stores delat time and total time
-    int frameCount;
+    int frameCountMod16;
 };
 
 struct Ray {
@@ -225,7 +225,7 @@ void main()
 	//A lot of this has simply been ported from the reprojection compute shader
 	ivec2 dim = imageSize(currentFrameResultImage);
 	ivec2 pixelPos = clamp(ivec2(round(float(dim.x) * in_uv.x), round(float(dim.y) * in_uv.y)), ivec2(0.0), ivec2(dim.x - 1, dim.y - 1));
-    int pixelID = int(frameCount % 16);
+    int pixelID = frameCountMod16;
 
 	vec3 eyePos = -camera.eye.xyz;
 	Ray ray = castRay(in_uv, eyePos, camera.view, camera.tanFovBy2, pixelID, dim);
