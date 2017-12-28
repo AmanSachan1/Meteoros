@@ -294,10 +294,6 @@ void main()
 
 	vec4 color_TXAA = mix(prevColor, currColor, k_feedback);
 
-	// add noise
-	vec3 noise = vec3(rand(time.y));
-	color_TXAA = clamp(color_TXAA + vec4(noise,0.0), 0.0, 1.0);
-
 	imageStore( currentFrameResultImage, pixelPos, color_TXAA );
 	outColor = currColor;
 }
