@@ -747,7 +747,7 @@ void main()
 {
 	ivec2 dim = imageSize(currentFrameResultImage);
 
-    //Actually only raymarch for every 16th pixel because reprojection should handle the others and this will legit get you a 10 times or more speed boost
+    //Actually only raymarch for every 16th pixel because reprojection should handle the other pixels
     int pixelID = int(frameCount % 16);
 
     int pX = int(floor(pixelID/4));
@@ -756,10 +756,6 @@ void main()
     uint pixelX = gl_GlobalInvocationID.x * 4 + pX;
     uint pixelY = gl_GlobalInvocationID.y * 4 + pY;
 
-    // Get the uv of the chosen pixel
-    if (pixelX >= dim.x || pixelY >= dim.y) {
-        return;
-    }
     vec2 uv = vec2(pixelX, pixelY) / dim; // Same as pX/dim.x, pY/dim.y
     ivec2 chosenPixel = ivec2(pixelX, pixelY);
 
@@ -783,19 +779,16 @@ void main()
 		imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0f) );
 		return;
 	}
-    // else if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.175f )
-    // {
-    //     //TODO :: ACTUAL TRANSITION
-    //     //kill threads because we shouldnt see clouds below the horizon
-    //     //magic numbers to make the colors look good after a tone map
-    //     vec3 colorNearHorizon = vec3(0.0, 0.16, 0.51) * 0.4; //dark ocean blue
-    //     vec3 color2 = vec3(0.0, 0.73, 0.95) * 0.5; //light ocean blue
-    //     vec3 transitionGradient = RED;
+    else if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.09f )
+    {
+        // Get sky background color from Preetham Sun/Sky Model
+        // backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin, sunIntensity); //day time
+        backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin, sunIntensity); //sunset
 
-    //     imageStore( godRaysCreationDataImage, chosenPixel, vec4(0.0f) );
-    //     imageStore( currentFrameResultImage, chosenPixel, vec4(transitionGradient, 1.0f) );
-    //     return;
-    // }
+        imageStore( godRaysCreationDataImage, chosenPixel, vec4(0.0f) );
+        imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0f) );
+        return;
+    }
 	else
 	{
 		// Get sky background color from Preetham Sun/Sky Model
@@ -817,12 +810,23 @@ void main()
 	float godRaysAccumDensity = accumDensity;//min(0.2, accumDensity);
 
 	// Blend and fade out clouds into the horizon (CHANGE THIRD PARAM IN REMAP)
-    accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.0, 0.15, 0.0, 1.0))); 
+    accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.09, 0.175, 0.0, 1.0))); 
     
     // Get the final color
     // vec4 finalColor = vec4(mix(backgroundCol, 7.0 * vec3 (accumDensity), accumDensity), 1.0);
     vec4 finalColor = vec4(mix(backgroundCol, rayMarchResult, accumDensity), 1.0);
 
+
+
+    // if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.125f )
+    // {
+    //     finalColor.y = 0.5;
+    // }
+    // else if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.175f )
+    // {
+    //     finalColor.z = 0.0;
+    // }
+    
     // // Godrays
     // float lightIntensity = length(backgroundCol)/length(WHITE);
     // vec4 greyScaleColor = vec4(1.0);//lightColor;

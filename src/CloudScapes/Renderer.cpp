@@ -276,7 +276,7 @@ void Renderer::CreateAllPipeLines(VkRenderPass renderPass, unsigned int subpass)
 	graphicsPipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { graphicsSetLayout, cameraSetLayout });	
 	postProcess_GodRays_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { pingPongCloudResultSetLayout, godRaysSetLayout, 
 																									cameraSetLayout, sunAndSkySetLayout });
-	postProcess_ToneMap_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { toneMapSetLayout });
+	postProcess_ToneMap_PipelineLayout = VulkanInitializers::CreatePipelineLayout( logicalDevice, { toneMapSetLayout, timeSetLayout });
 	postProcess_TXAA_PipelineLayout = VulkanInitializers::CreatePipelineLayout(logicalDevice, { TXAASetLayout, cameraSetLayout, 
 																								cameraSetLayout, timeSetLayout});
 	
@@ -830,6 +830,7 @@ void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphic
 
 		// Tone Map Pass Pipeline
 		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_ToneMap_PipelineLayout, 0, 1, &toneMapSet, 0, NULL);
+		vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_ToneMap_PipelineLayout, 1, 1, &timeSet, 0, NULL);
 		vkCmdBindPipeline(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_ToneMap_PipeLine);
 		vkCmdDraw(graphicsCmdBuffer[i], 3, 1, 0, 0);
 
