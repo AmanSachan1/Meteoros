@@ -4,8 +4,8 @@
 #define WORKGROUP_SIZE 32
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
 
-layout (set = 0, binding = 0, rgba32f) uniform writeonly image2D currentFrameResultImage;
-layout (set = 0, binding = 1, rgba32f) uniform readonly image2D previousFrameResultImage;
+layout (set = 0, binding = 0, rgba16f) uniform writeonly image2D currentFrameResultImage;
+layout (set = 0, binding = 1, rgba16f) uniform readonly image2D previousFrameResultImage;
 layout (set = 1, binding = 0) uniform sampler3D cloudBaseShapeSampler;
 layout (set = 1, binding = 1) uniform sampler3D cloudDetailsHighFreqSampler; // Dont use alpha channel
 layout (set = 1, binding = 2) uniform sampler2D curlNoiseSampler; // Don't use alpha channel
@@ -587,10 +587,15 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
 
 vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in float end_t, in int pixelID, inout float accumDensity)
 {
-	float _dot = dot(abs(ray.direction), vec3(0.0f, 1.0f, 0.0f));
-	float maxSteps = floor(mix(42.0f, 54.0f, 1.0f - _dot));
-    float atmosphereThickness = (end_t - start_t);
+    float _dot = dot(ray.direction, vec3(0.0f, 1.0f, 0.0f));
+    float jitterfactor = 2.0f;
+
+    // MANIPULATE ME 
+    const float baseDensityFactor = 0.63f; // increase this to get more dense cloud centers    
+    const float maxSteps = floor(mix(36.0f, 45.0f, 1.0f - _dot));
 	
+	// float maxSteps = floor(mix(42.0f, 54.0f, 1.0f - _dot));
+    float atmosphereThickness = (end_t - start_t);	
 	float stepSize = (atmosphereThickness / maxSteps);
     float transmittance = 1.0;
 
@@ -601,12 +606,12 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
     // Lighting data -------------------------------------------------------------------
     // Henyey-Greenstein
-    vec3 lightDir = normalize(SUN_LOCATION - ray.origin);
-    float cos_angle = dot(normalize(ray.direction), lightDir);
-    float eccentricity = 0.6;
-    float silver_intensity = 0.7;
-    float silver_spread = 0.1;
-    float HG_light = HGModified(cos_angle, eccentricity, silver_intensity, silver_spread);
+    const vec3 lightDir = normalize(SUN_LOCATION - ray.origin);
+    const float cos_angle = dot(normalize(ray.direction), lightDir);
+    const float eccentricity = 0.6;
+    const float silver_intensity = 0.7;
+    const float silver_spread = 0.1;
+    const float HG_light = HGModified(cos_angle, eccentricity, silver_intensity, silver_spread);
 
     // Random unit vectors for your cone sample.
     // These are positioned to be facing the sun 
@@ -649,15 +654,13 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
         int _index = int(mod((pixelID+int(t)),16.0f));
         vec2 jitterLocation = getJitterOffset(_index, ivec2(75.0f));
-		pos = ray.origin + t * (ray.direction + vec3(jitterLocation.x, (jitterLocation.x + jitterLocation.y)*2.0f, jitterLocation.y));
+		pos = ray.origin + t * (ray.direction + vec3(jitterLocation.x, (jitterLocation.x + jitterLocation.y)*jitterfactor, jitterLocation.y));
         samplePoint = getRelativePositionInAtmosphere(pos, earthCenter);
         samplePoint /= 8.0f; //controls the frequency of how we are sampling the noise texture
 
 		float relativeHeight = getRelativeHeightInAtmosphere(pos, earthCenter, startPos, ray.direction, ray.origin);
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight);
 
-        // MANIPULATE ME 
-        const float baseDensityFactor = 0.7f; // increase this to get more dense cloud centers 
 		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter) * baseDensityFactor; //helps for early termination of rays
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
@@ -666,7 +669,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
             float highFreqDensity = erodeCloudWithHighFrequency(baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
 
             // MANIPULATE ME 
-			accumDensity += highFreqDensity * 0.5;
+			accumDensity += highFreqDensity * 0.4;
 
 			// Do Lighting calculations with cone sampling
 			float densityAlongLight = 0.0;
@@ -744,7 +747,7 @@ void main()
 		imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0f) );
 		return;
 	}
-    else if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.09f )
+    else if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.125f )
     {
         // Get sky background color from Preetham Sun/Sky Model
         // backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin, sunIntensity); //day time
@@ -774,18 +777,9 @@ void main()
 	float godRaysAccumDensity = accumDensity;
 
 	// Blend and fade out clouds into the horizon (CHANGE THIRD PARAM IN REMAP)
-    accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.09, 0.175, 0.0, 1.0))); 
+    accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.125f, 0.2f, 0.0f, 1.0f)));
     
-    vec4 finalColor = vec4(mix(backgroundCol, rayMarchResult, accumDensity), 1.0);
-
-    // if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.125f )
-    // {
-    //     finalColor.y = 0.5;
-    // }
-    // else if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.175f )
-    // {
-    //     finalColor.z = 0.0;
-    // }
+    vec4 finalColor = vec4(mix(backgroundCol, rayMarchResult, accumDensity), 1.0f);
     
     // // Godrays
     // float lightIntensity = length(backgroundCol)/length(WHITE);

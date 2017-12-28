@@ -1425,11 +1425,11 @@ void Renderer::WriteToAndUpdateTXAASet()
 void Renderer::CreateResources()
 {
 	//To store the results of the compute shader that will be passed on to the frag shader
-	currentCloudsResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
+	currentCloudsResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R16G16B16A16_SFLOAT);
 	currentCloudsResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//Stores the results of the previous Frame
-	previousCloudsResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R32G32B32A32_SFLOAT);
+	previousCloudsResultTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R16G16B16A16_SFLOAT);
 	previousCloudsResultTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
 
 	//To store the results of the compute shader that will be passed on to the frag shader
