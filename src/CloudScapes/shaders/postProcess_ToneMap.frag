@@ -10,7 +10,7 @@ layout (set = 1, binding = 0) uniform TimeUBO
     vec4 haltonSeq2;
     vec4 haltonSeq3;
     vec4 haltonSeq4;
-    vec2 time; //stores delat time and total time
+    vec2 time; //stores delta time and total time
     int frameCount;
 };
 
@@ -72,8 +72,8 @@ void main()
 
 	vec3 in_color = texture(inputImageSampler, in_uv).rgb;
 
-	float whitepoint = 100.0f; //changes the point at which something becomes pure white --> not a hundred precent 
-	//sure how it scales though I think the white point is the value that is mapped to 1.0 in the regular RGB space.
+	float whitepoint = 100.0f; //changes the point at which something becomes pure white
+	//The white point is the value that is mapped to 1.0 in the regular RGB space.
 	vec3 toneMapped_color = tonemap(in_color, whitepoint);
 
 	//Dithering to prevent banding
@@ -81,5 +81,4 @@ void main()
 	toneMapped_color += vec3(noise);
 
 	imageStore( currentFrameResultImage, pixelPos, vec4(toneMapped_color, 1.0) );
-	// imageStore( currentFrameResultImage, pixelPos, vec4(in_color, 1.0) );
 }

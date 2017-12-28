@@ -1,15 +1,8 @@
-// Ray March Reference: https://www.shadertoy.com/view/4sjfzw
-
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
 #define WORKGROUP_SIZE 32
 layout (local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
-
-//TODO: Ping-pong storage Images:
-//record 2 command buffers and then in the drawFrame function called onUpdate in the main function execute one and then the other;
-//Note this requires 3 different descriptor sets; one in which things that dont ping pong and the other 2 have the 2 storage images to be ping-ponged are stored but in different orders;
-//maybe just do it in 2 descriptor sets cause technically they just store pointers and so it shouldnt be terrible in memory
 
 layout (set = 0, binding = 0, rgba32f) uniform writeonly image2D currentFrameResultImage;
 layout (set = 0, binding = 1, rgba32f) uniform readonly image2D previousFrameResultImage;
@@ -45,11 +38,6 @@ layout (set = 4, binding = 0) uniform SunAndSkyUBO
 	float sunIntensity;
 } sunAndSky;
 
-layout (set = 5, binding = 0) uniform KeyPressQueryUBO
-{
-    int key_debug;
-} keyPressQuery;
-
 struct Ray {
     vec3 origin;
     vec3 direction;
@@ -82,17 +70,12 @@ struct Intersection {
 //Global Defines for Colors
 #define BLACK vec3(0,0,0)
 #define WHITE vec3(1,1,1)
-#define RED vec3(1,0,0)
 
 //Global Defines for Earth and Cloud Layers 
 #define EARTH_RADIUS 6371000.0 // earth's actual radius in km = 6371
 #define ATMOSPHERE_RADIUS_INNER (EARTH_RADIUS + 7500.0) //paper suggests values of 15000-35000m above
 #define ATMOSPHERE_RADIUS_OUTER (EARTH_RADIUS + 20000.0)
 #define ATMOSPHERE_THICKNESS (ATMOSPHERE_RADIUS_OUTER - ATMOSPHERE_RADIUS_INNER)
-
-#define IN_STRATUS_MIN_MAX vec2(0.0, 0.3)
-#define IN_CUMULUS_MIN_MAX vec2(0.01, 0.45)
-#define IN_CUMULONIMBUS_MIN_MAX vec2(0.0, 0.95)
 
 // Global Defines for Preetham 
 #define EE 1000.0
@@ -104,7 +87,7 @@ struct Intersection {
 
 // Global Wind Defines
 #define WIND_DIRECTION vec3(1.0,0.0,0.0)
-#define CLOUD_SPEED 0.01//(0.005)//*10.7)
+#define CLOUD_SPEED 0.01
 #define CLOUD_TOP_OFFSET 1.0// this offset pushes the tops of the clouds along this wind direction by this many units
 
 // #define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO:change it through uniform for an animated sky'
@@ -113,7 +96,7 @@ struct Intersection {
 // #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER * 0.9, -ATMOSPHERE_RADIUS_OUTER * 0.9)
 
 #define SUN_COLOR vec3(1.0, 1.0, 1.0)
-#define SUN_INTENSITY 1.0;//2.5;//5.0
+#define SUN_INTENSITY 1.0
 
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
@@ -177,18 +160,12 @@ float getRelativeHeightInAtmosphere(in vec3 point, in vec3 earthCenter, in vec3 
 	float lengthOfRayfromCamera = length(point - eye);
 	float lengthOfRayToInnerShell = length(startPosOnInnerShell - eye);
 	vec3 pointToEarthDir = normalize(point - earthCenter);
-	//assuming RayDir is normalised
+	// assuming RayDir is normalised
 	float cosTheta = dot(rayDir, pointToEarthDir);
 
-	// //factor to affect ray height projection the more alligned with the horizon it is
-	// //Could do actual math but it seems expensive with all of its trig so instead try binning and approximations
-	// float horizonScaleFactor = cosTheta;
-
-	// //remove the thing below if you want clouds to fade out as the ray dir goes below the horizon
-	// // if( horizonScaleFactor < 0.06 )
-	// // {
-	// // 	horizonScaleFactor = 0.06;
-	// // }
+    // CosTheta is an approximation whose error gets relatively big near the horizon and could lead to problems.
+    // However, the actual calculationis involve a lot of trig and thats expensive;
+    // No longer drawing clouds that close to the horizon and so the cosTheta Approximation is fine
 
 	float numerator = abs(cosTheta * (lengthOfRayfromCamera - lengthOfRayToInnerShell));
 	return numerator/ATMOSPHERE_THICKNESS;
@@ -337,9 +314,7 @@ float BeerLambertModified(float density_along_light_ray, float attenuation_reduc
 	Notes:
 		- dl is the density sampled along the light ray for the given sample position.
 		- ds_loded is the low lod sample of density at the given sample position.
-
 */
-
 float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phase_probability, float cos_angle, float step_size, float brightness)
 {
     // Attenuation – difference from slides – reduce the secondary component when we look toward the sun.
@@ -388,12 +363,11 @@ float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phas
 
     // MANIPULATE ME 
     float depth_probability = 0.05 + pow(ds_loded, clamp(remap(height_fraction * 0.125, 0.3, 0.85, 0.5, 2.0), 0.5, 2.0));
-
     float vertical_probability = pow(clamp(remap(height_fraction * 1.5, 0.07, 0.34, 0.1, 1.0), 0.1, 1.0), 0.8);
-
 
     // MANIPULATE ME 
     float in_scatter_probability = depth_probability * vertical_probability;
+
     // float light_energy = attenuation_probability * in_scatter_probability * phase_probability * brightness;						// ORIGINAL (LIGHTEST)
     float light_energy = attenuation_probability * primary_attenuation * in_scatter_probability * phase_probability * brightness;	// MEDIUM
     // float light_energy = primary_attenuation * secondary_attenuation * in_scatter_probability * phase_probability * brightness;	// DARKEST
@@ -406,12 +380,8 @@ float GetLightEnergy(float height_fraction, float dl, float ds_loded, float phas
 /*
 	Preetham Sky from: 
 	https://github.com/markstock/GenUtahSky/blob/master/utah.cal
-
-	A1			- Turbidity
-    A2,A3,A4	- sun direction
 	
-	Other resources for preetham sky model: 
-	Preetham Sky From Project Marshmallow - Dan McCann and Joe Klinger
+	Other resources for preetham sky model:
 	Adapted from open source of zz85 on Github, math from Preetham Model, initially implemented by Simon Wallner and Martin Upitis
 */
 
@@ -497,7 +467,6 @@ float getDensityHeightGradientForPoint(in float relativeHeight, in float cloudTy
     float stratocumulus = max(0.0, remap(relativeHeight, 0.0, 0.25, 0.0, 1.0) * remap(relativeHeight,  0.3, 0.65, 1.0, 0.0)); 
     float stratus = max(0.0, remap(relativeHeight, 0, 0.1, 0.0, 1.0) * remap(relativeHeight, 0.2, 0.3, 1.0, 0.0)); 
 
-    // float a = mix(stratus, stratocumulus, max(clamp(cloudType * 2.0, 0.0, 1.0), 0.65));
     float a = mix(stratus, stratocumulus, clamp(cloudType * 2.0, 0.0, 1.0));
 
     float b = mix(stratocumulus, stratus, clamp((cloudType - 0.5) * 2.0, 0.0, 1.0));
@@ -605,12 +574,11 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
 
 vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in float end_t, in int pixelID, inout float accumDensity, inout float transmittance)
 {
-	//TODO the above causes faint circular lines smooth it out
 	float _dot = dot(abs(ray.direction), vec3(0.0, 1.0, 0.0));
-	float maxSteps = floor(mix(52.0, 84.0, 1.0 - _dot)); //floor(mix(20.0, 30.0, 1.0 - _dot));
+	float maxSteps = floor(mix(52.0, 84.0, 1.0 - _dot));
     float atmosphereThickness = (end_t - start_t);
-	// MANIPULATE ME 
-	float stepSize = (atmosphereThickness / maxSteps) * 0.5;// * 0.25; // * 0.1;    // Make step size smaller to remove banding
+	
+	float stepSize = (atmosphereThickness / maxSteps) * 0.5;
 
     vec3 pos;
     vec3 samplePoint;
@@ -666,9 +634,6 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 	{
 		vec3 colorPerSample = vec3(0.0);
 
-        // //jitter the sample point along the ray
-        // t += getJitterOffset(pixelID, stepSize);
-
 		pos = ray.origin + t * ray.direction;
         samplePoint = getRelativePositionInAtmosphere(pos, earthCenter);
         samplePoint /= 8.0f; //controls the frequency of how we are sampling the noise texture
@@ -688,7 +653,6 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
             // MANIPULATE ME 
 			accumDensity += highFreqDensity * 0.5;
-            // accumDensity += baseDensity;
 
 			// Do Lighting calculations with cone sampling
 			float densityAlongLight = 0.0;
@@ -702,25 +666,13 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
                	// MANIPULATE ME 
                 float currBaseLightDensity = sampleLowFrequency(sampleLightPos, sampleLightPos, relativeHeight, earthCenter);
-                // float currLightDensity = erodeCloudWithHighFrequency(currBaseLightDensity, ray.direction, skewedSamplePoint, relativeHeight);
 
-                // if(currLightDensity > 0.0)
                 if(currBaseLightDensity > 0.0)
                 {
                 	float currLightDensity = erodeCloudWithHighFrequency(1.5 * currBaseLightDensity, ray.direction, skewedSamplePoint, relativeHeight);
                 	densityAlongLight += currLightDensity;
-
-                    // densityAlongLight += currBaseLightDensity;
                 }
 			}
-
-			// // TEST LIGHTING
-			// float attenuation_factor = 0.25;
-   //          float influence_factor = 0.7;
-   //          float beersLaw = BeerLambertModified(-densityAlongLight, attenuation_factor, influence_factor);
-   //          beersLaw = mix(exp(-densityAlongLight), beersLaw, cos_angle * -0.5 + 0.5); // Changes from [-1,1] to [0,1] range
-   //          float totalLightEnergy = HG_light * beersLaw;
-   //          colorPerSample = vec3(totalLightEnergy);
 
             // ------------------------------------------------------------------------------------------------------------------
             // MANIPULATE ME 
@@ -729,7 +681,6 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
             transmittance = mix(transmittance, totalLightEnergy, (1.0 - accumDensity)); 
             colorPerSample = vec3(transmittance);// * 0.05);
             
-
             returnColor += colorPerSample;
 		} //end if
 
@@ -756,7 +707,7 @@ void main()
     uint pixelX = gl_GlobalInvocationID.x * 4 + pX;
     uint pixelY = gl_GlobalInvocationID.y * 4 + pY;
 
-    vec2 uv = vec2(pixelX, pixelY) / dim; // Same as pX/dim.x, pY/dim.y
+    vec2 uv = vec2(pixelX, pixelY) / dim;
     ivec2 chosenPixel = ivec2(pixelX, pixelY);
 
 	uv.y = 1.0 - uv.y; //cause vulkan inverts y compared to openGL
@@ -807,16 +758,12 @@ void main()
 	float accumDensity = 0.0;
 	vec3 rayMarchResult = rayMarch(ray, earthCenter, atmosphereInnerIsect.point, atmosphereInnerIsect.t, atmosphereOuterIsect.t, pixelID, accumDensity, transmittance);
 
-	float godRaysAccumDensity = accumDensity;//min(0.2, accumDensity);
+	float godRaysAccumDensity = accumDensity;
 
 	// Blend and fade out clouds into the horizon (CHANGE THIRD PARAM IN REMAP)
     accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.09, 0.175, 0.0, 1.0))); 
     
-    // Get the final color
-    // vec4 finalColor = vec4(mix(backgroundCol, 7.0 * vec3 (accumDensity), accumDensity), 1.0);
     vec4 finalColor = vec4(mix(backgroundCol, rayMarchResult, accumDensity), 1.0);
-
-
 
     // if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.125f )
     // {

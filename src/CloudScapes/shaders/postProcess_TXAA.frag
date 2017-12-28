@@ -52,11 +52,6 @@ struct Intersection {
 #define FEED_BACK_MIN 0.0
 #define FEED_BACK_MAX 0.5
 
-//Global Defines for Colors
-#define BLACK vec3(0,0,0)
-#define WHITE vec3(1,1,1)
-#define RED vec3(1,0,0)
-
 //Global Defines for Earth and Cloud Layers 
 #define EARTH_RADIUS 6371000.0 // earth's actual radius in km = 6371
 #define ATMOSPHERE_RADIUS_INNER (EARTH_RADIUS + 7500.0) //paper suggests values of 15000-35000m above
@@ -64,11 +59,6 @@ struct Intersection {
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
 //--------------------------------------------------------
-
-float rand(float n)
-{
-	return fract(sin(n) * 43758.5453123);
-}
 
 vec2 getJitterOffset (in int index, ivec2 dim) 
 {
@@ -88,24 +78,6 @@ vec2 getJitterOffset (in int index, ivec2 dim)
         jitter.y = haltonSeq4[index];
     }
     return jitter/dim;
-}
-
-float getJitterOffset (in int index, float maxOffset) 
-{
-    //index is a value from 0-15
-    //Use pre generated halton sequence to jitter point --> halton sequence is a low discrepancy sampling pattern
-    float jitter = 0.0;
-    index = index/2;
-    if(index < 4)
-    {
-        jitter = haltonSeq1[index];
-    }
-    else
-    {
-        index -= 4;
-        jitter = haltonSeq2[index];
-    }
-    return jitter*maxOffset;
 }
 
 // //Compute Ray for ray marching based on NDC point
@@ -128,7 +100,6 @@ Ray castRay( in vec2 screenPoint, in vec3 eye, in mat4 view, in vec2 tanFovBy2, 
     vec2 NDC_Space_Point = screenPoint * 2.0 - 1.0; 
 
     //Jitter point with halton sequence
-
     NDC_Space_Point += getJitterOffset(pixelID, dim);
 
     //convert to camera space
@@ -295,5 +266,5 @@ void main()
 	vec4 color_TXAA = mix(prevColor, currColor, k_feedback);
 
 	imageStore( currentFrameResultImage, pixelPos, color_TXAA );
-	outColor = currColor;
+	outColor = color_TXAA;
 }
