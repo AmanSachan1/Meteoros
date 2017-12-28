@@ -125,8 +125,8 @@ vec2 getJitterOffset (in int index, ivec2 dim)
     else
     {
         index -= 4;
-        jitter.x = haltonSeq1[index];
-        jitter.y = haltonSeq2[index];
+        jitter.x = haltonSeq3[index];
+        jitter.y = haltonSeq4[index];
     }
     return jitter/dim;
 }
@@ -585,16 +585,19 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
 	return final_cloud;
 }
 
-vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in float end_t, in int pixelID, inout float accumDensity, inout float transmittance)
+vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in float end_t, in int pixelID, inout float accumDensity)
 {
-	float _dot = dot(abs(ray.direction), vec3(0.0, 1.0, 0.0));
-	float maxSteps = floor(mix(52.0, 84.0, 1.0 - _dot));
+	float _dot = dot(abs(ray.direction), vec3(0.0f, 1.0f, 0.0f));
+	float maxSteps = floor(mix(42.0f, 54.0f, 1.0f - _dot));
     float atmosphereThickness = (end_t - start_t);
 	
 	float stepSize = (atmosphereThickness / maxSteps);
+    float transmittance = 1.0;
 
     vec3 pos;
     vec3 samplePoint;
+    vec3 returnColor = vec3(0.0);
+    float baseDensity;
 
     // Lighting data -------------------------------------------------------------------
     // Henyey-Greenstein
@@ -629,7 +632,7 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
     vec3 xComponent = cross(zComponent, lightDir);
     mat3 sunRotMatrix = mat3(xComponent, lightDir, zComponent);
 
-    vec3 noise_kernel[] = 
+    const vec3 noise_kernel[] = 
     {
         sunRotMatrix * vec3(0.1, 0.25, -0.15),
         sunRotMatrix * vec3(0.2, 0.5, 0.2),
@@ -640,14 +643,13 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
     };
     // ---------------------------------------------------------------------------------
 
-    vec3 returnColor = vec3(0.0);
-    float baseDensity;
-
 	for (float t = start_t; t < end_t; t += stepSize)
 	{
 		vec3 colorPerSample = vec3(0.0);
 
-		pos = ray.origin + t * ray.direction;
+        int _index = int(mod((pixelID+int(t)),16.0f));
+        vec2 jitterLocation = getJitterOffset(_index, ivec2(75.0f));
+		pos = ray.origin + t * (ray.direction + vec3(jitterLocation.x, (jitterLocation.x + jitterLocation.y)*2.0f, jitterLocation.y));
         samplePoint = getRelativePositionInAtmosphere(pos, earthCenter);
         samplePoint /= 8.0f; //controls the frequency of how we are sampling the noise texture
 
@@ -655,13 +657,12 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
         vec3 skewedSamplePoint = skewSamplePointWithWind(samplePoint, relativeHeight);
 
         // MANIPULATE ME 
-        float baseDensityFactor = 0.5; //* 0.75; //* 0.2; // increase this to get more dense cloud centers 
+        const float baseDensityFactor = 0.7f; // increase this to get more dense cloud centers 
 		baseDensity = sampleLowFrequency(skewedSamplePoint, pos, relativeHeight, earthCenter) * baseDensityFactor; //helps for early termination of rays
 
 		if(baseDensity > 0.0) // Useful to prevent lighting calculations for zero density points
 		{
             //Erode Base cloud shape with higher frequency noise (more expensive and so done when we know for sure we are inside the cloud)
-            // float highFreqDensity = erodeCloudWithHighFrequency(0.5 * baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
             float highFreqDensity = erodeCloudWithHighFrequency(baseDensity, ray.direction, skewedSamplePoint, relativeHeight);
 
             // MANIPULATE ME 
@@ -689,10 +690,10 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
 
             // ------------------------------------------------------------------------------------------------------------------
             // MANIPULATE ME 
-            float brightness = 4.0;//1.0; // 2.0; //4.0;
+            float brightness = 4.0;
             float totalLightEnergy = GetLightEnergy(relativeHeight, densityAlongLight, baseDensity, HG_light, cos_angle, stepSize, brightness);
             transmittance = mix(transmittance, totalLightEnergy, (1.0 - accumDensity)); 
-            colorPerSample = vec3(transmittance);// * 0.05);
+            colorPerSample = vec3(transmittance);
             
             returnColor += colorPerSample;
 		} //end if
@@ -767,9 +768,8 @@ void main()
 	Intersection atmosphereOuterIsect = raySphereIntersection(ray.origin, ray.direction, earthCenter, ATMOSPHERE_RADIUS_OUTER);
 
 	// Ray March
-	float transmittance = 1.0;
 	float accumDensity = 0.0;
-	vec3 rayMarchResult = rayMarch(ray, earthCenter, atmosphereInnerIsect.point, atmosphereInnerIsect.t, atmosphereOuterIsect.t, pixelID, accumDensity, transmittance);
+	vec3 rayMarchResult = rayMarch(ray, earthCenter, atmosphereInnerIsect.point, atmosphereInnerIsect.t, atmosphereOuterIsect.t, pixelID, accumDensity);
 
 	float godRaysAccumDensity = accumDensity;
 
