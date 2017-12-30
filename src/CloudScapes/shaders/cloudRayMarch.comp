@@ -568,8 +568,8 @@ vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in 
     float jitterfactor = 4.0f;
 
     // MANIPULATE ME 
-    const float baseDensityFactor = 0.3f; // increase this to get more dense cloud centers    
-    const float maxSteps = floor(mix(30.0f, 40.0f, 1.0f - _dot));
+    const float baseDensityFactor = 0.5f; // increase this to get more dense cloud centers    
+    const float maxSteps = floor(mix(40.0f, 50.0f, 1.0f - _dot));
 	
     const float atmosphereThickness = (end_t - start_t);	
 	const float stepSize = (atmosphereThickness / maxSteps);
@@ -709,9 +709,12 @@ void main()
 
 	float sunIntensity = SUN_INTENSITY;
 	vec3 backgroundCol = BLACK;
+
+	float _dot = dot( vec3(0.0, 1.0, 0.0), ray.direction );
+	const float backgroundColorMultiplier = max(0.3, _dot);
     vec3 transitionGradient = WHITE;
 
-	if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.0 )
+	if ( _dot < 0.0 )
 	{
 		//kill threads because we shouldnt see clouds below the horizon
 		//magic numbers to make the colors look good after a tone map
@@ -723,11 +726,12 @@ void main()
 		imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0f) );
 		return;
 	}
-    else if (dot( vec3(0.0, 1.0, 0.0), ray.direction ) < 0.125f )
+    else if (_dot < 0.125f )
     {
         // Get sky background color from Preetham Sun/Sky Model
         // backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin, sunIntensity); //day time
         backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin, sunIntensity); //sunset
+		backgroundCol *= backgroundColorMultiplier;
 
         imageStore( godRaysCreationDataImage, chosenPixel, vec4(0.0f) );
         imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0f) );
@@ -738,8 +742,9 @@ void main()
 		// Get sky background color from Preetham Sun/Sky Model
 		// backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin, sunIntensity); //day time
 		backgroundCol = getAtmosphereColorPhysical(ray.direction, BACKGROUND_SKY_SUN_LOCATION - ray.origin, sunIntensity); //sunset
-	}
-
+		backgroundCol *= backgroundColorMultiplier;
+	}	
+		
 	// Find the start and end points of the ray march
 	vec3 earthCenter = eyePos;
 	earthCenter.y = -EARTH_RADIUS; //move earth below camera

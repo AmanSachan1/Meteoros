@@ -3,6 +3,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "../../external/stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "../../external/stb_image_write.h"
 
 void ImageLoadingUtility::loadImageFromFile(VulkanDevice* device, VkCommandPool& commandPool, const char* imagePath,
 											VkImage& textureImage, VkDeviceMemory& textureImageMemory, VkFormat format,
@@ -198,4 +200,43 @@ void ImageLoadingUtility::create3DTextureImage(VulkanDevice* device, VkDevice lo
 		throw std::runtime_error("Failed to allocate device memory for the buffer");
 	}
 	vkBindImageMemory(device->GetVkDevice(), image, imageMemory, 0);
+}
+
+
+//----------------------------------------------------------------------------------------------------------------------------------------
+//Use this to save raw data out as a ppm file which is a very simple file format and there a re plenty of converters online that can convert ppm to other
+//file formats
+//Reference: https://stackoverflow.com/questions/13745093/a-portable-function-to-create-a-bmp-file-from-raw-bytes
+//http://www.cplusplus.com/reference/cstdio/FILE/
+
+void ImageLoadingUtility::save3DTextureAsImage( const char* output_file_path,
+												const std::string input_folder_path, const std::string input_textureBaseName, const std::string input_fileExtension,
+												int w, int h, int num2DImages, int numChannels )
+{
+	int texWidth, texHeight, texChannels;
+	size_t Image3DSize = w * h * num2DImages * numChannels;
+	uint8_t* texture3DPixels = new uint8_t[Image3DSize];
+	memset(texture3DPixels, 0, Image3DSize);
+	
+#pragma omp parallel for
+	for (int z = 0; z<num2DImages; z++)
+	{
+		std::string imageIdentifier = input_folder_path + input_textureBaseName + "(" + std::to_string(z + 1) + ")" + input_fileExtension;
+		const char* imagePath = imageIdentifier.c_str();
+		stbi_uc* pixels = stbi_load(imagePath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+		if (!pixels) {
+			throw std::runtime_error("failed to load texture image!");
+		}
+
+		memcpy(&texture3DPixels[z * texWidth * texHeight * 4], pixels, static_cast<size_t>(texWidth * texHeight * 4));
+		stbi_image_free(pixels);
+	}
+	
+	FILE* outfile;
+	outfile = fopen(output_file_path, "w");
+	
+	//use stbi image library to write images
+	stbi_write_tga(output_file_path, w, h*num2DImages, 4, texture3DPixels);
+
+	fclose(outfile);
 }

@@ -76,6 +76,9 @@ public:
 	// Resource Creation and Recreation
 	void CreateResources();
 
+	//Create and save 3D textures
+	void Save3DTextureAsImage();
+
 private:
 	VulkanDevice* device; // manages both the logical device (VkDevice) and the physical Device (VkPhysicalDevice)
 

@@ -104,6 +104,9 @@ void Renderer::InitializeRenderer()
 
 	CreateAllPipeLines(renderPass, 0);
 	RecordAllCommandBuffers();
+
+	//Save 3D texture out to ppm image
+	Save3DTextureAsImage();
 }
 
 void Renderer::RecreateOnResize(uint32_t width, uint32_t height)
@@ -1441,4 +1444,16 @@ void Renderer::CreateResources()
 
 	previousFrameTexture = new Texture2D(device, window_width, window_height, VK_FORMAT_R8G8B8A8_SNORM);
 	previousFrameTexture->createEmptyTexture(logicalDevice, physicalDevice, computeCommandPool);
+}
+
+//--------------------------------------------------------
+//------ Create And Save 3D Textures as ppm Images -------
+//--------------------------------------------------------
+void  Renderer::Save3DTextureAsImage() 
+{
+	const char* output_file_path = "../../src/CloudScapes/textures/Saved3DTexture.tga";
+	const std::string input_folder_path = "../../src/CloudScapes/textures/CloudTextures/LowFrequency/";
+	const std::string input_textureBaseName = "LowFrequency";
+	const std::string input_fileExtension = ".tga";
+	ImageLoadingUtility::save3DTextureAsImage(output_file_path, input_folder_path, input_textureBaseName, input_fileExtension, 128, 128, 128, 4);
 }
