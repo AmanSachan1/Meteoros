@@ -221,6 +221,12 @@ void main()
     float old_v = (oldCameraRayDir.y / (camera.tanFovBy2.y)) * 0.5 + 0.5;
     vec2 old_uv = vec2(old_u, old_v); //if old_uv is out of range -> the texture sampler simply returns black --> keep in mind when porting
 
+    // if(old_u > 1.0f || old_u < 0.0f || old_v > 1.0f || old_v < 0.0f)
+    // {
+    //     imageStore( currentFrameResultImage, ivec2(gl_GlobalInvocationID.xy), vec4(0,0,1,0) );
+    //     return;
+    // }
+
     vec2 motionVec = old_uv - uv;
     vec4 blurColor = vec4(0.0);
     vec2 blurOffset = vec2(0.0);

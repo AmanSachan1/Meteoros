@@ -87,7 +87,7 @@ struct Intersection {
 
 // Global Wind Defines
 #define WIND_DIRECTION vec3(1.0,0.0,0.0)
-#define CLOUD_SPEED 0.01
+#define CLOUD_SPEED 0.080
 #define CLOUD_TOP_OFFSET 1.0// this offset pushes the tops of the clouds along this wind direction by this many units
 
 // #define SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER + EARTH_RADIUS / 2.0, -EARTH_RADIUS * 1.5) //TODO:change it through uniform for an animated sky'
@@ -96,7 +96,7 @@ struct Intersection {
 // #define BACKGROUND_SKY_SUN_LOCATION vec3(0.0, ATMOSPHERE_RADIUS_OUTER * 0.9, -ATMOSPHERE_RADIUS_OUTER * 0.9)
 
 #define SUN_COLOR vec3(1.0, 1.0, 1.0)
-#define SUN_INTENSITY 1.0
+#define SUN_INTENSITY 0.780
 
 //--------------------------------------------------------
 //					TOOL BOX FUNCTIONS
@@ -565,11 +565,11 @@ float erodeCloudWithHighFrequency(in float baseCloud, in vec3 rayDir, in vec3 po
 vec3 rayMarch(Ray ray, vec3 earthCenter, in vec3 startPos, in float start_t, in float end_t, in int pixelID, inout float accumDensity)
 {
     float _dot = dot(ray.direction, vec3(0.0f, 1.0f, 0.0f));
-    float jitterfactor = 4.0f;
+    float jitterfactor = 1.180f;//4.0f;
 
     // MANIPULATE ME 
-    const float baseDensityFactor = 0.5f; // increase this to get more dense cloud centers    
-    const float maxSteps = floor(mix(40.0f, 50.0f, 1.0f - _dot));
+    const float baseDensityFactor = 0.380f;//0.5f; // increase this to get more dense cloud centers    
+    const float maxSteps = floor(mix(35.0f, 60.0f, 1.0f - _dot));
 	
     const float atmosphereThickness = (end_t - start_t);	
 	const float stepSize = (atmosphereThickness / maxSteps);
@@ -711,8 +711,9 @@ void main()
 	vec3 backgroundCol = BLACK;
 
 	float _dot = dot( vec3(0.0, 1.0, 0.0), ray.direction );
-	const float backgroundColorMultiplier = max(0.3, _dot);
+	const float backgroundColorMultiplier = max(0.620, _dot);
     vec3 transitionGradient = WHITE;
+    const float cloudFadeOutPoint = 0.06f;
 
 	if ( _dot < 0.0 )
 	{
@@ -726,7 +727,7 @@ void main()
 		imageStore( currentFrameResultImage, chosenPixel, vec4(backgroundCol, 1.0f) );
 		return;
 	}
-    else if (_dot < 0.125f )
+    else if (_dot < cloudFadeOutPoint )
     {
         // Get sky background color from Preetham Sun/Sky Model
         // backgroundCol = getAtmosphereColorPhysical(ray.direction, SUN_LOCATION - ray.origin, sunIntensity); //day time
@@ -758,7 +759,7 @@ void main()
 	float godRaysAccumDensity = accumDensity;
 
 	// Blend and fade out clouds into the horizon (CHANGE THIRD PARAM IN REMAP)
-    accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, 0.125f, 0.2f, 0.0f, 1.0f)));
+    accumDensity *= smoothstep(0.0, 1.0, min(1.0, remap(ray.direction.y, cloudFadeOutPoint, 0.2f, 0.0f, 1.0f)));
     
     vec4 finalColor = vec4(mix(backgroundCol, rayMarchResult, accumDensity), 1.0f);
     
@@ -790,6 +791,12 @@ void main()
 #elif CLOUD_DENSITY
 	finalColor = vec4( vec3(accumDensity), 1.0 );
 #elif HG_TEST
+    const vec3 lightDir = normalize(SUN_LOCATION - ray.origin);
+    const float cos_angle = dot(normalize(ray.direction), lightDir);
+    const float eccentricity = 0.6;
+    const float silver_intensity = 0.7;
+    const float silver_spread = 0.1;
+	float HG_light = HGModified(cos_angle, eccentricity, silver_intensity, silver_spread);
 	finalColor = vec4(vec3(HG_light), 1.0);
 #elif BACKGROUND_SKY
 	finalColor = vec4(backgroundCol, 1.0);

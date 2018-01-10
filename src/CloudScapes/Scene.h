@@ -59,6 +59,8 @@ public:
 	glm::vec2 GetTime() const;
 	float HaltonSequenceAt(int index, int base);
 
+	int count = 0;
+
 	VkBuffer GetKeyPressQueryBuffer() const;
 	void UpdateKeyPressQuery();
 	//KeyPressQuery GetKeyPressQuery() const;

@@ -823,7 +823,7 @@ void Renderer::RecordGraphicsCommandBuffer(std::vector<VkCommandBuffer> &graphic
 		//-----------------------------
 		//--- PostProcess Pipelines ---
 		//-----------------------------
-		// God Rays Pipeline
+		//// God Rays Pipeline
 		//vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 0, 1, &pingPongCloudResultSet, 0, NULL);
 		//vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 1, 1, &godRaysSet, 0, NULL);
 		//vkCmdBindDescriptorSets(graphicsCmdBuffer[i], VK_PIPELINE_BIND_POINT_GRAPHICS, postProcess_GodRays_PipelineLayout, 2, 1, &cameraSet, 0, NULL);
