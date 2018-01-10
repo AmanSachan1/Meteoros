@@ -1,10 +1,8 @@
 # Meteoros
 
-*polished version with more feaures to be released over winter break (before 2nd week of Jan)*
-
 ![](/images/READMEImages/finalRender.PNG)
 
-*Runs at 2.8ms/Frame - 14.6ms/Frame at a Full HD Resolution on a notebook GTX 1070. This will come down to be consistently <5 ms with a few more optimizations related to sampling close to the horizon and reducing the number of samples and hiding the artifacts with TXAA*
+*Runs at < 3ms/Frame at a Full HD Resolution on a notebook GTX 1070. Update to readme about how it got to 3ms/frame coming soon*
 
 ## Overview
 
