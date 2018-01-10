@@ -1,7 +1,5 @@
 # Meteoros
 
-*polished version with more feaures to be released over winter break (before 2nd week of Jan)*
-
 ![](/images/READMEImages/finalRender.PNG)
 
 *Runs at < 3ms/Frame at a Full HD Resolution on a notebook GTX 1070. Update to readme about how it got to 3ms/frame coming soon*
