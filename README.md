@@ -46,14 +46,11 @@ If you wish to run or develop on top of this program, please refer to the [INSTR
 - HDR color space
 - God-Rays and Tone Mapping Post processes
 - Raymarching and Cloud rendering Optimizations
-- Reprojection Optimization that is slightly buggy and currently only in the test branch 'AmanDev'
+- Fully functional Reprojection Optimization
+- Temporal Anti-Aliasing (TXAA)
 
 ### Upcoming <a name="Upcoming"></a>
-- Fully functional reprojection optimization
 - More refined cloud shapes and lighting
-- Anti-Aliasing - Temporal and Fast-Approximate (TXAA and FXAA)
-- Offscreen Rendering Pipeline
-- Cloud Shadow casting
 
 ## Pipeline Overview <a name="Pipeline"></a>
 
